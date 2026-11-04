@@ -1,6 +1,7 @@
 # Local data and third-party clones
 data/
 third_party/
+mit/bevfusion/
 
 # Legacy OpenMMLab harness and results (local only)
 archive/

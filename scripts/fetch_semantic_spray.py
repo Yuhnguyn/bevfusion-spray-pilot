@@ -44,7 +44,7 @@ def original_files():
     raise SystemExit("ORIGINAL bundle not found")
 
 
-def _fetch_range(url, path, start, end, retries=10):
+def _fetch_range(url, path, start, end, retries=60):
     want = end - start + 1
     for attempt in range(retries):
         local = os.path.getsize(path) if os.path.exists(path) else 0
@@ -65,7 +65,8 @@ def _fetch_range(url, path, start, end, retries=10):
                     out.write(chunk)
         except Exception as exc:  # connection drops are common upstream
             print(f"\n  retry {os.path.basename(path)}: {exc}")
-            time.sleep(min(2 * (attempt + 1), 30))
+        if os.path.getsize(path) != want:
+            time.sleep(min(5 * (attempt + 1), 60))
     if os.path.getsize(path) != want:
         raise RuntimeError(f"size mismatch for {path}")
 
