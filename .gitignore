@@ -1,0 +1,21 @@
+# Local data and third-party clones
+data/
+third_party/
+
+# Legacy OpenMMLab harness and results (local only)
+archive/
+results/
+out*/
+kernel/
+interactive/
+notebook-kernel/
+
+# Agent-local state
+.commandcode/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
