@@ -1,10 +1,11 @@
 # Spec — Spray plume augmentation cho BEVFusion (MIT)
 
-Version: 1.2
+Version: 1.3
 Status: needs-triage
 
 > Status flips to `ready-for-agent` only after the preconditions below pass.
 > Changes this round: model forward patch made explicit; plume placement uses velocity direction; velocity frame marked for verification; plume generator reduced to a v1-minimal form; evidence-ladder stages gated behind a positive mini signal; tensor-hash test replaced.
+> v1.3: thêm arm tham chiếu B0 (lọc spray rồi detect, ticket 14); ghi ADR-0001..0003; sửa citation RA-L 2023; bỏ paper totals khỏi vai trò anchor thống kê.
 
 ## Problem Statement
 
@@ -14,7 +15,9 @@ Repo MIT ở HEAD có khác biệt so với bản release ở đường depth c�
 
 ## Solution
 
-Dùng một **plume injection rút gọn** (không phải port trung thành của simulator Linnhoff) để chèn plume lên nuScenes, chạy thí nghiệm paired A/B (clean-only vs spray-aug) trên cùng frame, với tham số spray **held-out** khi đánh giá. Giai đoạn đầu chỉ có plume, không wet-ground, không attenuation. Kèm theo: so thống kê simulator với paper và spray thật, phân tích độ nhạy tham số, và cross-generator check. Kết quả là báo cáo + recipe để đội khác full train.
+Dùng một **plume injection rút gọn** (không phải port trung thành của simulator Linnhoff) để chèn plume lên nuScenes, chạy thí nghiệm paired A/B (clean-only vs spray-aug) trên cùng frame, với tham số spray **held-out** khi đánh giá. Giai đoạn đầu chỉ có plume, không wet-ground, không attenuation. Kèm theo: so thống kê simulator với spray thật, phân tích độ nhạy tham số, và cross-generator check. Kết quả là báo cáo + recipe để đội khác full train.
+
+Thêm một **arm tham chiếu B0** (không train): lọc spray bằng filter thống kê rồi chạy model của arm A. Không có B0 thì kết quả âm không phân biệt được "augmentation không giúp" với "chưa thử cách rẻ hơn" (ticket 14).
 
 ## Preconditions (phải pass trước khi implement)
 
@@ -113,6 +116,9 @@ Both arms must share and log: checkpoint path/hash, train/val scene split, freez
   - Gap reduction: `G_A - G_B >= 0.5 * G_A`, where `G_X = mAP_clean(X) - mAP_spray(X)`.
   - Require `G_A` to be positive and above the noise floor; otherwise report "no measurable gap".
   - FP direction: unmatched-prediction count on held-out spray is lower for B, with scene-clustered intervals.
+- **Reference arm B0** (filter-then-detect, không train): báo cùng bộ metric trên cùng frame list.
+  B không vượt B0 thì kết luận phải nêu rõ augmentation không hơn được filter thống kê, không được
+  viết "spray augmentation không hiệu quả" (ticket 14).
 - Noise floor: half-width of the scene-clustered interval for `G_A`. With one training seed, results are directional only.
 - Intervals are bootstrapped by **scene**, not by frame.
 
@@ -150,14 +156,18 @@ Both arms must share and log: checkpoint path/hash, train/val scene split, freez
 - Full nuScenes training.
 - Architecture changes to fusion.
 - Temporal misalignment.
-- Using SemanticSpray for BEVFusion training/evaluation.
+- Using SemanticSpray for BEVFusion training/evaluation. Lý do và số đo: ADR-0003. Tóm tắt: 1 box/frame, 36/207 scene, 1 camera trước, 100% frame có spray nên không có counterfactual.
 - Claims about real-world effectiveness.
 
 ## Further Notes
 
 - nuScenes is CC BY-NC-SA; the Kaggle mirror has an "Unknown" license. Internal R&D only; verify structure and record provenance.
-- SemanticSpray (~10.5 GB) is used only to compare simulator statistics.
-- `GLOSSARY.md` exists; record ADRs for the MIT-version choice and for plume-only-first.
+- SemanticSpray (~16 GB sau giải nén; 31 GB trên đĩa vì giữ cả tar) chỉ dùng để so thống kê simulator
+  và làm point-wise sanity check. Không dùng tổng số điểm của paper làm anchor: tổng trong paper lệch
+  80–150 lần so với bản release, xem `docs/semantic-spray-stats.md`. Citation đúng: Piroli et al.,
+  RA-L 2023, vol. 8, no. 7, pp. 4322–4329, DOI 10.1109/LRA.2023.3282382.
+- ADR đã ghi: `docs/adr/0001` (pin MIT commit), `0002` (plume-only-first), `0003` (SemanticSpray chỉ
+  để hiệu chỉnh thống kê, không train/eval detection).
 - Velocity provenance: box features carry velocity for real boxes; pasted boxes come from the database sampler and must be verified. Confirm the velocity coordinate frame (ego vs global) from the loader before use, and report counts of eligible boxes with valid velocity.
 - Sweep policy differs by config: detection training uses 0 sweeps; evaluation may use 9 on mini and 0 on the keyframes-only subset. Do not compare absolute numbers across those sets.
 - If HEAD is used instead of the release commit, re-verify checkpoint loading and the depth tensor shape before any experiment.

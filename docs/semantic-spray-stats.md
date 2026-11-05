@@ -1,7 +1,7 @@
 # SemanticSpray statistics
 
 Sinh bởi `scripts/semantic_spray_stats.py`. Chỉ dùng để so thống kê
-simulator; dataset này không dùng để train/eval BEVFusion.
+simulator; dataset này không dùng để train/eval BEVFusion (lý do: `docs/adr/0003`).
 
 ## Câu hỏi và kết luận
 
@@ -26,7 +26,8 @@ tự không?
 
 ## Nguồn dữ liệu
 
-- SemanticSpray (Piroli et al., RA-L 2024), license CC BY 4.0.
+- SemanticSpray (Piroli et al., RA-L 2023, vol. 8, no. 7, pp. 4322–4329,
+  DOI 10.1109/LRA.2023.3282382; arXiv 2305.16129), license CC BY 4.0.
 - Devkit: https://github.com/uulm-mrm/semantic_spray_dataset
 - Root đọc: `data/SemanticSprayDataset` (2 nhóm scene, 207 scene).
 - `velodyne/*.bin`: `(x, y, z, intensity, ring)`; `labels/*.label`:
@@ -85,6 +86,30 @@ tự không?
 ## Khác biệt lớn
 
 - Dense plume thật nhỏ hơn một cluster simulator: median 17 so với 32 điểm.
+
+## Coverage
+
+- 207 scene = toàn bộ bản release (`Crafter_dynamic` + `Golf_dynamic`), **17.419 scan**,
+  ~**28.546 điểm/scan** (median, Velodyne VLP32C 32 tia).
+- Script đọc 2.070 frame (mẫu đều mỗi scene, ~12% tổng scan). Mọi con số nghiệm thu
+  simulator lấy từ mẫu này, không suy rộng.
+- Chỉ **36/207 scene** có `object_labels`: 2.587 frame, **2.595 box**, 1 box/frame (max 2),
+  class chỉ `Car` / `Van` / `Other Vehicle`. Đủ cho point-wise sanity check, không đủ cho mAP
+  detection (xem `docs/adr/0003`).
+- Spray chiếm **0,25–0,5%** số điểm mỗi scan.
+
+## Paper vs release
+
+| | paper (Sec. IV) | release local |
+|---|---|---|
+| scan | 16.565 | 17.419 |
+| background point | 6,23·10⁶ | ~4,9·10⁸ |
+| vehicle point | 4,84·10⁴ | chưa đo |
+| spray point | 2,15·10⁴ | ~3·10⁶ (ước từ mean 185 điểm/scan) |
+
+Tổng số của paper lệch **80–150 lần** so với bản release, nên **không dùng làm anchor**. Dùng bảng
+Observed distribution ở trên; nếu cần trích paper thì chỉ trích phần định tính (spray tạo cụm dày,
+filter thống kê thất bại) và các bảng kết quả point-wise.
 
 ## Caveats
 

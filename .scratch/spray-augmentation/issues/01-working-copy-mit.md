@@ -4,7 +4,7 @@
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Working copy tồn tại và checkout đúng commit đã chọn.
 - [x] `third_party/` không bị sửa.

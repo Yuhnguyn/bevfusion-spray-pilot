@@ -4,7 +4,7 @@
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Box BEV được chuyển thành polygon và tính IoU.
 - [x] Matching per class là greedy theo score.

@@ -4,7 +4,7 @@
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Download hoàn tất và extract được.
 - [x] Thống kê intensity, point count, distance được tính.
