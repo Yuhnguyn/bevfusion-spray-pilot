@@ -108,11 +108,11 @@ def test_simulator_estimate_respects_min_speed_and_clips():
     stopped = simulator_estimate(speed_kmh=0.0)
     at_fast = simulator_estimate(speed_kmh=500.0)
 
-    assert at_fifty["clusters_per_frame"] == 4
-    assert at_fifty["points_per_frame"] == 128
+    assert at_fifty["clusters_per_frame"] == 2
+    assert at_fifty["points_per_frame"] == 34
     assert stopped["clusters_per_frame"] == 0
     assert stopped["points_per_frame"] == 0
-    assert at_fast["clusters_per_frame"] == 6
+    assert at_fast["clusters_per_frame"] == 8
 
 
 def test_compare_rows_expose_simulator_values():
@@ -120,7 +120,7 @@ def test_compare_rows_expose_simulator_values():
 
     rows = {row["metric"]: row for row in compare_to_simulator(summary)}
 
-    assert rows["points/cluster (dense median)"]["simulator"] == 32
+    assert rows["points/cluster (dense median)"]["simulator"] == 17.0
     assert rows["distance to nearest vehicle point (m)"]["simulator"] == (1.0, 10.0)
     assert rows["intensity (median)"]["simulator"] == 0.0
 

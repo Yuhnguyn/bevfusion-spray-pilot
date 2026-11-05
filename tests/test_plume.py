@@ -1,14 +1,16 @@
 import numpy as np
 import pytest
 
-from spray.plume import PlumeConfig, inject_plume
+from spray.plume import PlumeConfig, cluster_count_for_speed, inject_plume
 
 
 def _config(**overrides):
     values = dict(
         point_cloud_range=(-54.0, -54.0, -5.0, 54.0, 54.0, 3.0),
         distance_range_m=(3.0, 6.0),
-        points_per_cluster=20,
+        points_per_cluster_median=20.0,
+        points_per_cluster_sigma=0.0,
+        cluster_radius_sigma=0.0,
         max_injected_points=200,
     )
     values.update(overrides)
@@ -29,7 +31,7 @@ def test_no_boxes_returns_clean_points_unchanged():
 def test_injects_behind_lead_vehicle_within_range():
     points = np.array([[0.0, 0.0, 0.0, 0.0, 0.0]], dtype=np.float32)
     boxes = np.array(
-        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 10.0, 0.0]], dtype=np.float32
+        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 20.0, 0.0]], dtype=np.float32
     )
 
     result = inject_plume(points, boxes, seed=1, config=_config())
@@ -74,8 +76,8 @@ def test_caps_injected_points_and_keeps_them_outside_boxes():
         [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 20.0, 0.0]], dtype=np.float32
     )
     config = _config(
-        points_per_cluster=100,
-        clusters_per_kmh=1.0,
+        points_per_cluster_median=100.0,
+        clusters_at_speed_bounds=(6, 6),
         max_injected_points=25,
     )
 
@@ -95,7 +97,7 @@ def test_caps_injected_points_and_keeps_them_outside_boxes():
 def test_same_seed_and_token_are_reproducible():
     points = np.zeros((1, 5), dtype=np.float32)
     boxes = np.array(
-        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 12.0, 0.0]], dtype=np.float32
+        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 20.0, 0.0]], dtype=np.float32
     )
     config = _config()
 
@@ -123,3 +125,41 @@ def test_rejects_invalid_shapes():
         inject_plume(np.zeros((2, 3)), np.empty((0, 9)), seed=0)
     with pytest.raises(ValueError):
         inject_plume(np.zeros((2, 5)), np.zeros((1, 6)), seed=0)
+
+
+def test_speed_threshold_accepts_exact_boundary():
+    """Box đúng 50 km/h phải được nhận, không bị loại vì làm tròn float32."""
+    points = np.zeros((1, 5), dtype=np.float32)
+    v32 = np.float32(50.0 / 3.6)
+    boxes = np.array(
+        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, float(v32), 0.0]], dtype=np.float32
+    )
+
+    result = inject_plume(points, boxes, seed=4, config=_config())
+
+    assert result.stats.eligible_boxes == 1
+    assert result.stats.skipped_low_speed == 0
+
+
+def test_cluster_count_grows_with_speed():
+    assert cluster_count_for_speed(49.0) == 0
+    assert cluster_count_for_speed(50.0) == 2
+    assert cluster_count_for_speed(90.0) == 5
+    assert cluster_count_for_speed(130.0) == 8
+    assert cluster_count_for_speed(160.0) == 8
+
+
+def test_points_per_cluster_matches_measured_median():
+    """Trung bình điểm/cụm phải quanh median thật (17) chứ không phải 32 cố định."""
+    points = np.zeros((1, 5), dtype=np.float32)
+    boxes = np.array(
+        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 27.8, 0.0]], dtype=np.float32
+    )
+    per_cluster = [
+        r.stats.injected / r.stats.clusters
+        for seed in range(40)
+        for r in [inject_plume(points, boxes, seed=seed, token="dist")]
+        if r.stats.clusters
+    ]
+
+    assert 14 <= float(np.mean(per_cluster)) <= 30

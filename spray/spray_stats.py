@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from spray.plume import PlumeConfig
+from spray.plume import PlumeConfig, cluster_count_for_speed
 
 NOISE_LABEL = 2
 FOREGROUND_LABEL = 1
@@ -232,16 +232,12 @@ def simulator_estimate(
     config: PlumeConfig | None = None, speed_kmh: float = 50.0
 ) -> dict:
     cfg = config or PlumeConfig()
-    if speed_kmh < cfg.min_speed_kmh:
-        clusters = 0
-    else:
-        clusters = int(round(cfg.clusters_per_kmh * speed_kmh))
-        clusters = min(max(clusters, 1), cfg.max_clusters_per_box)
+    clusters = cluster_count_for_speed(speed_kmh, cfg)
     return {
         "clusters_per_frame": clusters,
-        "points_per_frame": clusters * cfg.points_per_cluster,
-        "points_per_cluster": cfg.points_per_cluster,
-        "cluster_diameter_m": 2.0 * cfg.cluster_radius_m,
+        "points_per_frame": int(round(clusters * cfg.points_per_cluster_median)),
+        "points_per_cluster": cfg.points_per_cluster_median,
+        "cluster_diameter_m": 2.0 * cfg.cluster_radius_median_m,
         "distance_range_m": cfg.distance_range_m,
         "height_range_m": cfg.height_range_m,
         "intensity": cfg.intensity,

@@ -8,6 +8,17 @@ import numpy as np
 
 @dataclass(frozen=True)
 class PlumeConfig:
+    """Tham số sinh plume.
+
+    Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/semantic-spray-stats.md,
+    docs/adr/0003):
+
+    - Hiệu chỉnh theo Linnhoff et al. 2022 (arXiv 2212.08558): ngưỡng tốc độ
+      50 km/h, phân bố lognormal của bán kính cụm và số điểm/cụm.
+    - Đo trên SemanticSpray (bản release local): số cụm dense mỗi frame.
+    - Lựa chọn của repo, không có nguồn ngoài: bù hình học, biên an toàn.
+    """
+
     point_cloud_range: tuple[float, float, float, float, float, float] = (
         -54.0,
         -54.0,
@@ -16,11 +27,23 @@ class PlumeConfig:
         54.0,
         3.0,
     )
-    min_speed_kmh: float = 30.0
-    clusters_per_kmh: float = 0.08
-    max_clusters_per_box: int = 6
-    cluster_radius_m: float = 0.35
-    points_per_cluster: int = 32
+    # Linnhoff §III-A: spray bắt đầu ở 50 km/h.
+    min_speed_kmh: float = 50.0
+    # Dung sai để 50,0 km/h không bị loại vì làm tròn float32
+    # (float32(50/3.6)*3.6 = 50.0000015, nhưng float32(30/3.6)*3.6 = 29.999999).
+    speed_epsilon_kmh: float = 1e-3
+    # Số cụm tăng tuyến tính theo tốc độ; hai đầu là lựa chọn của repo, được
+    # chọn để khớp dense clusters/frame median = 5 của SemanticSpray ở dải giữa.
+    clusters_speed_bounds_kmh: tuple[float, float] = (50.0, 130.0)
+    clusters_at_speed_bounds: tuple[int, int] = (2, 8)
+    # Số điểm mỗi cụm: lognormal, median 17 (đo được), sigma chọn để p90 ~ 40.
+    points_per_cluster_median: float = 17.0
+    points_per_cluster_sigma: float = 0.67
+    points_per_cluster_bounds: tuple[int, int] = (3, 200)
+    # Bán kính cụm: lognormal median 0,30 m (Linnhoff Fig. 5, μ=-1,2 sigma=0,8).
+    cluster_radius_median_m: float = 0.30
+    cluster_radius_sigma: float = 0.8
+    cluster_radius_bounds_m: tuple[float, float] = (0.10, 1.50)
     distance_range_m: tuple[float, float] = (1.0, 10.0)
     height_range_m: tuple[float, float] = (0.2, 2.0)
     lateral_sigma_m: float = 0.5
@@ -48,6 +71,20 @@ class PlumeResult:
     points_clean: np.ndarray
     injected: np.ndarray
     stats: PlumeStats
+
+
+def cluster_count_for_speed(speed_kmh: float, config: PlumeConfig | None = None) -> int:
+    """Số cụm cho một box ở tốc độ cho trước (0 nếu dưới ngưỡng)."""
+    cfg = config or PlumeConfig()
+    if speed_kmh < cfg.min_speed_kmh - cfg.speed_epsilon_kmh:
+        return 0
+    lo_speed, hi_speed = cfg.clusters_speed_bounds_kmh
+    lo_count, hi_count = cfg.clusters_at_speed_bounds
+    if hi_speed <= lo_speed:
+        return lo_count
+    t = (speed_kmh - lo_speed) / (hi_speed - lo_speed)
+    t = min(max(t, 0.0), 1.0)
+    return int(round(lo_count + t * (hi_count - lo_count)))
 
 
 def inject_plume(
@@ -83,12 +120,11 @@ def inject_plume(
             stats.skipped_no_velocity += 1
             continue
         speed_kmh = speed * 3.6
-        if speed_kmh < cfg.min_speed_kmh:
+        n_clusters = cluster_count_for_speed(speed_kmh, cfg)
+        if n_clusters == 0:
             stats.skipped_low_speed += 1
             continue
 
-        n_clusters = int(round(cfg.clusters_per_kmh * speed_kmh))
-        n_clusters = min(max(n_clusters, 1), cfg.max_clusters_per_box)
         stats.eligible_boxes += 1
         direction = -np.array([vx, vy], dtype=np.float64) / speed
         perp = np.array([-direction[1], direction[0]])
@@ -102,8 +138,27 @@ def inject_plume(
                 + direction * distance
                 + perp * lateral
             )
-            offsets = _ball(rng, cfg.points_per_cluster, cfg.cluster_radius_m)
-            cloud = np.empty((cfg.points_per_cluster, 5), dtype=np.float32)
+            radius = _lognormal_clipped(
+                rng,
+                cfg.cluster_radius_median_m,
+                cfg.cluster_radius_sigma,
+                cfg.cluster_radius_bounds_m,
+            )
+            count = int(
+                round(
+                    _lognormal_clipped(
+                        rng,
+                        cfg.points_per_cluster_median,
+                        cfg.points_per_cluster_sigma,
+                        (
+                            float(cfg.points_per_cluster_bounds[0]),
+                            float(cfg.points_per_cluster_bounds[1]),
+                        ),
+                    )
+                )
+            )
+            offsets = _ball(rng, count, radius)
+            cloud = np.empty((count, 5), dtype=np.float32)
             cloud[:, 0] = offsets[:, 0] + center[0]
             cloud[:, 1] = offsets[:, 1] + center[1]
             cloud[:, 2] = offsets[:, 2] + z
@@ -194,6 +249,18 @@ def _in_range(
         and y_min <= point[1] <= y_max
         and z_min <= point[2] <= z_max
     )
+
+
+def _lognormal_clipped(
+    rng: np.random.Generator,
+    median: float,
+    sigma: float,
+    bounds: tuple[float, float],
+) -> float:
+    """Lognormal với median cho trước, kẹp vào bounds."""
+    lo, hi = bounds
+    value = median * float(np.exp(sigma * rng.normal()))
+    return float(min(max(value, lo), hi))
 
 
 def _ball(

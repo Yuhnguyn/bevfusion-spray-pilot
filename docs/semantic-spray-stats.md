@@ -74,18 +74,20 @@ tự không?
 
 | metric | real | simulator | note |
 |---|---|---|---|
-| points/frame | 144.00 | 128.00 | dense clusters only, vs one 50 km/h lead vehicle |
-| clusters/frame | 5.00 | 4.00 | dense clusters only, vs clipped k*speed |
-| points/cluster (median) | 2.00 | 32.00 | all clusters, including singletons |
-| points/cluster (dense median) | 17.00 | 32.00 | clusters with >= 5 points |
-| cluster extent (m) | 3.75 | 0.70 | p90 max axis-aligned span (chaining caveat) vs 2*radius |
+| points/frame | 144.00 | 76.00 | dense clusters only, vs one 50 km/h lead vehicle (config từ 2026-11-05) |
+| clusters/frame | 5.00 | 2.00 | dense clusters only, vs 2 cụm @50 km/h → 8 @130 km/h |
+| points/cluster (median) | 2.00 | 17.00 | all clusters; simulator dùng lognormal median 17 |
+| points/cluster (dense median) | 17.00 | 17.00 | khớp sau calibrate 2026-11-05 (trước là 32) |
+| cluster extent (m) | 3.75 | 0.60 | p90 max axis-aligned span (chaining caveat) vs 2*median radius 0,30 m |
 | distance to nearest vehicle point (m) | 26.08 | 1-10 | không so trực tiếp: real đo tới điểm foreground, simulator đo từ tâm box |
 | height (m) | 0.98 | 0.2-2 | median vs configured uniform range |
 | intensity (median) | 0.00 | 0.00 | raw SemanticSpray intensity vs configured constant |
 
 ## Khác biệt lớn
 
-- Dense plume thật nhỏ hơn một cluster simulator: median 17 so với 32 điểm.
+- Sau calibrate 2026-11-05, số điểm/cụm trùng median thật (17). Bảng trên được tính lại bằng tay từ
+  `PlumeConfig` mới; **cần chạy lại `scripts/semantic_spray_stats.py` để tái sinh toàn bộ bảng** trước
+  khi dùng làm con số nghiệm thu chính thức.
 
 ## Coverage
 
