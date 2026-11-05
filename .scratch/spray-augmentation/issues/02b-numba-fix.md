@@ -315,3 +315,18 @@ Nhưng ops smoke (`ops.json`) fail toàn bộ: `ModuleNotFoundError: No module n
 5 tiêu chí ticket 02 vẫn `false` (cùng hệ quả: ops smoke chưa pass).
 
 Fix tiếp theo (đã áp vào notebook, chưa push lúc ghi): thêm `torchvision==0.11.2+cu113` (pair với `torch==1.10.1+cu113`) vào bước cài pinned stack. Không đổi pin torch/numpy/mmcv/mmdet.
+
+
+### Version 13 — ops OK, model build fail (`train_cfg` attr access)
+
+Kernel `COMPLETE` (version 13).
+- `cuda_11x_toolkit: "11.8"`, `cuda_guard_bypassed: false`, `ops_built_and_gpu_smoke: true` ✅
+- `torchvision==0.11.2+cu113` cài OK; tất cả extensions import OK; GPU smoke `bev_pool` + `voxelize` OK.
+- Checkpoint tải OK (Dropbox mirror, sha256 đã ghi).
+
+Blocker mới: `step_model.py` / `step_checkpoint.py` / `step_forward.py` fail:
+`AttributeError: TransFusionHead: 'dict' object has no attribute 'assigner'`
+tại `mmdet3d/models/heads/bbox/transfusion.py:208` (`if isinstance(self.train_cfg.assigner, dict):`).
+Nguyên nhân: resolved config được nạp từ dict/JSON nên `train_cfg` là plain `dict`, nhưng mmcv 1.4.0/mmdet3d pin này dùng attribute access (`.assigner`). Đây là lỗi smoke harness (không phải pin stack).
+
+Fix (áp dụng cho v14, chưa push lúc ghi): trong `smoke_model.build`, wrap `cfg_model` bằng `mmcv.ConfigDict` đệ quy trước `build_model`. Không đổi pin.
