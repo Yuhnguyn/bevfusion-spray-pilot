@@ -1,12 +1,13 @@
 # Spec — Spray plume augmentation cho BEVFusion (MIT)
 
-Version: 1.4
-Status: needs-triage
+Version: 1.5
+Status: needs-triage — precondition 2 (smoke test) **PASS** 2026-11-05; 1, 3, 6 pass; 4 blocked on ticket 04; 5 blocked on ticket 06
 
 > Status flips to `ready-for-agent` only after the preconditions below pass.
 > Changes this round: model forward patch made explicit; plume placement uses velocity direction; velocity frame marked for verification; plume generator reduced to a v1-minimal form; evidence-ladder stages gated behind a positive mini signal; tensor-hash test replaced.
 > v1.3: thêm arm tham chiếu B0 (lọc spray rồi detect, ticket 14); ghi ADR-0001..0003; sửa citation RA-L 2023; bỏ paper totals khỏi vai trò anchor thống kê.
 > v1.4: thêm `## Related work & positioning` (Piroli 2023, Linnhoff 2022) — nêu rõ 4 claim hẹp, 4 non-claim, và 3 rủi ro effect size; bỏ ngầm hiểu "chưa ai đo augmentation cho spray".
+> v1.5: viết lại `### Plume injection` theo đúng `spray/plume.py` đã hiệu chỉnh (bỏ công thức `n = round(k·speed)` cũ); thêm `## Interface contract` (file, class, key, điểm đăng ký, forward patch, signature adapter); thêm `## Definition of done theo ticket` (test name cụ thể); chốt arm B0 (ROR, tham số pre-registered); chốt generator thứ hai (định nghĩa + điều kiện mở, không làm ở v1); nêu rõ precondition 2 đã pass.
 
 ## Problem Statement
 
@@ -116,29 +117,79 @@ Thêm một **arm tham chiếu B0** (không train): lọc spray bằng filter th
 
 ### Pipeline placement
 
-- Spray is inserted **after geometric augmentation and range filtering, before `PointShuffle`**.
-- Rationale: the model inverse-projects all points with `lidar_aug_matrix`; points generated in the post-augmentation frame follow the same path as real points. Capturing clean points at the same point keeps both streams in one frame.
-- The generator clamps to the point-cloud range and drops points inside GT boxes.
-- `PointShuffle` reorders only the augmented cloud; clean points keep their order, which is irrelevant to depth projection.
+Thứ tự **bắt buộc** trong chain của MIT (sai thứ tự → kết quả vô nghĩa, dù code chạy không lỗi):
 
-### Plume injection (v1-minimal generator)
+```
+LoadPointsFromFile → ... → GlobalRotScaleTrans → RandomFlip3D
+  → PlumeTransform → PointShuffle → DefaultFormatBundle3D → collect
+```
 
-Mục tiêu v1 chỉ là tạo tín hiệu directional, không tái tạo động học spray. Generator tối thiểu:
+- **Vì sao sau `GlobalRotScaleTrans` + `RandomFlip3D`:** velocity của box trong `nuscenes_infos_*.pkl` đã ở
+  LiDAR frame của keyframe hiện tại — chuỗi `nusc.box_velocity()` → `nuscenes_converter.py:264–268` →
+  `nuscenes_dataset.py:305–309` (cột 7:9) → `lidar_box3d.py:152–154` [CODE]. Plume sinh sau bước xoay/flip thì
+  plume và điểm thật cùng một frame; sinh trước thì plume trôi khỏi vị trí hình học của nó.
+- **Vì sao trước `PointShuffle`:** shuffle chỉ đổi thứ tự, không đổi toạ độ; đặt sau shuffle cũng đúng về toán
+  nhưng làm test "plume nằm ở cuối mảng" mất ý nghĩa. Chọn trước để kiểm tra được.
+- **`points_clean` chụp ngay tại thời điểm chèn**, cùng frame với `points`, không đi qua bất kỳ bước nào khác.
+- **Anchor code:** transform đăng ký trong `PIPELINES` tại `mmdet3d/datasets/pipelines/transforms_3d.py`;
+  `DefaultFormatBundle3D` trong `mmdet3d/datasets/pipelines/formating.py` chỉ wrap `points` và `radar` →
+  phải thêm `points_clean` tường minh.
+- **Velocity của box `ObjectPaste`:** box dán từ scene nguồn mang velocity của scene đó → set về 0 khi paste,
+  để plume không sinh ra từ box giả (đã ghi trong `docs/velocity-contract.md`).
 
-Inputs: augmented points, final GT boxes, point-cloud range, sample token, config seed, mode.
+### Plume injection — contract theo `spray/plume.py` (đã hiệu chỉnh)
 
-1. **Candidates**: vehicle classes. Box centre trong range; dùng final boxes sau `ObjectPaste`.
-2. **Direction**: hướng ngược chiều velocity. Nếu velocity thiếu, không hữu hạn, hoặc dưới ngưỡng, bỏ qua box và log lý do; không đặt plume khi không có speed. Velocity frame phải được xác minh trước khi dùng.
-3. **Cluster count**: `n = round(k * speed_kmh)` với `k` là hằng số config, clip `[1, max_clusters_per_box]`.
-4. **Placement**: mỗi cluster đặt sau box theo direction, khoảng cách đều trong `[1, 10]` m, z đều trong `[0.2, 2.0]` m, lateral offset nhỏ.
-5. **Shape**: mỗi cluster là một số điểm ngẫu nhiên trong hình cầu, count và radius đơn giản; không dùng tham số hiệu chỉnh của paper ở v1.
-6. **Intensity**: low percentile của nuScenes thật; default 0 khi chưa đo.
-7. **Channels**: `[x, y, z, intensity, 0]`; time lag 0.
-8. **Rejection**: bỏ điểm ngoài range hoặc trong GT box inflated 0.2 m; log tỉ lệ bị bỏ.
-9. **Cap**: `max_injected_points` (default 2000) mỗi frame; deterministic subsample nếu vượt.
-10. **Logging**: eligible boxes, clusters, injected points, reject reasons.
+**Nguồn sự thật duy nhất là `spray/plume.py` (289 dòng, 29 test).** Spec này mô tả contract; nếu code và spec
+lệch nhau, code đúng và spec phải sửa. Đã bỏ hoàn toàn công thức cũ `n = round(k · speed_kmh)` và clip `[1, 6]`.
 
-Không làm ở v1: attenuation, occlusion, xóa điểm thật, wet-ground, temporal history, ray casting, và toàn bộ tham số hiệu chỉnh của paper. Những thứ này thuộc v2.
+**API (đã có, dùng nguyên, không viết lại):**
+
+```python
+inject_plume(points, boxes, *, seed, token="", config=None) -> PlumeResult
+# points: (N, >=4) float32 hoặc (N,5); boxes: (M, >=9) -> x,y,z,dx,dy,dz,yaw,vx,vy
+# PlumeResult: .points (N+K,5) | .points_clean (N,5) | .injected (K,5) | .stats (PlumeStats)
+cluster_count_for_speed(speed_kmh, config=None) -> int   # 0 nếu dưới ngưỡng
+```
+
+**Tham số v1 và nguồn:**
+
+| Tham số | Giá trị | Nguồn |
+|---|---|---|
+| `min_speed_kmh` | 50,0 | Linnhoff §III-A — spray bắt đầu ở 50 km/h [PAPER] |
+| `speed_epsilon_kmh` | 1e-3 | bug float32: `float32(30/3.6)*3.6 = 29,999999` < 30 → phải có epsilon [CODE] |
+| số cụm theo tốc độ | tuyến tính 2 @ 50 km/h → 8 @ 130 km/h, 0 dưới 50 | hai đầu là [CHỌN], chọn để khớp dense clusters/frame median 5 đo trên SemanticSpray [ĐO] |
+| `points_per_cluster_median` | 17,0 (sigma 0,67, bounds 3–200) | cluster size median 17 đo trên SemanticSpray [ĐO] |
+| `cluster_radius_median_m` | 0,30 (sigma 0,8, bounds 0,10–1,50) | Linnhoff Fig. 5, lognormal μ=−1,2 σ=0,8 [PAPER] |
+| `distance_range_m` | 1,0–10,0 sau box | [CHỌN] |
+| `height_range_m` | 0,2–2,0 | [CHỌN] |
+| `lateral_sigma_m` | 0,5 | [CHỌN] |
+| `box_margin_m` | 0,2 (nới box trước khi loại điểm) | [CHỌN] |
+| `max_injected_points` | 2000 / frame | [CHỌN] — tránh làm cạn `max_voxels` |
+| `intensity` | 0,0 | 81,95% điểm spray thật có intensity = 0 [ĐO] |
+| `time_lag` | 0,0 | [CHỌN] |
+
+**Thuật toán (theo code, không phải theo ý định):**
+
+1. Với mỗi box: bỏ nếu toạ độ không hữu hạn, hoặc tâm ngoài `point_cloud_range`.
+2. Bỏ nếu thiếu velocity (mảng box < 9 cột, hoặc `vx/vy` không hữu hạn, hoặc speed ≈ 0) → `skipped_no_velocity`.
+3. Tính `speed_kmh = hypot(vx, vy) · 3,6`. Nếu `< 50 − ε` → bỏ (`skipped_low_speed`).
+4. `n_clusters = cluster_count_for_speed(speed_kmh)`; hướng plume = **ngược** vector velocity, chuẩn hoá; phương
+   vuông góc dùng cho lệch ngang.
+5. Mỗi cụm: khoảng cách đều `[1,10]` m theo hướng ngược velocity, lệch ngang `N(0; 0,5)` m, độ cao đều
+   `[0,2; 2,0]` m. Bán kính và số điểm rút từ lognormal có clip.
+6. Điểm trong cụm phân bố đều trong hình cầu bán kính đó; kênh `[x, y, z, intensity, time_lag]`.
+7. Loại điểm ngoài `point_cloud_range` (`rejected_range`) và điểm nằm trong GT box đã nới 0,2 m (`rejected_box`).
+8. Nếu vượt 2000 điểm → subsample không hoàn lại, giữ thứ tự (`capped`).
+9. Determinism: `rng` dựng từ `seed` + hash(`token`) → cùng sample + seed cho cùng kết quả.
+10. Log đủ: `eligible_boxes`, `skipped_no_velocity`, `skipped_low_speed`, `clusters`, `injected`,
+    `rejected_range`, `rejected_box`, `capped`.
+
+**Số kiểm chứng được (dùng làm assert trong test):** 49,9 km/h → 0 điểm; 50 → 2 cụm ≈ 76 điểm (0,22% của
+34.720); 80 → 4 cụm ≈ 99 điểm; 130 → 8 cụm ≈ 174 điểm (0,50%) [ĐO].
+
+**Không làm ở v1** (thuộc v2, xem `ADR-0002`): attenuation 0,02 m⁻¹, occlusion/làm mất điểm thật, wet-ground,
+ray casting theo từng tia, `P_det` lognormal per-beam, decay T = 0,5–1,5 s. Hệ quả phải nêu trong mọi kết luận:
+v1 chỉ **cộng** điểm lạ, không **lấy đi** điểm thật.
 
 ### A/B training equivalence
 
@@ -177,6 +228,53 @@ Both arms must share and log: checkpoint path/hash, train/val scene split, freez
 - Kaggle: 12-hour sessions, ~30 GPU-hours/week, 2×T4 16 GB, ~20 GB working disk.
 - If the pinned environment cannot be built, stop and report; do not silently switch codebases or versions.
 
+## Interface contract
+
+Mọi tên dưới đây là **hợp đồng**, không phải gợi ý. Đổi tên = đổi spec.
+
+| # | Thành phần | File | Symbol / key | Ghi chú |
+|---|---|---|---|---|
+| 1 | Transform chèn plume | `spray/plume_transform.py` (mới) | class `PlumeTransform`, `@PIPELINES.register_module()` | input dict: `points` (N,5 float32), `gt_bboxes_3d` (`LiDARInstance3DBoxes`), `metadata` (có `token`, `seed`). output: `points` (N+K,5), `points_clean` (N,5), `spray_stats` (dict) |
+| 2 | Sinh plume (đã có) | `spray/plume.py` | `inject_plume`, `cluster_count_for_speed`, `PlumeConfig` | transform chỉ **gọi**, không chép lại thuật toán |
+| 3 | Formatting | `mmdet3d/datasets/pipelines/formating.py` | `DefaultFormatBundle3D` | thêm `points_clean` vào danh sách wrap y như `points`; kết quả `img_metas[i]['points_clean']` là list tensor |
+| 4 | Forward patch | `mmdet3d/models/fusion_models/bevfusion.py:169–180` | `BEVFusion.forward` | camera branch đọc `kwargs.get('points_clean', kwargs['points'])`; LiDAR branch giữ `kwargs['points']`. Chỉ sửa đúng các dòng này |
+| 5 | Adapter evaluator | `proxy_eval/mit_adapter.py` (mới) | `to_eval_format(detections, class_names) -> list[dict]`, `load_gt_from_infos(info, class_names)` | mỗi phần tử: `{'boxes': (M,7) [x,y,z,dx,dy,dz,yaw], 'scores': (M,), 'labels': (M,)}`; thứ tự class lấy từ MIT dataset |
+| 6 | Lọc B0 | `spray/denoise.py` (mới) | `ror_filter(points, k=8, r=0.5) -> (keep_mask, stats)` | numpy, không thêm dependency |
+| 7 | Config | `configs/spray/*.yaml` | `arm: A\|B\|B0`, `spray: {enabled, min_speed_kmh, seed}` | 3 file, khác nhau **chỉ** ở `spray.enabled` và filter |
+| 8 | Thống kê | `spray/spray_stats.py` | `main()` | chạy trên SemanticSpray, xuất bảng so với simulator |
+
+## Arm B0 — filter-then-detect (pre-registered)
+
+- **Không train.** Dùng checkpoint của arm A, eval trên cùng frame list có plume.
+- Filter: **Radius Outlier Removal**, `k = 8` láng giềng, bán kính `0,5 m` [CHỌN], chạy trên `points` sau khi chèn
+  plume, trước `DefaultFormatBundle3D`, **chỉ ở eval**.
+- Tham số chốt trước khi xem kết quả, không tune trên eval set. Nếu tune, phải báo là tuned và chạy lại arm B.
+- Báo cáo: % điểm giữ lại, ms/frame, mAP, FP. So trực tiếp với B.
+- Kỳ vọng có sẵn: DROR trong Linnhoff làm AP **−5,5** (52,45 vs 57,97) [PAPER] → ROR nhẹ hơn nhưng vẫn có thể
+  âm. **B0 âm là kết quả hợp lệ**, không phải lỗi cần sửa.
+
+## Second generator — định nghĩa, mở có điều kiện
+
+- **Định nghĩa:** implementation độc lập theo cơ chế Linnhoff — ray-cast theo từng tia, `P_det` lognormal
+  (median 0,10), attenuation 0,02 m⁻¹, decay 0,5–1,5 s. Không dùng lại `plume.py`, không share RNG.
+- **Điều kiện mở:** chỉ sau khi G3 đạt (mini A/B dương và trên noise floor) — evidence ladder bước 3. Không code
+  trước, không tạo ticket trước.
+- **Lý do:** cross-generator check chỉ có nghĩa khi đã có tín hiệu để kiểm. Làm trước là đốt thời gian.
+
+## Definition of done theo ticket
+
+| Ticket | Xong khi | Test (pytest) |
+|---|---|---|
+| 06 adapter | 1 frame MIT đi qua adapter, box/scores/labels đúng thứ tự class, roundtrip không mất box | `test_mit_adapter.py::test_box_format_roundtrip`, `::test_class_order_matches_mit` |
+| 07 transform | chèn plume vào `points`, `points_clean` = input nguyên vẹn; cùng seed → cùng kết quả | `test_plume_transform.py::test_points_clean_equals_input`, `::test_injected_count_matches_stats`, `::test_deterministic_same_seed`, `::test_no_point_inside_gt_box`, `::test_below_threshold_no_injection` |
+| 08 routing | camera branch nhận `points_clean`, LiDAR branch nhận `points` (kiểm bằng marker, không bằng hash) | `test_routing.py::test_camera_branch_receives_clean_points`, `::test_lidar_branch_receives_augmented_points` |
+| 09 e2e | 3 arm A/B/B0 chạy hết pipeline trên 1 sample; tắt spray thì `points_clean` == `points` | `test_pipeline_e2e.py::test_three_arms_run_end_to_end`, `::test_disabled_spray_leaves_points_unchanged` |
+| 10 config | 3 config tồn tại, khác nhau chỉ ở spray/filter | `test_config_arms.py::test_arms_differ_only_in_spray` |
+| 11 run | `results/<run>/report.md` có bảng A/B/B0 + CI theo scene + noise floor | kiểm bằng mắt, PM duyệt |
+| 14 B0 | lọc bỏ điểm cô lập, giữ cấu trúc dày; thời gian/frame được ghi | `test_denoise.py::test_ror_removes_isolated_points`, `::test_ror_keeps_dense_structures` |
+| 02b | `report.json` 6/6 true + version đã Save trên Kaggle | `--` (đọc artifact) |
+| 04 | forward 1 sample thật chạy được, `real_infos_available: true`, có bảng đếm | `--` (đọc artifact) |
+
 ## Testing Decisions
 
 - Test external behavior only: points land in the intended region, both streams describe the same frame, intensities stay in range, injection is deterministic, the model receives the right tensor on the right branch.
@@ -193,6 +291,7 @@ Both arms must share and log: checkpoint path/hash, train/val scene split, freez
 - Camera-side spray (lens droplets, direct splash).
 - Wet-ground in v1.
 - Attenuation, occlusion, removal of real returns.
+- Generator thứ hai (ray-cast, cơ chế Linnhoff) — chỉ mở sau khi G3 đạt; xem `## Second generator`.
 - Full nuScenes training.
 - Architecture changes to fusion.
 - Temporal misalignment.
