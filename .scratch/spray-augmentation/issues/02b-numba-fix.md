@@ -18,7 +18,19 @@
 | 9 | CUDA 11.8 | fail `cusparse.h` | thiếu CUDA dev headers, host compiler là gcc-13 |
 | 10 | CUDA 13 + bypass guard | fail | tên package `cuda-cusparse-dev-11-8` không tồn tại → apt exit 100 → mất cả nvcc 11 |
 | 11 | CUDA 11.8, không bypass | fail `cusolverDn.h` | gcc-11 + cusparse/cublas/curand đã OK; thiếu cusolver |
-| 12 | CUDA 11.8 | đang chạy lúc bàn giao | đã thêm `libcusolver-dev-11-8` |
+| 12 | CUDA 11.8, gcc-11 | **build ops thành công** (`build_rc: 0`) nhưng `ops_ok=false` | thiếu `torchvision` — mmcv import nó ngay khi `import mmdet3d.ops` |
+
+**Việc tiếp theo duy nhất (v13):** thêm `"torchvision==0.11.2+cu113"` vào **cùng** command `uv pip install`
+đang cài `torch==1.10.1+cu113` trong cell 4, giữ nguyên `--index-strategy unsafe-best-match`.
+Lý do: `mmdet3d/ops/__init__.py` → `mmcv.ops` → `torchvision` → `ModuleNotFoundError`. torchvision 0.11.2
+là bản khớp cứng với torch 1.10.1, không đổi version nào khác. Push lại và đọc `ops.json`.
+Dự phòng: sau `torchvision` có thể còn thiếu `pycocotools` (chỉ cần cho eval, không cần cho forward) —
+nếu lỗi, xử từng gói một, ghi vào bảng dưới, không cài theo lô.
+
+**Bằng chứng v12 (đã đạt, không cần làm lại):** `pin_da93b27=true`, `env_pinned=true`,
+`config_invariants=true`, `cuda_11x_toolkit="11.8"`, `cuda_guard_bypassed=false`,
+`checkpoint_obtained=true` (mirror Dropbox), `build_rc=0`, 11 extension `.so` đã copy vào
+`site-packages/mmdet3d`, GPU `Tesla T4` ×2, `TORCH_CUDA_ARCH_LIST=7.5`.
 
 **Việc phải làm, theo thứ tự:**
 

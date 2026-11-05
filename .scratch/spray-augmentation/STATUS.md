@@ -10,9 +10,10 @@ khoảng cách giữa mAP trên frame sạch và frame có spray — đo trên n
 
 ## Blocker duy nhất đang chặn toàn bộ dự án
 
-**Ticket 02b — môi trường Kaggle.** Chưa build được CUDA ops của mmdet3d, nên model không dựng được,
-nên 5/6 tiêu chí smoke test false. Mọi ticket từ 04 trở đi đều cần một forward thật, nên **không mở
-song song việc khác** cho tới khi 02b xanh.
+**Ticket 02b — môi trường Kaggle.** v12 đã build xong CUDA ops (`build_rc: 0`, CUDA 11.8 + gcc-11), nhưng
+`import mmdet3d.ops` vẫn chết vì thiếu `torchvision`, nên `ops_ok=false` → model không dựng được → 5/6 tiêu
+chí false. Còn đúng **một dòng** phải sửa: thêm `torchvision==0.11.2+cu113` vào command cài torch.
+Mọi ticket từ 04 trở đi đều cần một forward thật, nên **không mở song song việc khác** cho tới khi 02b xanh.
 
 Chuỗi nguyên nhân đã chốt (đừng điều tra lại): thiếu `numba` → uv không resolve được torch → escape `%`
 trong `git log --format` → thiếu CUDA dev headers (`cusparse.h`, `cusolverDn.h`) → host compiler
