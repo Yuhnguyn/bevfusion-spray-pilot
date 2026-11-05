@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spray Pilot · Kanban</title>
+<style>
+  :root {
+    --bg: #070b16;
+    --bg2: #0b1224;
+    --panel: #0f1830;
+    --card: #131e38;
+    --card2: #172444;
+    --line: #223257;
+    --text: #e9efff;
+    --muted: #95a5c9;
+    --faint: #6c7c9f;
+    --blue: #6ea8fe;
+    --green: #3ddc97;
+    --amber: #f5b14c;
+    --red: #ff6b7a;
+    --purple: #b792ff;
+    --shadow: 0 18px 50px rgba(0,0,0,.45);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 600px at 12% -8%, rgba(110,168,254,.14), transparent 60%),
+      radial-gradient(900px 500px at 92% 0%, rgba(183,146,255,.10), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button { font: inherit; cursor: pointer; }
+  .wrap { max-width: 1500px; margin: 0 auto; padding: 0 22px; }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    backdrop-filter: blur(14px);
+    background: rgba(7,11,22,.78);
+    border-bottom: 1px solid rgba(34,50,87,.8);
+  }
+  .topbar-inner {
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px 0;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+  .mark {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    display: grid; place-items: center; font-size: 13px; font-weight: 800; color: #071021;
+    box-shadow: 0 0 24px rgba(110,168,254,.35);
+  }
+  .nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .nav a {
+    color: var(--muted); padding: 7px 10px; border-radius: 8px; font-size: 13px;
+  }
+  .nav a:hover { color: var(--text); background: rgba(110,168,254,.1); text-decoration: none; }
+  .updated { color: var(--faint); font-size: 12px; white-space: nowrap; }
+
+  .hero { padding: 46px 0 26px; }
+  .hero-grid { display: grid; grid-template-columns: 1fr 240px; gap: 26px; align-items: center; }
+  .eyebrow { color: var(--blue); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; }
+  h1 { font-size: clamp(30px, 4vw, 46px); line-height: 1.1; margin: 8px 0 12px; letter-spacing: -.02em; }
+  .sub { color: var(--muted); max-width: 760px; font-size: 16px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: rgba(110,168,254,.10); border: 1px solid rgba(110,168,254,.25); color: #cfe0ff;
+  }
+  .badge.warn { background: rgba(245,177,76,.10); border-color: rgba(245,177,76,.3); color: #ffd894; }
+  .badge.good { background: rgba(61,220,151,.10); border-color: rgba(61,220,151,.3); color: #b6f5da; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pulse { animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity:.45; transform: scale(.75);} }
+
+  .ring-wrap { display: grid; place-items: center; position: relative; }
+  .ring { transform: rotate(-90deg); filter: drop-shadow(0 0 14px rgba(110,168,254,.25)); }
+  .ring-bg { stroke: rgba(255,255,255,.07); }
+  .ring-fg { stroke: url(#ringGrad); stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
+  .ring-label { position: absolute; text-align: center; }
+  .ring-label b { font-size: 34px; letter-spacing: -.03em; display: block; }
+  .ring-label span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 26px; }
+  .stat {
+    background: linear-gradient(180deg, rgba(19,30,56,.9), rgba(15,24,48,.9));
+    border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
+  }
+  .stat .k { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 7px; }
+  .stat .v { font-size: 28px; font-weight: 750; margin-top: 4px; letter-spacing: -.02em; }
+  .stat .s { color: var(--faint); font-size: 11px; margin-top: 2px; }
+
+  .focus {
+    margin-top: 18px; display: flex; gap: 14px; align-items: flex-start;
+    border: 1px solid rgba(110,168,254,.35);
+    background: linear-gradient(120deg, rgba(110,168,254,.14), rgba(183,146,255,.08));
+    border-radius: 16px; padding: 16px 18px;
+  }
+  .focus .ico {
+    width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto;
+    display: grid; place-items: center; background: rgba(110,168,254,.18); color: var(--blue);
+    font-size: 16px;
+  }
+  .focus b { display: block; margin-bottom: 2px; }
+  .focus p { margin: 0; color: var(--muted); font-size: 13.5px; }
+
+  section { padding: 34px 0; }
+  .sec-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  h2 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+  .sec-head p { margin: 0; color: var(--muted); font-size: 13px; }
+
+  .phases { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .phase {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 12px;
+    position: relative; overflow: hidden;
+  }
+  .phase::after {
+    content: ""; position: absolute; inset: auto 0 0 0; height: 2px;
+    background: linear-gradient(90deg, var(--blue), transparent);
+    opacity: .55;
+  }
+  .phase .pid { font-size: 10px; color: var(--faint); letter-spacing: .12em; font-weight: 700; }
+  .phase .pname { font-weight: 650; font-size: 13px; margin: 3px 0 2px; }
+  .phase .pdesc { color: var(--faint); font-size: 11px; line-height: 1.35; min-height: 30px; }
+  .phase .pbar { height: 4px; border-radius: 4px; background: rgba(255,255,255,.07); margin-top: 9px; overflow: hidden; }
+  .phase .pbar i { display: block; height: 100%; background: var(--blue); border-radius: 4px; }
+  .phase .pnum { font-size: 10px; color: var(--muted); margin-top: 5px; }
+
+  .toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin: 4px 0 16px;
+  }
+  .search {
+    flex: 1 1 260px; min-width: 220px; display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+  }
+  .search input { flex: 1; background: none; border: 0; outline: none; color: var(--text); font: inherit; }
+  .search input::placeholder { color: var(--faint); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+    border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 600;
+  }
+  .chip:hover { color: var(--text); border-color: #31456f; }
+  .chip.active { color: #071021; background: var(--blue); border-color: var(--blue); }
+
+  .board {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px;
+    align-items: start;
+  }
+  .col {
+    background: rgba(10,17,33,.72); border: 1px solid var(--line); border-radius: 16px;
+    padding: 12px; min-height: 200px;
+  }
+  .col-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+  .col-head .title { font-weight: 700; font-size: 14px; }
+  .col-head .count {
+    margin-left: auto; font-size: 11px; color: var(--muted);
+    background: rgba(255,255,255,.06); border-radius: 999px; padding: 2px 8px;
+  }
+  .col-hint { color: var(--faint); font-size: 11px; margin: 0 0 10px; }
+  .kdot { width: 8px; height: 8px; border-radius: 50%; }
+  .k-done { background: var(--green); }
+  .k-progress { background: var(--amber); }
+  .k-ready { background: var(--blue); }
+  .k-blocked { background: var(--red); }
+  .k-triage { background: var(--purple); }
+
+  .cards { display: grid; gap: 10px; }
+  .card {
+    text-align: left; width: 100%; color: inherit; position: relative;
+    background: linear-gradient(180deg, var(--card), var(--card2));
+    border: 1px solid var(--line); border-left: 3px solid var(--faint);
+    border-radius: 12px; padding: 12px 13px 11px;
+    transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
+  }
+  .card:hover { transform: translateY(-2px); border-color: #33507f; box-shadow: var(--shadow); }
+  .card.k-done { border-left-color: var(--green); }
+  .card.k-progress { border-left-color: var(--amber); }
+  .card.k-ready { border-left-color: var(--blue); }
+  .card.k-blocked { border-left-color: var(--red); }
+  .card .top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .tid {
+    font-size: 10px; font-weight: 800; letter-spacing: .04em;
+    color: #bcd2ff; background: rgba(110,168,254,.14); border: 1px solid rgba(110,168,254,.25);
+    padding: 2px 6px; border-radius: 6px;
+  }
+  .pchip { font-size: 10px; color: var(--faint); }
+  .card h3 { margin: 0 0 5px; font-size: 13.5px; line-height: 1.35; font-weight: 700; }
+  .card .brief {
+    color: var(--muted); font-size: 12px; line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .bar { height: 4px; background: rgba(255,255,255,.07); border-radius: 4px; margin: 10px 0 7px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 4px; background: var(--blue); }
+  .card.k-done .bar i { background: var(--green); }
+  .card.k-progress .bar i { background: var(--amber); }
+  .card.k-blocked .bar i { background: var(--red); }
+  .card .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .pct { color: var(--faint); font-size: 10.5px; }
+  .wait { color: var(--red); font-size: 10px; font-weight: 650; }
+  .free { color: var(--green); font-size: 10px; font-weight: 650; }
+  .empty { color: var(--faint); font-size: 12px; text-align: center; padding: 18px 6px; }
+
+  .deps { display: grid; gap: 10px; }
+  .dep-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .dep-row .lbl { color: var(--faint); font-size: 11px; width: 110px; flex: 0 0 auto; }
+  .dep-chip {
+    font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  }
+  .dep-chip.k-done { border-color: rgba(61,220,151,.35); color: #b6f5da; background: rgba(61,220,151,.08); }
+  .dep-chip.k-progress { border-color: rgba(245,177,76,.35); color: #ffd894; background: rgba(245,177,76,.08); }
+  .dep-chip.k-ready { border-color: rgba(110,168,254,.35); color: #cfe0ff; background: rgba(110,168,254,.08); }
+  .dep-chip.k-blocked { border-color: rgba(255,107,122,.35); color: #ffc2c8; background: rgba(255,107,122,.08); }
+  .arrow { color: var(--faint); font-size: 12px; }
+
+  .timeline { position: relative; padding-left: 22px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px;
+    background: linear-gradient(180deg, rgba(110,168,254,.4), rgba(34,50,87,.2));
+  }
+  .tl-item { position: relative; padding: 0 0 20px 10px; }
+  .tl-item::before {
+    content: ""; position: absolute; left: -22px; top: 4px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--faint); border: 2px solid var(--bg);
+  }
+  .tl-item.good::before { background: var(--green); }
+  .tl-item.warn::before { background: var(--amber); }
+  .tl-item.bad::before { background: var(--red); }
+  .tl-item.run::before { background: var(--blue); box-shadow: 0 0 0 4px rgba(110,168,254,.15); }
+  .tl-when { color: var(--faint); font-size: 11px; letter-spacing: .05em; }
+  .tl-title { font-weight: 700; font-size: 14px; margin: 2px 0 3px; }
+  .tl-body { color: var(--muted); font-size: 12.5px; }
+
+  .glossary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .term {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 13px;
+  }
+  .term b { font-size: 13px; }
+  .term p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+
+  footer {
+    margin-top: 20px; padding: 26px 0 40px; border-top: 1px solid var(--line);
+    color: var(--faint); font-size: 12px;
+  }
+  footer code { color: #cfe0ff; background: rgba(110,168,254,.1); padding: 2px 6px; border-radius: 6px; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(3,6,14,.6); backdrop-filter: blur(3px);
+    opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 50;
+  }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100%; width: min(520px, 100%);
+    background: linear-gradient(180deg, #0e1730, #0a1122);
+    border-left: 1px solid var(--line); z-index: 60;
+    transform: translateX(102%); transition: transform .24s ease;
+    display: flex; flex-direction: column; box-shadow: -30px 0 60px rgba(0,0,0,.5);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head {
+    padding: 18px 20px 12px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: start; gap: 10px;
+  }
+  .drawer-head h3 { margin: 2px 0 0; font-size: 18px; line-height: 1.3; }
+  .close {
+    margin-left: auto; background: rgba(255,255,255,.06); border: 1px solid var(--line);
+    color: var(--muted); width: 32px; height: 32px; border-radius: 9px; font-size: 16px;
+  }
+  .close:hover { color: var(--text); }
+  .drawer-body { padding: 16px 20px 28px; overflow: auto; }
+  .pillrow { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 16px; }
+  .pill {
+    font-size: 11px; font-weight: 650; padding: 4px 9px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted); background: var(--panel);
+  }
+  .pill.k-done { color: #b6f5da; border-color: rgba(61,220,151,.35); background: rgba(61,220,151,.08); }
+  .pill.k-progress { color: #ffd894; border-color: rgba(245,177,76,.35); background: rgba(245,177,76,.08); }
+  .pill.k-ready { color: #cfe0ff; border-color: rgba(110,168,254,.35); background: rgba(110,168,254,.08); }
+  .pill.k-blocked { color: #ffc2c8; border-color: rgba(255,107,122,.35); background: rgba(255,107,122,.08); }
+  .dsec { margin-bottom: 18px; }
+  .dsec h4 {
+    margin: 0 0 7px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  }
+  .dsec p { margin: 0; color: #c7d3ee; font-size: 13px; }
+  .checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 7px; }
+  .checks li { display: flex; gap: 9px; font-size: 12.5px; color: var(--muted); }
+  .checks li .box {
+    width: 16px; height: 16px; flex: 0 0 auto; border-radius: 5px; border: 1px solid var(--line);
+    display: grid; place-items: center; font-size: 10px; color: #071021; margin-top: 1px;
+  }
+  .checks li.done .box { background: var(--green); border-color: var(--green); }
+  .checks li.done { color: #b6f5da; }
+  .files { display: grid; gap: 5px; }
+  .files code { color: #cfe0ff; background: rgba(110,168,254,.1); padding: 3px 7px; border-radius: 6px; font-size: 11.5px; }
+  .note { width: 100%; min-height: 70px; resize: vertical; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font: inherit; font-size: 12.5px; }
+  .note::placeholder { color: var(--faint); }
+  .note-hint { color: var(--faint); font-size: 11px; margin-top: 5px; }
+
+  @media (max-width: 1180px) {
+    .phases { grid-template-columns: repeat(3, 1fr); }
+    .board { grid-template-columns: repeat(4, minmax(250px, 1fr)); overflow-x: auto; padding-bottom: 6px; }
+    .glossary { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .ring-wrap { order: -1; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .phases { grid-template-columns: repeat(2, 1fr); }
+    .nav { display: none; }
+    .board { grid-template-columns: repeat(4, minmax(230px, 1fr)); }
+    .glossary { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand"><span class="mark">SP</span> Spray Pilot</div>
+    <nav class="nav">
+      <a href="#overview">Tổng quan</a>
+      <a href="#board">Kanban</a>
+      <a href="#deps">Phụ thuộc</a>
+      <a href="#timeline">Dòng thời gian</a>
+      <a href="#glossary">Từ điển</a>
+    </nav>
+    <div class="updated">Cập nhật <b id="genTime">—</b></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero" id="overview">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">BEVFusion · spray plume · pilot v1</div>
+        <h1>Biến spray plume thành thứ đo được</h1>
+        <p class="sub">
+          Bảng điều khiển dễ hiểu cho người mới: mỗi thẻ là một việc, mỗi cột là một trạng thái.
+          Mục tiêu cuối cùng là biết <b>augmentation plume có giúp BEVFusion phát hiện tốt hơn không</b> —
+          trước khi giao full training cho đội khác.
+        </p>
+        <div class="badges">
+          <span class="badge">Spec v<span id="specVer">1.5</span> · <span id="specStatus">needs-triage</span></span>
+          <span class="badge good"><span class="dot"></span> Ticket 02 ALL_PASS</span>
+          <span class="badge warn"><span class="dot pulse"></span> v17 đang chạy</span>
+          <span class="badge" id="ticketCount">16 ticket</span>
+        </div>
+      </div>
+      <div class="ring-wrap">
+        <svg class="ring" width="170" height="170" viewBox="0 0 170 170" aria-hidden="true">
+          <defs>
+            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#6ea8fe"/>
+              <stop offset="100%" stop-color="#b792ff"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring-bg" cx="85" cy="85" r="62" fill="none" stroke-width="12"/>
+          <circle id="ringFg" class="ring-fg" cx="85" cy="85" r="62" fill="none" stroke-width="12"
+                  stroke-dasharray="389.6" stroke-dashoffset="389.6"/>
+        </svg>
+        <div class="ring-label"><b id="ringPct">0%</b><span>tiêu chí</span></div>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="focus" id="focus">
+      <div class="ico">▶</div>
+      <div>
+        <b id="focusTitle">Đang tải…</b>
+        <p id="focusDetail"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="phases">
+    <div class="sec-head">
+      <div>
+        <h2>Dòng chảy dự án</h2>
+        <p>Từ nền móng đến quyết định cuối. Mỗi ô là một nhóm việc, thanh nhỏ là số tiêu chí đã xong.</p>
+      </div>
+    </div>
+    <div class="phases" id="phaseGrid"></div>
+  </section>
+
+  <section id="board">
+    <div class="sec-head">
+      <div>
+        <h2>Kanban</h2>
+        <p>Bấm vào thẻ để xem giải thích đầy đủ, checklist và bước tiếp theo.</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <label class="search">
+        <span aria-hidden="true">⌕</span>
+        <input id="search" type="search" placeholder="Tìm theo số ticket, tên việc, từ khóa…" autocomplete="off">
+      </label>
+      <div class="chips" id="filters">
+        <button class="chip active" data-kind="all">Tất cả</button>
+        <button class="chip" data-kind="progress">Đang làm</button>
+        <button class="chip" data-kind="ready">Sẵn sàng</button>
+        <button class="chip" data-kind="blocked">Bị chặn</button>
+        <button class="chip" data-kind="done">Xong</button>
+      </div>
+    </div>
+    <div class="board" id="boardGrid"></div>
+  </section>
+
+  <section id="deps">
+    <div class="sec-head">
+      <div>
+        <h2>Bản đồ phụ thuộc</h2>
+        <p>Đọc là: mũi tên trái → phải, việc bên phải phải chờ việc bên trái xong.</p>
+      </div>
+    </div>
+    <div class="deps" id="depsList"></div>
+  </section>
+
+  <section id="timeline">
+    <div class="sec-head">
+      <div>
+        <h2>Dòng thời gian build</h2>
+        <p>Những gì đã xảy ra trên Kaggle, bằng ngôn ngữ thường.</p>
+      </div>
+    </div>
+    <div class="timeline" id="timelineList"></div>
+  </section>
+
+  <section id="glossary">
+    <div class="sec-head">
+      <div>
+        <h2>Từ điển cho người mới</h2>
+        <p>Những từ sẽ gặp suốt dự án, giải thích một câu.</p>
+      </div>
+    </div>
+    <div class="glossary" id="glossaryList"></div>
+  </section>
+
+  <footer>
+    <div>Board được tạo tự động từ <code>.scratch/spray-augmentation/issues</code> + <code>spec.md</code>.</div>
+    <div style="margin-top:6px">Cập nhật: chạy <code>python3 scripts/build_kanban.py</code> rồi publish lại. Ghi chú trong thẻ chỉ tồn tại trong phiên xem.</div>
+  </footer>
+</main>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+  <div class="drawer-head">
+    <div>
+      <div class="pchip" id="drawerMeta">—</div>
+      <h3 id="drawerTitle">—</h3>
+    </div>
+    <button class="close" id="closeDrawer" aria-label="Đóng">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<script>
+const DATA = {"generated": "2026-11-05 22:44", "spec": {"version": "1.5", "status": "needs-triage", "note": "Precondition 2 pass. Còn 4 (dataset gate) và 5 (evaluator) trước khi flip ready-for-agent."}, "focus": {"ticket": "04", "headline": "v17 đang chạy: load 1 sample để đóng ticket 04", "detail": "Sau khi có dataset_sample.json: đóng ticket 04, đếm velocity cho ticket 03, rồi sang ticket 06 (evaluator adapter)."}, "overall": {"tickets": 16, "boxes_done": 29, "boxes_total": 67, "percent": 43, "counts": {"done": 5, "progress": 2, "ready": 3, "blocked": 6, "triage": 0}}, "phases": [{"id": "P0", "name": "Nền móng & kiểm chứng", "desc": "Chốt version, môi trường, checkpoint, dataset, evaluator, velocity.", "tickets": ["01", "02", "02b", "03", "04", "05"], "done": 25, "total": 27, "percent": 93}, {"id": "P1", "name": "Pipeline chèn plume", "desc": "Transform, clean points, routing hai nhánh, test end-to-end.", "tickets": ["07", "08", "09", "15"], "done": 0, "total": 15, "percent": 0}, {"id": "P2", "name": "Đo lường & đối chứng", "desc": "Adapter evaluator, config A/B, arm lọc spray B0.", "tickets": ["06", "10", "14"], "done": 0, "total": 13, "percent": 0}, {"id": "P3", "name": "Mini A/B", "desc": "Train 2 arm trên tập nhỏ, eval trên spray held-out.", "tickets": ["11"], "done": 0, "total": 5, "percent": 0}, {"id": "P4", "name": "Quyết định", "desc": "Mở rộng hay dừng, dựa trên tiêu chí đã đăng ký trước.", "tickets": ["13"], "done": 0, "total": 3, "percent": 0}, {"id": "P5", "name": "Tham chiếu", "desc": "Thống kê spray thật để kiểm tra simulator (không dùng để train/eval).", "tickets": ["12"], "done": 4, "total": 4, "percent": 100}], "tickets": [{"id": "01", "title": "Dựng working copy MIT và pin version", "raw_status": "done", "blockers": [], "done": 4, "total": 4, "checklist": [{"done": true, "text": "Working copy tồn tại và checkout đúng commit đã chọn."}, {"done": true, "text": "`third_party/` không bị sửa."}, {"done": true, "text": "Quyết định `add_depth_features` và `height_expand` được ghi kèm lý do."}, {"done": true, "text": "Có một lệnh kiểm tra version chạy được."}], "meta": {"short": "Lấy đúng một bản BEVFusion MIT ở commit da93b27, tách khỏi bản gốc để cả nhóm chạy cùng một code.", "why": "Nếu mỗi người chạy một version khác nhau, kết quả không so sánh được với nhau.", "next": "Không còn — đã xong.", "evidence": "4/4 tiêu chí; third_party/ không bị sửa; lệnh version in ra da93b27.", "files": ["mit/PIN.md", "mit/bevfusion/"]}, "kind": "done", "short": "Lấy đúng một bản BEVFusion MIT ở commit da93b27, tách khỏi bản gốc để cả nhóm chạy cùng một code.", "why": "Nếu mỗi người chạy một version khác nhau, kết quả không so sánh được với nhau.", "next": "Không còn — đã xong.", "evidence": "4/4 tiêu chí; third_party/ không bị sửa; lệnh version in ra da93b27.", "files": ["mit/PIN.md", "mit/bevfusion/"], "phase": "P0", "blocked_labels": []}, {"id": "02", "title": "Smoke test checkpoint + một sample", "raw_status": "done", "blockers": ["01"], "done": 5, "total": 5, "checklist": [{"done": true, "text": "Checkpoint load được; missing/unexpected keys được liệt kê."}, {"done": true, "text": "Forward một sample không lỗi shape."}, {"done": true, "text": "Output không có NaN/Inf."}, {"done": true, "text": "Depth tensor có đúng số channel mà transform nhận."}, {"done": true, "text": "Kết quả được lưu vào report."}], "meta": {"short": "Chạy thử đúng 1 frame: nạp checkpoint chính thức, forward model một lần, kiểm tra lỗi shape, NaN/Inf và số kênh depth.", "why": "Đây là đèn báo an toàn: nếu model và checkpoint không khớp thì mọi thí nghiệm sau đều vô nghĩa.", "next": "Đã xong; số liệu nằm trong ticket.", "evidence": "582/582 key khớp; forward 0.6 s, peak 1.98 GB; depth [6,1,256,704] đúng 1 kênh; mọi stage finite.", "files": [".scratch/spray-augmentation/issues/02-smoke-test-checkpoint.md", "kaggle/smoke_test/"]}, "kind": "done", "short": "Chạy thử đúng 1 frame: nạp checkpoint chính thức, forward model một lần, kiểm tra lỗi shape, NaN/Inf và số kênh depth.", "why": "Đây là đèn báo an toàn: nếu model và checkpoint không khớp thì mọi thí nghiệm sau đều vô nghĩa.", "next": "Đã xong; số liệu nằm trong ticket.", "evidence": "582/582 key khớp; forward 0.6 s, peak 1.98 GB; depth [6,1,256,704] đúng 1 kênh; mọi stage finite.", "files": [".scratch/spray-augmentation/issues/02-smoke-test-checkpoint.md", "kaggle/smoke_test/"], "phase": "P0", "blocked_labels": ["01"]}, {"id": "02b", "title": "Sửa môi trường và chạy lại smoke test (brief cho CommandCode)", "raw_status": "ready-for-agent", "blockers": ["02"], "done": 4, "total": 4, "checklist": [{"done": true, "text": "Numba 0.58.1 + uv index strategy + escape % trong git log"}, {"done": true, "text": "CUDA 11.8 + gcc-11 + đủ cusparse/cublas/curand/cusolver"}, {"done": true, "text": "torchvision 0.11.2+cu113 + shim numba.errors"}, {"done": true, "text": "Ticket 02 đạt ALL_PASS, checkpoint 582/582"}], "meta": {"short": "Sửa môi trường Kaggle (CUDA 11.8, gcc-11, torchvision, numba…) để smoke test chạy được.", "why": "Kaggle mặc định không có toolchain cũ; không sửa thì không build được CUDA ops.", "next": "Đã xong.", "evidence": "v15 ALL_PASS; toàn bộ chẩn đoán và fix nằm trong ticket 02b.", "files": [".scratch/spray-augmentation/issues/02b-numba-fix.md"], "checklist": [["x", "Numba 0.58.1 + uv index strategy + escape % trong git log"], ["x", "CUDA 11.8 + gcc-11 + đủ cusparse/cublas/curand/cusolver"], ["x", "torchvision 0.11.2+cu113 + shim numba.errors"], ["x", "Ticket 02 đạt ALL_PASS, checkpoint 582/582"]]}, "kind": "done", "short": "Sửa môi trường Kaggle (CUDA 11.8, gcc-11, torchvision, numba…) để smoke test chạy được.", "why": "Kaggle mặc định không có toolchain cũ; không sửa thì không build được CUDA ops.", "next": "Đã xong.", "evidence": "v15 ALL_PASS; toàn bộ chẩn đoán và fix nằm trong ticket 02b.", "files": [".scratch/spray-augmentation/issues/02b-numba-fix.md"], "phase": "P0", "blocked_labels": ["02"]}, {"id": "03", "title": "Xác minh velocity frame và ObjectPaste", "raw_status": "done (3/4 — mục cuối cần dữ liệu ticket 04)", "blockers": ["01"], "done": 3, "total": 4, "checklist": [{"done": true, "text": "Velocity frame được xác nhận từ loader và ghi lại."}, {"done": true, "text": "Box từ database sampler được kiểm tra có velocity hay không."}, {"done": true, "text": "Fallback policy được chốt: bỏ qua plume hay dùng giá trị mặc định."}, {"done": false, "text": "Có số đếm box eligible với velocity hợp lệ trên một sample. (cần ticket 04)"}], "meta": {"short": "Xác định vận tốc box nằm ở hệ tọa độ nào và box dán thêm (ObjectPaste) có vận tốc dùng được không — để đặt plume đúng hướng.", "why": "Plume phải nằm sau xe đang chạy. Dùng sai hệ tọa độ là plume lệch hướng, thí nghiệm mất giá trị.", "next": "Chỉ còn đếm số box đủ điều kiện trên một frame thật; chờ ticket 04 load được sample.", "evidence": "docs/velocity-contract.md: velocity ở LiDAR frame; ObjectPaste set velocity = 0; fallback skip.", "files": ["docs/velocity-contract.md", ".scratch/spray-augmentation/issues/03-velocity-frame.md"]}, "kind": "progress", "short": "Xác định vận tốc box nằm ở hệ tọa độ nào và box dán thêm (ObjectPaste) có vận tốc dùng được không — để đặt plume đúng hướng.", "why": "Plume phải nằm sau xe đang chạy. Dùng sai hệ tọa độ là plume lệch hướng, thí nghiệm mất giá trị.", "next": "Chỉ còn đếm số box đủ điều kiện trên một frame thật; chờ ticket 04 load được sample.", "evidence": "docs/velocity-contract.md: velocity ở LiDAR frame; ObjectPaste set velocity = 0; fallback skip.", "files": ["docs/velocity-contract.md", ".scratch/spray-augmentation/issues/03-velocity-frame.md"], "phase": "P0", "blocked_labels": ["01"]}, {"id": "04", "title": "Dataset gate trên Kaggle", "raw_status": "ready-for-agent", "blockers": ["01"], "done": 4, "total": 5, "checklist": [{"done": true, "text": "Dataset attach được và có đủ camera, LiDAR, metadata."}, {"done": true, "text": "Infos tạo được cho keyframes. (bằng chứng `infos.json` từ version đã commit)"}, {"done": false, "text": "Load được một sample qua pipeline. (chờ rerun sau khi drop `LoadBEVSegmentation`; mirror thiếu `maps/expansion/`)"}, {"done": true, "text": "License và provenance được ghi lại."}, {"done": true, "text": "Danh sách phần thiếu (nếu có) được báo."}], "meta": {"short": "Kiểm tra dataset nuScenes trên Kaggle: đủ camera/LiDAR/metadata, tạo được file infos (danh mục frame), và load được một frame qua pipeline.", "why": "Không có infos thì pipeline không biết frame nào, ảnh nào, calibration nào để load.", "next": "v17 đang chạy để hoàn tất 'load 1 sample'. Trước đó infos đã tạo được (train 120; val bản cũ 34k do bug subset).", "evidence": "infos.json: train 120 infos, first info 6 camera/10 GT. Mirror thiếu maps/expansion nên drop LoadBEVSegmentation khi use_map=false.", "files": ["kaggle/dataset_gate/", "kaggle/smoke_test/cells/17-ticket04-infos-and-sample.py"]}, "kind": "progress", "short": "Kiểm tra dataset nuScenes trên Kaggle: đủ camera/LiDAR/metadata, tạo được file infos (danh mục frame), và load được một frame qua pipeline.", "why": "Không có infos thì pipeline không biết frame nào, ảnh nào, calibration nào để load.", "next": "v17 đang chạy để hoàn tất 'load 1 sample'. Trước đó infos đã tạo được (train 120; val bản cũ 34k do bug subset).", "evidence": "infos.json: train 120 infos, first info 6 camera/10 GT. Mirror thiếu maps/expansion nên drop LoadBEVSegmentation khi use_map=false.", "files": ["kaggle/dataset_gate/", "kaggle/smoke_test/cells/17-ticket04-infos-and-sample.py"], "phase": "P0", "blocked_labels": ["01"]}, {"id": "05", "title": "Evaluator core + synthetic tests", "raw_status": "done", "blockers": [], "done": 5, "total": 5, "checklist": [{"done": true, "text": "Box BEV được chuyển thành polygon và tính IoU."}, {"done": true, "text": "Matching per class là greedy theo score."}, {"done": true, "text": "AP, recall theo range bucket, và FP count được tính."}, {"done": true, "text": "GT ngoài range được báo riêng và không vào mAP."}, {"done": true, "text": "Test synthetic cho perfect match, duplicate, wrong class, range filter đều pass."}], "meta": {"short": "Viết evaluator proxy mAP bằng Python thuần, có test bằng box giả để chứng minh nó tính đúng.", "why": "Cần một thước đo đáng tin trước khi so sánh A/B; không dùng kết quả cũ của OpenMMLab.", "next": "Đã xong.", "evidence": "5/5 test: perfect match, duplicate, wrong class, range filter.", "files": [".scratch/spray-augmentation/issues/05-evaluator-core.md", "proxy_eval/matcher.py"]}, "kind": "done", "short": "Viết evaluator proxy mAP bằng Python thuần, có test bằng box giả để chứng minh nó tính đúng.", "why": "Cần một thước đo đáng tin trước khi so sánh A/B; không dùng kết quả cũ của OpenMMLab.", "next": "Đã xong.", "evidence": "5/5 test: perfect match, duplicate, wrong class, range filter.", "files": [".scratch/spray-augmentation/issues/05-evaluator-core.md", "proxy_eval/matcher.py"], "phase": "P0", "blocked_labels": []}, {"id": "06", "title": "Adapter evaluator cho output MIT", "raw_status": "ready-for-agent", "blockers": ["02", "05"], "done": 0, "total": 4, "checklist": [{"done": false, "text": "Class order lấy từ định nghĩa dataset MIT, không từ raw index."}, {"done": false, "text": "Box prediction được convert đúng sang format evaluator."}, {"done": false, "text": "Một frame MIT chạy qua evaluator và cho kết quả hợp lý."}, {"done": false, "text": "Score threshold và range filter được ghi lại."}], "meta": {"short": "Chuyển output thật của BEVFusion (class, box format, score) sang định dạng evaluator hiểu, rồi chấm một frame thật.", "why": "Evaluator core đã có, nhưng output model khác format. Adapter là cầu nối; đây là precondition 5.", "next": "Bắt đầu ngay sau khi ticket 04 xong (cần một frame thật).", "evidence": "Chưa có — 0/4.", "files": [".scratch/spray-augmentation/issues/06-evaluator-adapter.md"]}, "kind": "ready", "short": "Chuyển output thật của BEVFusion (class, box format, score) sang định dạng evaluator hiểu, rồi chấm một frame thật.", "why": "Evaluator core đã có, nhưng output model khác format. Adapter là cầu nối; đây là precondition 5.", "next": "Bắt đầu ngay sau khi ticket 04 xong (cần một frame thật).", "evidence": "Chưa có — 0/4.", "files": [".scratch/spray-augmentation/issues/06-evaluator-adapter.md"], "phase": "P2", "blocked_labels": ["02", "05"]}, {"id": "07", "title": "Pipeline transform + clean points", "raw_status": "ready-for-agent", "blockers": ["01", "04"], "done": 0, "total": 4, "checklist": [{"done": false, "text": "Transform chạy sau geometric augmentation và range filter, trước `PointShuffle`."}, {"done": false, "text": "`points_clean` được tạo đúng thời điểm và format/collect đầy đủ."}, {"done": false, "text": "Spray off thì `points_clean` không xuất hiện hoặc bằng `points`."}, {"done": false, "text": "Smoke test trên một sample thật pass."}], "meta": {"short": "Viết transform chèn plume vào point cloud, giữ lại bản 'sạch' trước khi chèn để camera branch dùng.", "why": "Camera branch cần point sạch làm sparse depth; LiDAR branch cần point đã có plume. Không tách thì hai nhánh nhìn sai dữ liệu.", "next": "Chờ ticket 04 xong (cần sample thật để chạy transform).", "evidence": "0/4.", "files": [".scratch/spray-augmentation/issues/07-pipeline-transform.md", "spray/plume.py"]}, "kind": "blocked", "short": "Viết transform chèn plume vào point cloud, giữ lại bản 'sạch' trước khi chèn để camera branch dùng.", "why": "Camera branch cần point sạch làm sparse depth; LiDAR branch cần point đã có plume. Không tách thì hai nhánh nhìn sai dữ liệu.", "next": "Chờ ticket 04 xong (cần sample thật để chạy transform).", "evidence": "0/4.", "files": [".scratch/spray-augmentation/issues/07-pipeline-transform.md", "spray/plume.py"], "phase": "P1", "blocked_labels": ["04"]}, {"id": "08", "title": "Model forward routing", "raw_status": "ready-for-agent", "blockers": ["07"], "done": 0, "total": 4, "checklist": [{"done": false, "text": "Camera path nhận `points_clean`."}, {"done": false, "text": "LiDAR path nhận `points`."}, {"done": false, "text": "Stub model test xác nhận routing bằng shape và marker value."}, {"done": false, "text": "Không thay đổi kiến trúc hay số tham số."}], "meta": {"short": "Sửa model để nhánh camera nhận points_clean, nhánh LiDAR nhận points đã chèn plume.", "why": "Không patch thì camera vẫn nhận point có spray → sai thiết kế thí nghiệm.", "next": "Sau ticket 07.", "evidence": "0/4.", "files": [".scratch/spray-augmentation/issues/08-model-routing.md"]}, "kind": "blocked", "short": "Sửa model để nhánh camera nhận points_clean, nhánh LiDAR nhận points đã chèn plume.", "why": "Không patch thì camera vẫn nhận point có spray → sai thiết kế thí nghiệm.", "next": "Sau ticket 07.", "evidence": "0/4.", "files": [".scratch/spray-augmentation/issues/08-model-routing.md"], "phase": "P1", "blocked_labels": ["07"]}, {"id": "09", "title": "End-to-end pipeline test", "raw_status": "ready-for-agent", "blockers": ["07", "08"], "done": 0, "total": 4, "checklist": [{"done": false, "text": "Cả hai stream tồn tại và cùng frame sau augmentation."}, {"done": false, "text": "Inverse `lidar_aug_matrix` trên một điểm đã biết cho đúng tọa độ."}, {"done": false, "text": "Spray off thì hai stream tương đương."}, {"done": false, "text": "Test chạy được trên CPU."}], "meta": {"short": "Test cả pipeline: hai luồng point cùng frame, đúng nhánh; tắt plume thì không có points_clean.", "why": "Chứng minh transform và routing hoạt động cùng nhau, không chỉ từng phần.", "next": "Sau ticket 07 và 08.", "evidence": "0/4.", "files": [".scratch/spray-augmentation/issues/09-pipeline-e2e-test.md"]}, "kind": "blocked", "short": "Test cả pipeline: hai luồng point cùng frame, đúng nhánh; tắt plume thì không có points_clean.", "why": "Chứng minh transform và routing hoạt động cùng nhau, không chỉ từng phần.", "next": "Sau ticket 07 và 08.", "evidence": "0/4.", "files": [".scratch/spray-augmentation/issues/09-pipeline-e2e-test.md"], "phase": "P1", "blocked_labels": ["07", "08"]}, {"id": "10", "title": "Train/eval config A/B", "raw_status": "ready-for-agent", "blockers": ["02", "04", "09"], "done": 0, "total": 4, "checklist": [{"done": false, "text": "Config A (clean) và B (spray) chỉ khác spray transform."}, {"done": false, "text": "Các yếu tố training giống nhau được ghi lại."}, {"done": false, "text": "Memory/time probe chạy trên T4."}, {"done": false, "text": "Freeze list được chốt: mở LiDAR encoder, fusion, BEV backbone/neck, head."}], "meta": {"short": "Tạo hai config A/B chỉ khác nhau ở plume; giữ nguyên checkpoint, split, optimizer, LR, seed, batch, số update; đo RAM/thời gian.", "why": "Nếu khác nhiều thứ, không biết cải thiện là do plume hay do config.", "next": "Sau ticket 09. Nhớ load bằng Config.fromfile(..., _base_), không round-trip qua JSON.", "evidence": "0/4.", "files": [".scratch/spray-augmentation/issues/10-train-eval-config.md"]}, "kind": "blocked", "short": "Tạo hai config A/B chỉ khác nhau ở plume; giữ nguyên checkpoint, split, optimizer, LR, seed, batch, số update; đo RAM/thời gian.", "why": "Nếu khác nhiều thứ, không biết cải thiện là do plume hay do config.", "next": "Sau ticket 09. Nhớ load bằng Config.fromfile(..., _base_), không round-trip qua JSON.", "evidence": "0/4.", "files": [".scratch/spray-augmentation/issues/10-train-eval-config.md"], "phase": "P2", "blocked_labels": ["04", "09"]}, {"id": "11", "title": "Mini A/B run + report", "raw_status": "ready-for-agent", "blockers": ["06", "10"], "done": 0, "total": 5, "checklist": [{"done": false, "text": "Arm A và B chạy cùng ngân sách và seed."}, {"done": false, "text": "Eval trên held-out spray với tham số không dùng khi train."}, {"done": false, "text": "Báo `G = mAP_clean - mAP_spray` cho từng arm và paired delta."}, {"done": false, "text": "Bootstrap theo scene; FP và recall theo range được báo."}, {"done": false, "text": "Report + recipe được lưu."}], "meta": {"short": "Train hai arm trên tập nhỏ, eval trên spray held-out, báo chênh lệch paired + bootstrap theo scene, FP, recall, clean retention.", "why": "Đây là kết quả bắt buộc duy nhất của v1: có tín hiệu dương hay không.", "next": "Sau ticket 06 và 10.", "evidence": "0/5.", "files": [".scratch/spray-augmentation/issues/11-mini-ab-run.md"]}, "kind": "blocked", "short": "Train hai arm trên tập nhỏ, eval trên spray held-out, báo chênh lệch paired + bootstrap theo scene, FP, recall, clean retention.", "why": "Đây là kết quả bắt buộc duy nhất của v1: có tín hiệu dương hay không.", "next": "Sau ticket 06 và 10.", "evidence": "0/5.", "files": [".scratch/spray-augmentation/issues/11-mini-ab-run.md"], "phase": "P3", "blocked_labels": ["06", "10"]}, {"id": "12", "title": "SemanticSpray statistics", "raw_status": "done", "blockers": [], "done": 4, "total": 4, "checklist": [{"done": true, "text": "Download hoàn tất và extract được."}, {"done": true, "text": "Thống kê intensity, point count, distance được tính."}, {"done": true, "text": "So sánh với tham số simulator được ghi lại."}, {"done": true, "text": "Khác biệt lớn được nêu rõ, không suy diễn quá mức."}], "meta": {"short": "So sánh plume thật trong SemanticSpray với plume mô phỏng để biết simulator có hợp lý không.", "why": "Không dùng SemanticSpray để train/eval; chỉ dùng thống kê để hiệu chỉnh simulator.", "next": "Đã xong.", "evidence": "4/4; so sánh cluster dense, xét cả extent lẫn khoảng cách tới xe gần nhất.", "files": ["docs/semantic-spray-stats.md", "spray/stats/"]}, "kind": "done", "short": "So sánh plume thật trong SemanticSpray với plume mô phỏng để biết simulator có hợp lý không.", "why": "Không dùng SemanticSpray để train/eval; chỉ dùng thống kê để hiệu chỉnh simulator.", "next": "Đã xong.", "evidence": "4/4; so sánh cluster dense, xét cả extent lẫn khoảng cách tới xe gần nhất.", "files": ["docs/semantic-spray-stats.md", "spray/stats/"], "phase": "P5", "blocked_labels": []}, {"id": "13", "title": "Gate review sau mini A/B", "raw_status": "ready-for-agent", "blockers": ["11"], "done": 0, "total": 3, "checklist": [{"done": false, "text": "Kết quả mini A/B được đối chiếu với success criteria."}, {"done": false, "text": "Quyết định về larger subset, cross-generator, sensitivity, faithful generator được ghi."}, {"done": false, "text": "Nếu dừng, lý do và dữ liệu hỗ trợ được lưu."}], "meta": {"short": "Dựa trên mini A/B, quyết định mở rộng hay dừng; nếu không có khác biệt thì ghi 'no measurable gap'.", "why": "Tránh đốt compute vào hướng không có tín hiệu.", "next": "Sau ticket 11.", "evidence": "0/3.", "files": [".scratch/spray-augmentation/issues/13-gate-review.md"]}, "kind": "blocked", "short": "Dựa trên mini A/B, quyết định mở rộng hay dừng; nếu không có khác biệt thì ghi 'no measurable gap'.", "why": "Tránh đốt compute vào hướng không có tín hiệu.", "next": "Sau ticket 11.", "evidence": "0/3.", "files": [".scratch/spray-augmentation/issues/13-gate-review.md"], "phase": "P4", "blocked_labels": ["11"]}, {"id": "14", "title": "Arm B0 — baseline lọc spray trước khi detect", "raw_status": "ready-for-agent", "blockers": ["02", "05"], "done": 0, "total": 5, "checklist": [{"done": false, "text": "Chọn filter: radius outlier removal (DROR) hoặc statistical outlier removal (DSOR), tham số ghi vào config snapshot."}, {"done": false, "text": "Lọc chỉ áp ở eval time trên `points`; `points_clean` và camera branch không đổi."}, {"done": false, "text": "Chạy B0 trên đúng frame list và held-out spray params của cặp A/B."}, {"done": false, "text": "Báo cáo bảng A / B / B0 với cùng metric và cùng scene-clustered bootstrap."}, {"done": false, "text": "Ghi rõ giới hạn: filter xử lý spray ở mức point, không học được ngữ cảnh; precision của filter thống kê trên spray thật theo paper chỉ 50–52%."}], "meta": {"short": "Arm đối chứng không train: lọc điểm nghi spray bằng thống kê (ROR) rồi detect, để chứng minh augmentation đáng làm hơn cách rẻ.", "why": "Không có B0, kết quả âm của arm B có thể bị đổ cho 'chưa thử cách rẻ hơn'.", "next": "Có thể bắt đầu ngay (ticket 02 và 05 đã xong).", "evidence": "0/5; paper báo ROR precision ~50%.", "files": [".scratch/spray-augmentation/issues/14-denoise-baseline.md"]}, "kind": "ready", "short": "Arm đối chứng không train: lọc điểm nghi spray bằng thống kê (ROR) rồi detect, để chứng minh augmentation đáng làm hơn cách rẻ.", "why": "Không có B0, kết quả âm của arm B có thể bị đổ cho 'chưa thử cách rẻ hơn'.", "next": "Có thể bắt đầu ngay (ticket 02 và 05 đã xong).", "evidence": "0/5; paper báo ROR precision ~50%.", "files": [".scratch/spray-augmentation/issues/14-denoise-baseline.md"], "phase": "P2", "blocked_labels": ["02", "05"]}, {"id": "15", "title": "Sửa provenance của `PlumeConfig` (docstring + trích dẫn)", "raw_status": "ready-for-agent", "blockers": [], "done": 0, "total": 3, "checklist": [{"done": false, "text": "Sửa docstring PlumeConfig (dạng tuyến tính theo tốc độ, nguồn Linnhoff §III/Fig.4)"}, {"done": false, "text": "Ghi rõ hai chiều bị gộp ở v1: lớp xe, độ dày màng nước"}, {"done": false, "text": "Chạy pytest: 29 passed"}], "meta": {"short": "Sửa docstring/trích dẫn của PlumeConfig cho đúng paper Linnhoff §III/Fig.4; không đổi code hay tham số.", "why": "Tránh hiểu sai nguồn gốc tham số; PM từng nói sai là paper không có.", "next": "Có thể làm ngay, việc nhỏ.", "evidence": "docs/plume-model-provenance.md đã có; cần sửa docstring.", "files": ["docs/plume-model-provenance.md", "spray/plume.py"], "checklist": [[" ", "Sửa docstring PlumeConfig (dạng tuyến tính theo tốc độ, nguồn Linnhoff §III/Fig.4)"], [" ", "Ghi rõ hai chiều bị gộp ở v1: lớp xe, độ dày màng nước"], [" ", "Chạy pytest: 29 passed"]]}, "kind": "ready", "short": "Sửa docstring/trích dẫn của PlumeConfig cho đúng paper Linnhoff §III/Fig.4; không đổi code hay tham số.", "why": "Tránh hiểu sai nguồn gốc tham số; PM từng nói sai là paper không có.", "next": "Có thể làm ngay, việc nhỏ.", "evidence": "docs/plume-model-provenance.md đã có; cần sửa docstring.", "files": ["docs/plume-model-provenance.md", "spray/plume.py"], "phase": "P1", "blocked_labels": []}], "timeline": [{"when": "2026-11-05 · v17", "tone": "run", "title": "Đang chạy: hoàn tất ticket 04", "body": "Sửa index token sau khi lọc scene, drop LoadBEVSegmentation khi use_map=false. Kỳ vọng: infos train/val ~120, load 1 sample, có dataset_sample.json."}, {"when": "2026-11-05 · v16", "tone": "bad", "title": "Thêm bước tạo infos — lộ 2 lỗi", "body": "Tạo được infos nhưng val thành 34.029 vì converter gán mọi non-train sample vào val. Load sample fail vì mirror thiếu maps/expansion/*.json."}, {"when": "2026-11-05 · v15 (tay)", "tone": "good", "title": "Ticket 02 ALL_PASS", "body": "Checkpoint 582/582, forward 0.6 s, peak 1.98 GB, depth 1 kênh đúng dtransform, mọi output finite."}, {"when": "2026-11-05 · v14", "tone": "warn", "title": "Checkpoint load OK, model crash", "body": "ConfigDict đã sửa lỗi train_cfg, nhưng harness đọc DepthLSSTransform.out_channels — attr không tồn tại ở pin da93b27."}, {"when": "2026-11-05 · v13", "tone": "warn", "title": "Ops OK, thiếu torchvision", "body": "CUDA ops build và GPU smoke pass; mmcv runner cần torchvision nên ops smoke fail toàn bộ."}, {"when": "2026-11-05 · v12", "tone": "warn", "title": "CUDA 11.8 + gcc-11 hoạt động", "body": "Hết lỗi _Float32 và thiếu header; ops compile thành công. Blocker còn lại: torchvision."}], "glossary": [{"term": "Checkpoint", "def": "File chứa trọng số đã train. Nạp vào model để model có 'kiến thức'."}, {"term": "Forward", "def": "Chạy model một lần từ input đến output dự đoán."}, {"term": "Tensor / shape", "def": "Mảng số nhiều chiều. Shape là kích thước từng chiều, ví dụ [6,1,256,704]."}, {"term": "Plume", "def": "Cụm điểm nước bắn phía sau xe đang chạy trên đường ướt."}, {"term": "infos.pkl", "def": "File danh mục frame: đường dẫn ảnh/LiDAR, calibration, GT. Pipeline đọc file này."}, {"term": "Proxy mAP", "def": "Thước đo phát hiện tự viết, đơn giản hơn NDS của nuScenes, dùng để so A/B."}, {"term": "Paired A/B", "def": "So sánh hai phiên bản trên cùng một frame; chỉ khác đúng một biến."}, {"term": "Held-out spray", "def": "Bộ tham số spray không dùng khi train, chỉ dùng khi eval."}, {"term": "Precondition", "def": "Điều kiện phải xong trước khi được làm tiếp."}, {"term": "Blocked by", "def": "Ticket này phải chờ ticket khác xong mới bắt đầu."}, {"term": "Checkbox", "def": "Tiêu chí nghiệm thu. Chỉ tick khi có bằng chứng thật."}], "dep_chains": [["01", "02", "06", "10", "11", "13"], ["01", "04", "07", "08", "09", "10"], ["02", "05", "14"], ["07", "08", "09"]]};
+
+const KIND = {
+  done:     { label: "Xong",        col: "done" },
+  progress: { label: "Đang làm",    col: "progress" },
+  ready:    { label: "Sẵn sàng",    col: "ready" },
+  blocked:  { label: "Bị chặn",     col: "blocked" },
+  triage:   { label: "Cần phân loại", col: "triage" }
+};
+
+const COLUMNS = [
+  { kind: "progress", title: "Đang làm", hint: "Đã bắt đầu, còn tiêu chí chưa xong." },
+  { kind: "ready",    title: "Sẵn sàng", hint: "Không còn chờ ai — có thể bắt đầu." },
+  { kind: "blocked",  title: "Bị chặn",  hint: "Phải chờ ticket khác xong trước." },
+  { kind: "done",     title: "Xong",     hint: "Có bằng chứng, tiêu chí đã tick." }
+];
+
+const notes = {};
+let activeKind = "all";
+let query = "";
+
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function pct(t) {
+  if (!t.total) return t.kind === "done" ? 100 : 0;
+  return Math.round(100 * t.done / t.total);
+}
+
+function byId(id) { return DATA.tickets.find((t) => t.id === id); }
+
+function renderHeader() {
+  $("#genTime").textContent = DATA.generated;
+  $("#specVer").textContent = DATA.spec.version;
+  $("#specStatus").textContent = DATA.spec.status;
+  $("#ticketCount").textContent = DATA.overall.tickets + " ticket";
+  $("#focusTitle").textContent = DATA.focus.headline;
+  $("#focusDetail").textContent = DATA.focus.detail;
+
+  const o = DATA.overall;
+  $("#ringPct").textContent = o.percent + "%";
+  const c = 2 * Math.PI * 62;
+  const fg = $("#ringFg");
+  fg.setAttribute("stroke-dasharray", c.toFixed(2));
+  fg.style.strokeDashoffset = (c * (1 - o.percent / 100)).toFixed(2);
+}
+
+function renderStats() {
+  const o = DATA.overall;
+  const items = [
+    { k: "Đang làm", v: o.counts.progress, s: "còn tiêu chí chưa xong", cls: "k-progress" },
+    { k: "Sẵn sàng", v: o.counts.ready, s: "không còn bị chặn", cls: "k-ready" },
+    { k: "Bị chặn", v: o.counts.blocked, s: "chờ ticket khác", cls: "k-blocked" },
+    { k: "Xong", v: o.counts.done, s: "có bằng chứng", cls: "k-done" }
+  ];
+  $("#stats").innerHTML = items.map((i) => `
+    <div class="stat">
+      <div class="k"><span class="kdot ${i.cls}"></span>${i.k}</div>
+      <div class="v">${i.v}</div>
+      <div class="s">${i.s}</div>
+    </div>`).join("") + `
+    <div class="stat" style="grid-column: span 4; padding:10px 16px; display:flex; align-items:center; gap:10px">
+      <span class="k" style="margin:0">Tiến độ tiêu chí</span>
+      <div class="bar" style="flex:1; margin:0"><i style="width:${o.percent}%; background:linear-gradient(90deg,var(--blue),var(--purple))"></i></div>
+      <b style="font-size:13px">${o.boxes_done}/${o.boxes_total}</b>
+    </div>`;
+}
+
+function renderPhases() {
+  $("#phaseGrid").innerHTML = DATA.phases.map((p) => `
+    <div class="phase" title="${esc(p.desc)}">
+      <div class="pid">${p.id}</div>
+      <div class="pname">${esc(p.name)}</div>
+      <div class="pdesc">${esc(p.desc)}</div>
+      <div class="pbar"><i style="width:${p.percent}%"></i></div>
+      <div class="pnum">${p.done}/${p.total} tiêu chí · ${p.percent}%</div>
+    </div>`).join("");
+}
+
+function card(t) {
+  const p = pct(t);
+  const waiting = (t.blocked_labels || []).filter(Boolean);
+  const foot = t.kind === "blocked"
+    ? `<span class="wait">Chờ: ${esc(waiting.join(", "))}</span>`
+    : t.kind === "done"
+      ? `<span class="free">Hoàn tất</span>`
+      : t.kind === "ready"
+        ? `<span class="free">Có thể bắt đầu</span>`
+        : `<span class="pct">${t.done}/${t.total} tiêu chí</span>`;
+  return `
+    <button class="card k-${t.kind}" data-id="${t.id}" aria-label="Mở ticket ${t.id}">
+      <div class="top"><span class="tid">#${esc(t.id)}</span><span class="pchip">${esc(t.phase)}</span></div>
+      <h3>${esc(t.title)}</h3>
+      <div class="brief">${esc(t.short)}</div>
+      <div class="bar"><i style="width:${p}%"></i></div>
+      <div class="foot"><span class="pct">${t.total ? p + "%" : "—"}</span>${foot}</div>
+    </button>`;
+}
+
+function matches(t) {
+  const hay = (t.id + " " + t.title + " " + t.short + " " + t.why + " " + t.phase).toLowerCase();
+  const okKind = activeKind === "all" || t.kind === activeKind;
+  return okKind && (!query || hay.includes(query));
+}
+
+function renderBoard() {
+  const grid = $("#boardGrid");
+  grid.innerHTML = COLUMNS.map((c) => {
+    const items = DATA.tickets.filter((t) => t.kind === c.kind && matches(t)).sort((a, b) => a.id.localeCompare(b.id));
+    const body = items.length ? items.map(card).join("") : `<div class="empty">Không có thẻ</div>`;
+    return `
+      <div class="col">
+        <div class="col-head"><span class="kdot k-${c.kind}"></span><span class="title">${c.title}</span>
+          <span class="count">${items.length}</span></div>
+        <p class="col-hint">${c.hint}</p>
+        <div class="cards">${body}</div>
+      </div>`;
+  }).join("");
+}
+
+function renderDeps() {
+  $("#depsList").innerHTML = DATA.dep_chains.map((chain) => {
+    const chips = chain.map((id) => {
+      const t = byId(id);
+      const kind = t ? t.kind : "triage";
+      const title = t ? t.title : id;
+      return `<span class="dep-chip k-${kind}" title="${esc(title)}">${esc(id)}</span>`;
+    }).join('<span class="arrow">→</span>');
+    return `<div class="dep-row"><span class="lbl">Chuỗi</span>${chips}</div>`;
+  }).join("");
+}
+
+function renderTimeline() {
+  $("#timelineList").innerHTML = DATA.timeline.map((e) => `
+    <div class="tl-item ${esc(e.tone)}">
+      <div class="tl-when">${esc(e.when)}</div>
+      <div class="tl-title">${esc(e.title)}</div>
+      <div class="tl-body">${esc(e.body)}</div>
+    </div>`).join("");
+}
+
+function renderGlossary() {
+  $("#glossaryList").innerHTML = DATA.glossary.map((g) => `
+    <div class="term"><b>${esc(g.term)}</b><p>${esc(g.def)}</p></div>`).join("");
+}
+
+function openTicket(id) {
+  const t = byId(id);
+  if (!t) return;
+  $("#drawerMeta").textContent = `#${t.id} · ${t.phase} · ${KIND[t.kind].label}`;
+  $("#drawerTitle").textContent = t.title;
+  const checks = t.checklist.length
+    ? t.checklist.map((c) => `
+        <li class="${c.done ? "done" : ""}">
+          <span class="box">${c.done ? "✓" : ""}</span><span>${esc(c.text)}</span>
+        </li>`).join("")
+    : `<li><span class="box"></span><span>Chưa có checklist cho ticket này.</span></li>`;
+  const blockers = (t.blocked_labels || []).filter(Boolean);
+  const blockedText = blockers.length
+    ? blockers.map((b) => `#${esc(b)}`).join(", ")
+    : "Không chờ ai";
+  const files = (t.files || []).map((f) => `<code>${esc(f)}</code>`).join("");
+  $("#drawerBody").innerHTML = `
+    <div class="pillrow">
+      <span class="pill k-${t.kind}">${KIND[t.kind].label}</span>
+      <span class="pill">${t.done}/${t.total} tiêu chí</span>
+      <span class="pill">${esc(t.phase)}</span>
+      <span class="pill">${blockedText}</span>
+    </div>
+
+    <div class="dsec"><h4>Nói dễ hiểu</h4><p>${esc(t.short)}</p></div>
+    <div class="dsec"><h4>Vì sao phải làm</h4><p>${esc(t.why)}</p></div>
+    <div class="dsec"><h4>Việc phải làm (checkbox = tiêu chí nghiệm thu)</h4>
+      <ul class="checks">${checks}</ul></div>
+    <div class="dsec"><h4>Bằng chứng hiện có</h4><p>${esc(t.evidence || "Chưa có.")}</p></div>
+    <div class="dsec"><h4>Bước tiếp theo</h4><p>${esc(t.next || "—")}</p></div>
+    <div class="dsec"><h4>File / chỗ cần xem</h4><div class="files">${files || "<span class='pchip'>—</span>"}</div></div>
+    <div class="dsec"><h4>Ghi chú phiên của bạn</h4>
+      <textarea class="note" id="note-${t.id}" placeholder="Ví dụ: chờ log v17, nhớ kiểm tra dataset_sample.json…">${esc(notes[t.id] || "")}</textarea>
+      <div class="note-hint">Chỉ lưu trong phiên xem này, không ghi vào repo.</div>
+    </div>`;
+  const note = $(`#note-${t.id}`);
+  if (note) note.addEventListener("input", (e) => { notes[t.id] = e.target.value; });
+  $("#overlay").classList.add("open");
+  $("#drawer").classList.add("open");
+  $("#drawer").setAttribute("aria-hidden", "false");
+}
+
+function closeDrawer() {
+  $("#overlay").classList.remove("open");
+  $("#drawer").classList.remove("open");
+}
+
+function wire() {
+  $("#boardGrid").addEventListener("click", (e) => {
+    const c = e.target.closest(".card");
+    if (c) openTicket(c.dataset.id);
+  });
+  $("#overlay").addEventListener("click", closeDrawer);
+  $("#closeDrawer").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+  $("#search").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); renderBoard(); });
+  $("#filters").addEventListener("click", (e) => {
+    const b = e.target.closest(".chip");
+    if (!b) return;
+    activeKind = b.dataset.kind;
+    document.querySelectorAll("#filters .chip").forEach((x) => x.classList.toggle("active", x === b));
+    renderBoard();
+  });
+  $("#focus").addEventListener("click", () => openTicket(DATA.focus.ticket));
+  $("#focus").style.cursor = "pointer";
+}
+
+renderHeader();
+renderStats();
+renderPhases();
+renderBoard();
+renderDeps();
+renderTimeline();
+renderGlossary();
+wire();
+</script>
+</body>
+</html>
