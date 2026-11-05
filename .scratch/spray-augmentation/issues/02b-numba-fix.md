@@ -160,5 +160,71 @@ torch/numpy/mmcv/mmdet): cài đủ CUDA 11.8 dev libraries (`cuda-libraries-dev
 `libcusparse-dev-11-8` + `libcublas-dev-11-8`) và/hoặc build bằng `gcc-11`/`gcc-12` thay
 cho `gcc-13`; đây là thay đổi toolchain, không phải đổi version của stack đã pin.
 
-`numba==0.58.1` + hai fix bootstrap nằm trong working tree nhưng **chưa commit** vì kernel
-chưa pass. `mit/PIN.md` đã có checkpoint + sha256; ticket 02 chưa được tick.
+`numba==0.58.1` + hai fix bootstrap nằm trong commit `7addff3`. `mit/PIN.md` đã có checkpoint + sha256;
+ticket 02 chưa được tick.
+
+## Bàn giao 15:45 ngày 2026-11-05 — dừng giữa chuỗi fix toolchain
+
+Người dùng chuyển việc này cho công cụ khác. Trạng thái thật, không tô hồng:
+
+### Đã xác định nguyên nhân (v10, v11)
+
+Hai lỗi toolchain, **độc lập với `numba`**, đều nằm trong cell "Pick a CUDA toolkit":
+
+1. **Không có CUDA dev headers.** Cell chỉ cài `cuda-nvcc-11-8 cuda-cudart-dev-11-8`, nên
+   `ATen/cuda/CUDAContext.h` không tìm thấy `cusparse.h`, rồi `cusolverDn.h`.
+2. **Host compiler quá mới.** Image Kaggle hiện chỉ có `gcc-13`; CUDA 11.8 dùng gcc-13 làm host
+   compiler thì nvcc chết với `identifier "_Float32" is undefined` trong `/usr/include/stdlib.h`.
+   Cờ `--allow-unsupported-compiler` trong cell build chỉ tắt cảnh báo, không làm nó compile được.
+
+Ngoài ra tên package gói dev của NVIDIA trong repo ubuntu2204 là `lib*-dev-11-8`, **không phải**
+`cuda-cusparse-dev-11-8`. Dùng sai tên thì `apt-get` trả `exit 100` và **không cài gì cả** — kể cả
+nvcc, khiến cell rơi xuống nhánh CUDA 13 + bypass guard (v10: `cuda_11x_toolkit: "13.0"`,
+`cuda_guard_bypassed: true`, ops fail ngay).
+
+### Đã sửa trong working tree (chưa commit)
+
+`kaggle/smoke_test/bevfusion-smoke-test.ipynb`, cell 4, 5, 6:
+
+| Cell | Sửa | Lý do |
+|---|---|---|
+| 4 (pinned stack) | `--index-strategy unsafe-best-match` | uv chỉ xét index đầu tiên chứa `torch`, nên `torch==1.10.1+cu113` (chỉ có trên pytorch index) bị coi là không tồn tại |
+| 5 (clone/pin) | `--format="%%H %%ci %%s"` | chuỗi `%` bị Python hiểu là format → `TypeError: not enough arguments for format string` |
+| 6 (toolchain) | `apt-get install gcc-11 g++-11` khi máy chỉ có gcc-13 | CUDA 11.8 + gcc-13 → `_Float32` undefined |
+| 6 (toolchain) | tách lệnh apt: `cuda-nvcc-11-8 cuda-cudart-dev-11-8`, rồi `libcusparse-dev-11-8 libcublas-dev-11-8 libcurand-dev-11-8`, rồi `libcusolver-dev-11-8` | gói dev đúng tên; tách ra để một tên sai không kéo sập cả toolkit |
+
+### Kết quả từng version
+
+| Version | Toolkit | Ops build | Ghi chú |
+|---|---|---|---|
+| 8 | — | không chạy tới | chết ở bootstrap (uv + format string) |
+| 9 | 11.8 | fail: `cusparse.h` | thiếu dev headers, host compiler gcc-13 |
+| 10 | 13.0 + bypass | fail | tên package `cuda-cusparse-dev-11-8` sai → apt exit 100 → mất luôn nvcc 11 |
+| 11 | **11.8, không bypass** | fail: `cusolverDn.h` | gcc-11 OK, cusparse/cublas/curand OK; thiếu mỗi cusolver |
+| 12 | 11.8 | **chưa biết** | thêm `libcusolver-dev-11-8`; đang chạy lúc bàn giao |
+
+### Việc còn lại
+
+1. Chờ hoặc chạy lại v12:
+   ```
+   kaggle kernels push -p kaggle/smoke_test
+   kaggle kernels status nguynhuy9669/bevfusion-smoke-test
+   mkdir -p /tmp/k && kaggle kernels output nguynhuy9669/bevfusion-smoke-test -p /tmp/k
+   ```
+   (macOS không có lệnh `timeout`; đừng bọc bằng `timeout`.)
+2. Nếu ops vẫn fail: `grep -n "fatal error" /tmp/k/smoke_test/logs/build_ops.log | head` rồi cài đúng
+   gói theo header thiếu — `cusparse.h`→`libcusparse-dev-11-8`, `cublas_v2.h`/`cublasLt.h`→
+   `libcublas-dev-11-8`, `curand.h`→`libcurand-dev-11-8`, `cusolverDn.h`→`libcusolver-dev-11-8`,
+   `cufft.h`→`libcufft-dev-11-8`, `nvToolsExt.h`→`cuda-nvtx-11-8`. Mỗi gói một lệnh apt riêng.
+3. Khi `ops_ok=true`: đọc `artifacts/model.json`, `checkpoint.json`, `forward.json` và điền bảng 5
+   tiêu chí vào ticket 02; ghi `served_by` + `sha256` vào `mit/PIN.md` (sha256 đã có:
+   `ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122`).
+4. Không đổi pin `da93b27`, không đổi `torch/numpy/mmcv/mmdet`. Chỉ toolchain và gói hệ thống.
+
+### Bài học cho lần sau
+
+- Đừng gộp nhiều package chưa kiểm tra tên vào một `apt-get install`: sai một tên là mất cả lệnh.
+- `cuda_guard_bypassed: true` trong `artifacts/cuda_toolchain.json` là dấu hiệu **sai hướng**, không
+  phải thành công: ops build gần như chắc chắn fail với nvcc 13 + torch 1.10.
+- Kiểm tra nhanh sau khi push: `SUMMARY support` phải có `cuda_11x_toolkit: "11.8"` **và**
+  `ops_built_and_gpu_smoke: true` trước khi tin bất kỳ tiêu chí nào.
