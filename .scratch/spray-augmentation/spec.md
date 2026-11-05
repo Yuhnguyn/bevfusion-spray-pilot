@@ -1,17 +1,57 @@
 # Spec — Spray plume augmentation cho BEVFusion (MIT)
 
-Version: 1.3
+Version: 1.4
 Status: needs-triage
 
 > Status flips to `ready-for-agent` only after the preconditions below pass.
 > Changes this round: model forward patch made explicit; plume placement uses velocity direction; velocity frame marked for verification; plume generator reduced to a v1-minimal form; evidence-ladder stages gated behind a positive mini signal; tensor-hash test replaced.
 > v1.3: thêm arm tham chiếu B0 (lọc spray rồi detect, ticket 14); ghi ADR-0001..0003; sửa citation RA-L 2023; bỏ paper totals khỏi vai trò anchor thống kê.
+> v1.4: thêm `## Related work & positioning` (Piroli 2023, Linnhoff 2022) — nêu rõ 4 claim hẹp, 4 non-claim, và 3 rủi ro effect size; bỏ ngầm hiểu "chưa ai đo augmentation cho spray".
 
 ## Problem Statement
 
 Nhóm cần biết liệu augmentation **spray plume** có cải thiện khả năng phát hiện của BEVFusion (MIT) khi xe phía trước tạo plume trên đường ướt hay không, trước khi giao full training cho đội khác. Đây là bài toán cải thiện năng lực phát hiện dưới spray plume, không phải robustness dưới lỗi cảm biến. Hiện tại **chưa có phép đo nào**: chưa có training loop cho MIT, chưa có bộ sinh spray, chưa có evaluator cho MIT, và không có spray thật của nuScenes. Harness và kết quả cũ dựa trên BEVFusion của OpenMMLab không phải bằng chứng và nằm ngoài phạm vi. Compute chỉ có Kaggle T4.
 
 Repo MIT ở HEAD có khác biệt so với bản release ở đường depth của camera branch. Điều này **chưa được xác minh là tương thích** với checkpoint fused chính thức. Spec yêu cầu smoke test trước khi đầu tư vào transform.
+
+Đây là một câu hỏi **replication mở rộng**, không phải câu hỏi mở hoàn toàn: phần "spray có hại" và "augment spray có giúp detector LiDAR" đã có kết quả công bố. Xem `## Related work & positioning` ngay dưới.
+
+## Related work & positioning
+
+Hai bài dưới đây là nền của pilot. Không bài nào trả lời câu hỏi của mình, nhưng bỏ qua chúng thì spec sẽ claim novelty sai.
+
+**Piroli et al., "Energy-based Detection of Adverse Weather Effects in LiDAR Data"** (RA-L 2023, arXiv 2305.16129) — SemanticSpray + AWNet.
+- Giải: phân loại **point-wise** inlier/outlier, reframe thành outlier detection bằng energy score. **Không** đo object detector nào, **không** đề xuất augmentation.
+- Cấp cho plan: (a) thống kê spray thật để calibrate generator (dense cluster median 17 điểm, 144 điểm/frame, intensity ≈ 0); (b) bằng chứng cơ chế: spray là **cụm dày** nên filter thống kê hỏng (DROR/DSOR precision 50–52% trên spray, AWNet 87,5%) — đây là lý do augmentation có chỗ đứng và lý do plume phải sinh cluster; (c) baseline "lọc rồi detect" + cảnh báo sim→real (Fog-sim → spray: AUPR 70,52 dù AUROC 96,29).
+
+**Linnhoff et al., "Simulating Road Spray Effects in Automotive Lidar Sensor Models"** (arXiv 2212.08558) — model + augmentation.
+- Giải: mô hình **hình học** plume (cluster dọc quỹ đạo, ray casting, xác suất detection, attenuation), calibrate trên test track, rồi dùng chính nó để augment và **đo detector**.
+- Cấp cho plan: (a) tham số đã calibrate (spray bắt đầu **50 km/h**; bán kính cluster lognormal μ=−1,2 σ=0,8; P_det median ≈ 0,10; attenuation 0,02 m⁻¹; intensity 0); (b) bằng chứng augment có tác dụng: PV-RCNN **+17,39 AP** trên spray thật, clear weather không mất gì (58,90 vs 58,23); (c) ba kết quả phụ: DROR **−5,52 AP**, fog-sim **−14,65 AP**, Voxel-RCNN **+0,62 AP** (gần bằng 0); (d) code augmentation open source.
+
+**Đã được công bố, pilot KHÔNG claim:**
+- Spray làm detector sinh misdetection và ghost object (Walz et al. ITSC 2021, được cả hai bài trích).
+- Spray là cụm dày → filter thống kê không đủ (Piroli, Bảng III).
+- Augment bằng model spray đầy đủ cải thiện detector LiDAR trên spray thật (Linnhoff, Bảng II).
+- Mô phỏng sai hiện tượng thì có hại, không chỉ vô ích (fog-sim: −14,65 AP; Fog→spray AUPR 70,52).
+
+**Pilot claim (4 điểm, đều hẹp):**
+1. **Fusion thay vì LiDAR-only**: cả hai bài chỉ LiDAR. Spray tác động hai modality khác nhau; chưa ai đo trên kiến trúc camera+LiDAR.
+2. **`points_clean` tách luồng**: camera branch nhận điểm trước khi inject, LiDAR branch nhận điểm sau inject — biến "augmentation" thành một biến duy nhất tác động đúng một nhánh. Không paper nào bàn.
+3. **10 class nuScenes** thay vì chỉ vehicle trên highway.
+4. **Paired A/B trên cùng frame + split theo scene + bootstrap theo scene**: Linnhoff train hai lần độc lập (không paired), Piroli split scan-level (không nói chia theo scene).
+
+**Non-claims (ghi trong mọi report):**
+- Không kết luận về wet-ground, attenuation, occlusion, camera-side splash (ADR-0002).
+- v1 plume-only là **tập con** của model đã được Linnhoff chứng minh. Gain nhỏ hơn 17 AP **không** được diễn giải là "augmentation không hiệu quả", chỉ là "plume-only không đủ".
+- Kết quả dương trên plume tổng hợp **không** chứng minh giúp được spray thật; camera branch trong thí nghiệm vẫn sạch lý tưởng, nên mọi kết quả dương là **cận trên lạc quan**.
+
+**Rủi ro effect size (ghi trước, không phải biện minh sau):**
+
+| rủi ro | bằng chứng | hệ quả |
+|---|---|---|
+| Plume synthetic dễ hơn thật (cluster đặc, không attenuation) | P_det thật median 0,10; generator inject 100% | gain có thể là artefact của generator |
+| Effect size ≈ 0 | spray chỉ chiếm 0,25–0,5% điểm/scan; Voxel-RCNN +0,62 AP | mục tiêu là **đo được delta**, không phải chứng minh hiệu quả |
+| 1 seed, Kaggle T4 | compute | chỉ kết luận directional |
 
 ## Solution
 
