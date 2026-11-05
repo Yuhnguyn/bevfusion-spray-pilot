@@ -58,9 +58,22 @@ không có plume.
 Velocity thiếu, không hữu hạn, hoặc tốc độ dưới ngưỡng → skip box, tăng counter tương ứng.
 (`plume.py` hiện làm đúng: `skipped_no_velocity`, `skipped_low_speed`.)
 
-## Còn mở
+## Số đo eligible (2026-11-05)
 
-- **Số box eligible có velocity hợp lệ trên frame thật** vẫn chưa đếm được: cần infos (ticket 04 phần
-  còn lại) rồi chạy 1 pass thống kê. Đây là mục duy nhất còn thiếu của ticket 03.
+Quét toàn bộ val infos (34,029 frame, 1,160,875 box; 1,468 vehicle box trên 120 frame đầu):
+
+| Ngưỡng | Box vehicle | Box front ≤30 m | Frame có ≥1 box | Tỷ lệ frame |
+|---|---|---|---|---|
+| ≥30 km/h | 44,537 | 7,152 | 4,690 | 13.8% |
+| ≥40 km/h | 18,552 | 2,927 | 1,924 | 5.7% |
+| ≥50 km/h | 5,514 | 952 | 697 | **2.0%** |
+| ≥60 km/h | 950 | 193 | 173 | 0.5% |
+
+Phân bố tốc độ finite: p50 0.21, p90 10.72, p95 26.14, p99 44.46, p99.9 58.98 km/h; max 175.71
+(outlier). Ba scene val đầu (120 frame) có **0** box ≥50 km/h, max 43.5 → subset không đại diện.
+
+**Hệ quả:** ngưỡng 50 km/h của `PlumeConfig` chỉ chạm ~2% frame val. Trước ticket 07/10/11 phải chọn
+scene highway hoặc hạ ngưỡng (30 km/h → 13.8%). Không đổi ngưỡng trong code khi chưa chốt.
+
 - Bug biên đã phát hiện: xe đúng **30,0 km/h** bị skip do `30/3.6*3.6 = 29.999… < 30`. Cần test biên
   hoặc so sánh với epsilon.

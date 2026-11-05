@@ -1,7 +1,7 @@
 # Spec — Spray plume augmentation cho BEVFusion (MIT)
 
 Version: 1.5
-Status: needs-triage — precondition 2 (smoke test) **PASS** 2026-11-05; 1, 3, 6 pass; 4 blocked on ticket 04; 5 blocked on ticket 06
+Status: needs-triage — preconditions 1, 2, 3, 4, 6 **PASS** 2026-11-05; 5 blocked on ticket 06 (evaluator adapter)
 
 > Status flips to `ready-for-agent` only after the preconditions below pass.
 > Changes this round: model forward patch made explicit; plume placement uses velocity direction; velocity frame marked for verification; plume generator reduced to a v1-minimal form; evidence-ladder stages gated behind a positive mini signal; tensor-hash test replaced.
@@ -308,5 +308,6 @@ Mọi tên dưới đây là **hợp đồng**, không phải gợi ý. Đổi t
 - ADR đã ghi: `docs/adr/0001` (pin MIT commit), `0002` (plume-only-first), `0003` (SemanticSpray chỉ
   để hiệu chỉnh thống kê, không train/eval detection).
 - Velocity provenance: box features carry velocity for real boxes; pasted boxes come from the database sampler and must be verified. Confirm the velocity coordinate frame (ego vs global) from the loader before use, and report counts of eligible boxes with valid velocity.
+- Eligibility đo trên val (34,029 frame, 2026-11-05): ngưỡng 50 km/h + front ≤30 m chỉ có **697 frame (2.0%)**; 30 km/h có 4,690 (13.8%). Ba scene subset đầu có 0 frame ≥50 km/h. Phải chọn scene highway hoặc hạ ngưỡng trước ticket 07/10/11.
 - Sweep policy differs by config: detection training uses 0 sweeps; evaluation may use 9 on mini and 0 on the keyframes-only subset. Do not compare absolute numbers across those sets.
 - If HEAD is used instead of the release commit, re-verify checkpoint loading and the depth tensor shape before any experiment.

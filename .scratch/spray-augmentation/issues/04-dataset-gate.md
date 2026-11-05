@@ -4,11 +4,11 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Dataset attach được và có đủ camera, LiDAR, metadata.
 - [x] Infos tạo được cho keyframes. (bằng chứng `infos.json` từ version đã commit)
-- [ ] Load được một sample qua pipeline. (chờ rerun sau khi drop `LoadBEVSegmentation`; mirror thiếu `maps/expansion/`)
+- [x] Load được một sample qua pipeline. (v19 `TICKET04_OK`; `dataset_sample.json`)
 - [x] License và provenance được ghi lại.
 - [x] Danh sách phần thiếu (nếu có) được báo.
 
@@ -31,8 +31,7 @@
 - **Lưu ý schema**: `sample.json` không chứa `data`/`anns`; devkit dựng lại
   từ `sample_data` + `sample_annotation`. Không phải lỗi mirror; notebook
   làm đúng logic devkit cho một sample.
-- Phần còn thiếu duy nhất của ticket: load một sample qua pipeline MIT sau khi drop
-  `LoadBEVSegmentation` (mirror thiếu `maps/expansion/`). Toolchain ticket 02 đã sẵn sàng.
+- Đã load được một sample qua pipeline MIT ở v19 (xem mục dưới). Toolchain ticket 02 đã sẵn sàng.
 
 ## Kết quả tạo infos (version đã commit, 2026-11-05)
 
@@ -45,3 +44,14 @@
 - Load sample fail ở `LoadBEVSegmentation`: mirror chỉ có `maps/*.png`, thiếu
   `maps/expansion/*.json`. `modality.use_map=false` nên cell đã drop transform này khi load;
   cần rerun để lấy `dataset_sample.json`.
+
+## v19 — TICKET04_OK (2026-11-05)
+
+- `infos.json`: train **120** / val **120** infos, 109.4 s, `max_sweeps=0`.
+- `dataset_sample.json`: load index 0 qua val pipeline; đủ 6 camera, 0 sweep, 2 GT;
+  `missing_image_paths=[]`; batch có đủ `img`, `points`, `gt_bboxes_3d`, `gt_labels_3d`,
+  calibration/meta keys.
+- Đã drop `LoadBEVSegmentation` và `Collect3D.gt_masks_bev` vì `modality.use_map=false`
+  và mirror thiếu `maps/expansion/*.json`; ghi trong `dropped_transforms`.
+- Lỗi schema của pin `da93b27` đã xử lý: converter ghi `camera_intrinsics`, dataset đọc
+  `cam_intrinsic` → thêm alias khi tạo infos (và fallback khi load).

@@ -85,15 +85,15 @@ META = {
     "03": {
         "short": "Xác định vận tốc box nằm ở hệ tọa độ nào và box dán thêm (ObjectPaste) có vận tốc dùng được không — để đặt plume đúng hướng.",
         "why": "Plume phải nằm sau xe đang chạy. Dùng sai hệ tọa độ là plume lệch hướng, thí nghiệm mất giá trị.",
-        "next": "Chỉ còn đếm số box đủ điều kiện trên một frame thật; chờ ticket 04 load được sample.",
-        "evidence": "docs/velocity-contract.md: velocity ở LiDAR frame; ObjectPaste set velocity = 0; fallback skip.",
+        "next": "Đã xong.",
+        "evidence": "docs/velocity-contract.md: velocity ở LiDAR frame; full val: 50 km/h → 697/34,029 frame (2.0%), 30 km/h → 13.8%.",
         "files": ["docs/velocity-contract.md", ".scratch/spray-augmentation/issues/03-velocity-frame.md"],
     },
     "04": {
         "short": "Kiểm tra dataset nuScenes trên Kaggle: đủ camera/LiDAR/metadata, tạo được file infos (danh mục frame), và load được một frame qua pipeline.",
         "why": "Không có infos thì pipeline không biết frame nào, ảnh nào, calibration nào để load.",
-        "next": "v17 đang chạy để hoàn tất 'load 1 sample'. Trước đó infos đã tạo được (train 120; val bản cũ 34k do bug subset).",
-        "evidence": "infos.json: train 120 infos, first info 6 camera/10 GT. Mirror thiếu maps/expansion nên drop LoadBEVSegmentation khi use_map=false.",
+        "next": "Đã xong.",
+        "evidence": "v19 TICKET04_OK: infos 120/120, load 1 sample (6 camera, 0 sweep, không thiếu ảnh); drop LoadBEVSegmentation + gt_masks_bev vì use_map=false.",
         "files": ["kaggle/dataset_gate/", "kaggle/smoke_test/cells/17-ticket04-infos-and-sample.py"],
     },
     "05": {
@@ -106,14 +106,14 @@ META = {
     "06": {
         "short": "Chuyển output thật của BEVFusion (class, box format, score) sang định dạng evaluator hiểu, rồi chấm một frame thật.",
         "why": "Evaluator core đã có, nhưng output model khác format. Adapter là cầu nối; đây là precondition 5.",
-        "next": "Bắt đầu ngay sau khi ticket 04 xong (cần một frame thật).",
-        "evidence": "Chưa có — 0/4.",
+        "next": "Bắt đầu ngay — đây là precondition 5 cuối cùng trước khi flip spec.",
+        "evidence": "Chưa có — 0/4. Có thể dùng frame vừa load ở ticket 04.",
         "files": [".scratch/spray-augmentation/issues/06-evaluator-adapter.md"],
     },
     "07": {
         "short": "Viết transform chèn plume vào point cloud, giữ lại bản 'sạch' trước khi chèn để camera branch dùng.",
         "why": "Camera branch cần point sạch làm sparse depth; LiDAR branch cần point đã có plume. Không tách thì hai nhánh nhìn sai dữ liệu.",
-        "next": "Chờ ticket 04 xong (cần sample thật để chạy transform).",
+        "next": "Có thể bắt đầu: ticket 04 đã xong.",
         "evidence": "0/4.",
         "files": [".scratch/spray-augmentation/issues/07-pipeline-transform.md", "spray/plume.py"],
     },
@@ -182,10 +182,22 @@ META = {
 
 TIMELINE = [
     {
+        "when": "2026-11-05 · v19",
+        "tone": "good",
+        "title": "Ticket 04 xong — TICKET04_OK",
+        "body": "infos train/val = 120/120 trong 109 s; load 1 sample qua pipeline với đủ 6 camera, 0 sweep, không thiếu ảnh. Phát hiện thêm: chỉ 2% frame val có xe ≥50 km/h.",
+    },
+    {
+        "when": "2026-11-05 · v18",
+        "tone": "bad",
+        "title": "Lệch schema cam_intrinsic",
+        "body": "infos đúng 120/120 nhưng pipeline chết ở KeyError 'cam_intrinsic': converter ghi camera_intrinsics, dataset đọc cam_intrinsic. Thêm alias.",
+    },
+    {
         "when": "2026-11-05 · v17",
-        "tone": "run",
-        "title": "Đang chạy: hoàn tất ticket 04",
-        "body": "Sửa index token sau khi lọc scene, drop LoadBEVSegmentation khi use_map=false. Kỳ vọng: infos train/val ~120, load 1 sample, có dataset_sample.json.",
+        "tone": "bad",
+        "title": "Index token sau khi lọc scene",
+        "body": "Lọc nusc.sample làm lệch _token2ind nên get_boxes IndexError. Rebuild index; infos 120/120 trong 117 s.",
     },
     {
         "when": "2026-11-05 · v16",
@@ -277,7 +289,7 @@ def choose_kind(ticket, by_id):
     status = ticket["raw_status"].lower()
     if tid == "02b":
         return "done"
-    if tid in ("03", "04"):
+    if tid in ("03", "04") and ticket["done"] < ticket["total"]:
         return "progress"
     if status.startswith("done"):
         return "done"
@@ -339,12 +351,12 @@ def main():
         "spec": {
             "version": "1.5",
             "status": "needs-triage",
-            "note": "Precondition 2 pass. Còn 4 (dataset gate) và 5 (evaluator) trước khi flip ready-for-agent.",
+            "note": "Preconditions 1, 2, 3, 4, 6 pass. Chỉ còn 5 (evaluator adapter) trước khi flip ready-for-agent.",
         },
         "focus": {
-            "ticket": "04",
-            "headline": "v17 đang chạy: load 1 sample để đóng ticket 04",
-            "detail": "Sau khi có dataset_sample.json: đóng ticket 04, đếm velocity cho ticket 03, rồi sang ticket 06 (evaluator adapter).",
+            "ticket": "06",
+            "headline": "Ticket 04 đã xong — chuyển sang evaluator adapter (06)",
+            "detail": "v19 đã load được 1 sample thật. Ticket 06 nối output model vào evaluator; đây là precondition 5 cuối cùng, xong thì flip spec sang ready-for-agent.",
         },
         "overall": {
             "tickets": len(tickets),
