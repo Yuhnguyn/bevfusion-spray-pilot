@@ -230,6 +230,14 @@ if not dataset_cfg.get("modality", {}).get("use_map", False):
         else:
             kept.append(transform)
     dataset_cfg["pipeline"] = kept
+    # Collect3D copies a fixed key list; without LoadBEVSegmentation the map
+    # target is absent, so drop it too (use_map is false, the model ignores it).
+    for transform in dataset_cfg["pipeline"]:
+        if transform.get("type") == "Collect3D" and "keys" in transform:
+            cleaned = [k for k in transform["keys"] if k != "gt_masks_bev"]
+            if len(cleaned) != len(transform["keys"]):
+                dropped_transforms.append("Collect3D.gt_masks_bev")
+            transform["keys"] = cleaned
 started = time.time()
 dataset = build_dataset(dataset_cfg)
 infos = dataset.data_infos
