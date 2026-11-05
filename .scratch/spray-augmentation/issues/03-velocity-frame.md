@@ -4,7 +4,11 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done (3/4 — mục cuối cần dữ liệu ticket 04)
+
+Bằng chứng: `docs/velocity-contract.md` (commit `47fc600`). Velocity ở LiDAR frame của keyframe hiện tại,
+đi qua `nuscenes_converter.py:264–268` → `nuscenes_dataset.py:305–309` → `lidar_box3d.py:152–154`.
+Plume phải chèn sau `GlobalRotScaleTrans` + `RandomFlip3D`; box `ObjectPaste` set velocity = 0.
 
 - [x] Velocity frame được xác nhận từ loader và ghi lại.
 - [x] Box từ database sampler được kiểm tra có velocity hay không.

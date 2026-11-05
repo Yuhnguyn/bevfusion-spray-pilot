@@ -1,7 +1,66 @@
-# 02b: Sửa numba và chạy lại smoke test (bàn giao cho opencode)
+# 02b: Sửa môi trường và chạy lại smoke test (brief cho CommandCode)
 
-**Trạng thái:** needs-triage
+**Trạng thái:** ready-for-agent
 **Phụ thuộc:** ticket 02
+**Chủ:** CommandCode (code + chạy Kaggle). PM: Hermes — chỉ chốt phạm vi, tiêu chí, không sửa code.
+**Cập nhật:** 2026-11-05 16:00
+
+## Brief (đọc mục này trước, phần dưới là lịch sử)
+
+**Một câu:** làm cho kernel `nguynhuy9669/bevfusion-smoke-test` đạt cả 6 tiêu chí trong
+`artifacts/report.json`, rồi ghi số thật vào ticket 02 và `mit/PIN.md`.
+
+**Đang ở đâu (đã xác minh, không cần điều tra lại):**
+
+| Version | Toolkit chọn | Kết quả | Kết luận |
+|---|---|---|---|
+| 8 | — | chết ở bootstrap | đã fix (uv index strategy + escape `%` trong `git log --format`) |
+| 9 | CUDA 11.8 | fail `cusparse.h` | thiếu CUDA dev headers, host compiler là gcc-13 |
+| 10 | CUDA 13 + bypass guard | fail | tên package `cuda-cusparse-dev-11-8` không tồn tại → apt exit 100 → mất cả nvcc 11 |
+| 11 | CUDA 11.8, không bypass | fail `cusolverDn.h` | gcc-11 + cusparse/cublas/curand đã OK; thiếu cusolver |
+| 12 | CUDA 11.8 | đang chạy lúc bàn giao | đã thêm `libcusolver-dev-11-8` |
+
+**Việc phải làm, theo thứ tự:**
+
+0. `kaggle kernels status nguynhuy9669/bevfusion-smoke-test`. Nếu v12 đã `COMPLETE` thì nhảy tới bước 3.
+1. Nếu v12 `ERROR` hoặc ops vẫn fail: `kaggle kernels output ... -p /tmp/k` rồi
+   `grep -n "fatal error" /tmp/k/smoke_test/logs/build_ops.log | head`. Cài đúng gói cho header thiếu,
+   **mỗi gói một lệnh `apt-get install` riêng**:
+   `cusparse.h`→`libcusparse-dev-11-8`, `cublas_v2.h`/`cublasLt.h`→`libcublas-dev-11-8`,
+   `curand.h`→`libcurand-dev-11-8`, `cusolverDn.h`→`libcusolver-dev-11-8`,
+   `cufft.h`→`libcufft-dev-11-8`, `nvToolsExt.h`→`cuda-nvtx-11-8`.
+   Push lại: `kaggle kernels push -p kaggle/smoke_test`. Lặp tối đa 3 vòng, sau đó dừng và báo PM.
+2. Kiểm tra điều kiện tiên quyết trước khi tin bất kỳ tiêu chí nào: `SUMMARY support` phải có
+   `cuda_11x_toolkit: "11.8"`, `cuda_guard_bypassed: false`, `ops_built_and_gpu_smoke: true`.
+   Nếu vẫn `13.0`/`bypassed: true` thì cả 5 tiêu chí false là hệ quả — quay lại bước 1, đừng đọc tiếp.
+3. Đọc `artifacts/model.json`, `checkpoint.json`, `forward.json` + `state.json`; điền bảng 5 tiêu chí
+   vào `.scratch/spray-augmentation/issues/02-smoke-test-checkpoint.md` với số thật
+   (missing/unexpected keys, output shape, `depth_tensor_channels`, `depth_tensor_nonzero_fraction`).
+4. Ghi vào `mit/PIN.md`: `served_by` = mirror Dropbox (URL chính thức trả 404) + sha256
+   `ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122`.
+5. Commit, `git status` sạch, báo PM: 6 tiêu chí kèm giá trị thật + hash commit.
+
+**Ràng buộc (không thương lượng):**
+
+- Không đổi pin `da93b27`, không đổi `torch 1.10.1+cu113`, `numpy 1.22.4`, `mmcv-full 1.4.0`, `mmdet 2.20.0`.
+- Không sửa code trong `mit/bevfusion`. Chỉ được sửa `kaggle/smoke_test/*`.
+- macOS: **không có lệnh `timeout`**. Đừng bọc lệnh CLI bằng `timeout`.
+- Không commit output Kaggle (`state.json`, log) — chỉ trích số vào ticket.
+- Quota GPU bị từ chối → dừng, báo PM. Không tìm workaround.
+
+**Nghiệm thu của PM (đủ cả 4 mới tính xong):**
+
+1. `report.json` có 6/6 tiêu chí `true`, và `ops_built_and_gpu_smoke: true`.
+2. Bảng 5 tiêu chí trong ticket 02 có giá trị thật, không có ô `null`.
+3. `mit/PIN.md` có mirror + sha256 + ghi chú URL chính thức 404.
+4. Tree sạch, commit message nêu rõ version kernel đã pass.
+
+**Ngoài phạm vi (đừng làm trong ticket này):** tạo `nuscenes_infos_{train,val}.pkl` (ticket 04), sửa
+`spray/plume.py`, viết arm B0, viết spec v1.5. Mỗi thứ đó là ticket riêng.
+
+---
+
+# Lịch sử ticket (giữ nguyên làm bằng chứng)
 
 ## Bối cảnh
 
