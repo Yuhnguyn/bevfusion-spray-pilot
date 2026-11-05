@@ -141,6 +141,21 @@ nc.create_nuscenes_infos(data_root, "nuscenes", version="v1.0-trainval", max_swe
 
 import mmcv  # noqa: E402
 
+# The pinned converter stores ``camera_intrinsics`` but
+# NuScenesDataset.get_data_info reads ``cam_intrinsic`` (da93b27 mismatch).
+# Add the alias so the generated infos are usable by the pipeline.
+for split in ("train", "val"):
+    path = Path(data_root) / f"nuscenes_infos_{split}.pkl"
+    payload = mmcv.load(str(path))
+    patched = 0
+    for info in payload["infos"]:
+        for cam in info.get("cams", {}).values():
+            if "cam_intrinsic" not in cam and "camera_intrinsics" in cam:
+                cam["cam_intrinsic"] = cam["camera_intrinsics"]
+                patched += 1
+    if patched:
+        mmcv.dump(payload, str(path))
+
 report = {"data_root": data_root, "max_scenes": max_scenes, "max_sweeps": 0}
 for split in ("train", "val"):
     path = Path(data_root) / f"nuscenes_infos_{split}.pkl"
@@ -218,6 +233,12 @@ if not dataset_cfg.get("modality", {}).get("use_map", False):
 started = time.time()
 dataset = build_dataset(dataset_cfg)
 infos = dataset.data_infos
+
+# Defensive alias for infos generated before the converter fix above.
+for info in infos:
+    for cam in info.get("cams", {}).values():
+        if "cam_intrinsic" not in cam and "camera_intrinsics" in cam:
+            cam["cam_intrinsic"] = cam["camera_intrinsics"]
 index = next(
     (i for i, info in enumerate(infos) if len(info.get("gt_boxes", [])) > 0),
     0,
