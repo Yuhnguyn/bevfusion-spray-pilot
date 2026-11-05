@@ -10,9 +10,10 @@ khoảng cách giữa mAP trên frame sạch và frame có spray — đo trên n
 
 ## Blocker duy nhất đang chặn toàn bộ dự án
 
-**Ticket 02b — môi trường Kaggle.** v12 đã build xong CUDA ops (`build_rc: 0`, CUDA 11.8 + gcc-11), nhưng
-`import mmdet3d.ops` vẫn chết vì thiếu `torchvision`, nên `ops_ok=false` → model không dựng được → 5/6 tiêu
-chí false. Còn đúng **một dòng** phải sửa: thêm `torchvision==0.11.2+cu113` vào command cài torch.
+**Ticket 02b — môi trường Kaggle.** Lần chạy mới nhất: `ops_built_and_gpu_smoke=true`, checkpoint load sạch
+(0 missing / 0 unexpected), pin đúng — nhưng `model_built=false` vì harness đọc `vtransform.out_channels`
+(không tồn tại trên `DepthLSSTransform`). Kết quả thật là **3/6 tiêu chí**, không phải all-pass. Fix đã
+commit (`e3b4c08`, `71a7ab1`) nhưng **chưa push** — lần chạy cuối xảy ra trước commit đó.
 Mọi ticket từ 04 trở đi đều cần một forward thật, nên **không mở song song việc khác** cho tới khi 02b xanh.
 
 Chuỗi nguyên nhân đã chốt (đừng điều tra lại): thiếu `numba` → uv không resolve được torch → escape `%`

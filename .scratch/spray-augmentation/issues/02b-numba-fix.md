@@ -18,7 +18,23 @@
 | 9 | CUDA 11.8 | fail `cusparse.h` | thiếu CUDA dev headers, host compiler là gcc-13 |
 | 10 | CUDA 13 + bypass guard | fail | tên package `cuda-cusparse-dev-11-8` không tồn tại → apt exit 100 → mất cả nvcc 11 |
 | 11 | CUDA 11.8, không bypass | fail `cusolverDn.h` | gcc-11 + cusparse/cublas/curand đã OK; thiếu cusolver |
-| 12 | CUDA 11.8, gcc-11 | **build ops thành công** (`build_rc: 0`) nhưng `ops_ok=false` | thiếu `torchvision` — mmcv import nó ngay khi `import mmdet3d.ops` |
+| 13 | CUDA 11.8, gcc-11 | ops + GPU smoke **OK**, checkpoint load 0 missing / 0 unexpected, nhưng harness chết ở `vtransform.out_channels` | class `DepthLSSTransform` không có attribute đó — lỗi của harness, không phải của model |
+| 14 | CUDA 11.8, gcc-11 | **3/6 tiêu chí** (1, 2, 6 true); `model_built=false` | cùng lỗi harness; fix đã commit `e3b4c08` nhưng lần chạy này xảy ra **trước** commit đó nên chưa có tác dụng |
+| 15 | chưa chạy | — | cần push lại với fix `e3b4c08` + `71a7ab1` |
+
+**Trạng thái đã xác minh bằng `report.json` của lần chạy mới nhất (không phải all-pass):**
+
+```
+support : checkpoint_obtained=true  env_pinned=true  pin_da93b27=true
+          cuda_11x_toolkit="11.8"   cuda_guard_bypassed=false
+          ops_built_and_gpu_smoke=TRUE   model_built=FALSE
+criteria: 1=true  2=true  3=false  4=false  5=false  6=true
+```
+
+Đã đạt và không cần làm lại: build 11 CUDA extension (`build_rc=0`), GPU smoke trên T4, checkpoint load sạch
+(0 missing / 0 unexpected key), pin đúng. **Còn thiếu đúng một thứ:** harness dựng sai chỗ đọc thuộc tính
+của `DepthLSSTransform` — đọc `vtransform.out_channels` trong khi class đó lấy `out_channels` từ config.
+Fix đã nằm trong working tree/commit; việc còn lại chỉ là push lại.
 
 **Việc tiếp theo duy nhất (v13):** thêm `"torchvision==0.11.2+cu113"` vào **cùng** command `uv pip install`
 đang cài `torch==1.10.1+cu113` trong cell 4, giữ nguyên `--index-strategy unsafe-best-match`.
