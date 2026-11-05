@@ -1,0 +1,18 @@
+{
+  "id": "nguynhuy9669/bevfusion-smoke-test",
+  "title": "BEVFusion smoke test (pinned da93b27 + fused checkpoint)",
+  "code_file": "bevfusion-smoke-test.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "keywords": [],
+  "dataset_sources": [
+    "sahangunasekara92/nuscenes-v1-0-full-keyframes"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": []
+}
