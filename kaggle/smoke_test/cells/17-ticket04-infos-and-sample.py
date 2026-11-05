@@ -124,6 +124,11 @@ if max_scenes > 0:
     def _fill_selected(nusc, train_scenes, val_scenes, test=False, max_sweeps=10):
         keep = set(train_scenes) | set(val_scenes)
         nusc.sample = [s for s in nusc.sample if s["scene_token"] in keep]
+        # nusc.get() resolves tokens through _token2ind, which still holds the
+        # original row numbers. Rebuild it for the shortened sample table.
+        nusc._token2ind["sample"] = {
+            s["token"]: i for i, s in enumerate(nusc.sample)
+        }
         return _orig_fill(
             nusc, train_scenes, val_scenes, test=test, max_sweeps=max_sweeps
         )
