@@ -7,8 +7,8 @@
 **Status:** ready-for-agent
 
 - [x] Dataset attach được và có đủ camera, LiDAR, metadata.
-- [ ] Infos tạo được cho keyframes. (chờ toolchain ticket 02)
-- [ ] Load được một sample qua pipeline. (đã load raw một keyframe; pipeline MIT chờ ticket 02)
+- [x] Infos tạo được cho keyframes. (bằng chứng `infos.json` từ version đã commit)
+- [ ] Load được một sample qua pipeline. (chờ rerun sau khi drop `LoadBEVSegmentation`; mirror thiếu `maps/expansion/`)
 - [x] License và provenance được ghi lại.
 - [x] Danh sách phần thiếu (nếu có) được báo.
 
@@ -31,8 +31,8 @@
 - **Lưu ý schema**: `sample.json` không chứa `data`/`anns`; devkit dựng lại
   từ `sample_data` + `sample_annotation`. Không phải lỗi mirror; notebook
   làm đúng logic devkit cho một sample.
-- Phần còn thiếu duy nhất của ticket: `create_data.py` và load qua pipeline
-  MIT, cả hai phụ thuộc toolchain của ticket 02.
+- Phần còn thiếu duy nhất của ticket: load một sample qua pipeline MIT sau khi drop
+  `LoadBEVSegmentation` (mirror thiếu `maps/expansion/`). Toolchain ticket 02 đã sẵn sàng.
 
 ## Kết quả tạo infos (version đã commit, 2026-11-05)
 
