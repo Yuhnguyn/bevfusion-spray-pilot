@@ -1,44 +1,34 @@
 # Handoff — dataset gate (ticket 04)
 
-## Vì sao handoff
+## Trạng thái
+
+Gate đã chạy xong trên Kaggle (run #4, `COMPLETE`). Kết quả lưu ở
+`kaggle/dataset_gate/dataset_gate.json` và trong ticket 04.
+
+- Mount: `/kaggle/input/datasets/sahangunasekara92/nuscenes-v1-0-full-keyframes`
+- 850 scene, 34,149 keyframe, 1,166,187 annotation.
+- 6 camera × 34,149 file; `LIDAR_TOP` 34,149; radar ~34,146–34,148.
+- Không có `sweeps/` → training phải dùng 0 sweep.
+- License: nuScenes Terms of Use / Non-Commercial, sha256 `1a218286…570636a`.
+- Một keyframe load được: 34,720 điểm × 5, đủ 6 camera, 10 annotation.
+
+## Vì sao vẫn giữ notebook
 
 Kaggle API chỉ có `kaggle kernels push`, tức chạy **cả kernel từ đầu đến cuối**.
-Không có lệnh chạy từng cell. Muốn sửa một ô rồi chạy lại đúng ô đó thì phải
-làm trên UI Kaggle. Vì vậy phần còn lại giao lại để bạn chạy từng ô.
+Không có lệnh chạy từng cell. Khi cần sửa một ô và chạy lại đúng ô đó thì phải
+làm trên UI Kaggle. Notebook này giữ vai trò đó.
 
-## Đã xác minh từ lần push trước
+## Lưu ý schema
 
-- Dataset attach tại:
-  `/kaggle/input/datasets/sahangunasekara92/nuscenes-v1-0-full-keyframes`
-- Có `v1.0-trainval/`; `sample.json` có **34,149 keyframes**.
-- `LICENSE` là CC BY-NC-SA 4.0.
-- Top-level: `maps/`, `samples/`, `v1.0-trainval/`, không thấy `sweeps/`.
-- Lỗi cũ: `pip install nuscenes-devkit==1.1.11` fail vì build `Shapely<2`
-  trên Python 3.13 của Kaggle. Ô 6 trong notebook đã có cách lách
-  (cài `shapely==2.0.7` trước, rồi `--no-deps`), nhưng ô đó **tùy chọn**.
+`sample.json` không chứa `data`/`anns`; devkit dựng lại từ `sample_data` +
+`sample_annotation` (xem `__make_reverse_index__`). Đây là schema chuẩn,
+không phải lỗi mirror. Notebook làm đúng logic đó cho một sample nên không
+cần `nuscenes-devkit`.
 
-## Cách chạy
+## Còn lại của ticket
 
-1. Mở Kaggle, tạo notebook Python, Add Input →
-   `sahangunasekara92/nuscenes-v1-0-full-keyframes`.
-2. Copy các ô từ `bevfusion-spray-dataset-gate.ipynb` sang notebook
-   (hoặc mở file này trực tiếp trên Kaggle).
-3. Chạy ô 1 → 5, rồi ô 7. Bỏ qua ô 6 trừ khi cần `nuscenes-devkit`.
-4. Nếu ô 1 báo không thấy dataset, in `os.listdir('/kaggle/input')` và
-   sửa danh sách `CANDIDATES`.
+- `tools/create_data.py` tạo infos cho keyframes.
+- Load một sample qua pipeline MIT.
 
-Mỗi ô idempotent và chỉ phụ thuộc biến của ô trước, nên khi lỗi chỉ cần
-sửa rồi chạy lại đúng ô đó.
-
-## Cần trả về
-
-- Nội dung `/kaggle/working/dataset_gate.json`.
-- Danh sách sensor và số file mỗi loại (đặc biệt `LIDAR_TOP`, 6 `CAM_*`).
-- `sweeps_present` true/false.
-- `sample_check`: shape point cloud, 6 camera tồn tại, số annotation.
-- Phần thiếu (nếu có).
-
-## Sau gate
-
-Tạo infos bằng converter MIT (`tools/create_data.py`) cần toolchain
-`mmcv` 1.x + `mmdet3d` của ticket 02, chưa chạy trong notebook này.
+Cả hai phụ thuộc toolchain của ticket 02 (`mmcv` 1.x + `mmdet3d`). Đây là
+phần nên chạy từng cell trên Kaggle UI khi bắt đầu debug toolchain.

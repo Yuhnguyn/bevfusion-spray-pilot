@@ -1,0 +1,73 @@
+{
+  "root": "/kaggle/input/datasets/sahangunasekara92/nuscenes-v1-0-full-keyframes",
+  "version": "v1.0-trainval",
+  "scenes": 850,
+  "samples": 34149,
+  "annotations": 1166187,
+  "metadata": {
+    "scene": true,
+    "sample": true,
+    "sample_data": true,
+    "sample_annotation": true,
+    "instance": true,
+    "category": true,
+    "attribute": true,
+    "visibility": true,
+    "calibrated_sensor": true,
+    "ego_pose": true,
+    "log": true,
+    "map": true,
+    "sensor": true
+  },
+  "sensors": {
+    "CAM_BACK": 34149,
+    "CAM_BACK_LEFT": 34149,
+    "CAM_BACK_RIGHT": 34149,
+    "CAM_FRONT": 34149,
+    "CAM_FRONT_LEFT": 34149,
+    "CAM_FRONT_RIGHT": 34149,
+    "LIDAR_TOP": 34149,
+    "RADAR_BACK_LEFT": 34148,
+    "RADAR_BACK_RIGHT": 34147,
+    "RADAR_FRONT": 34146,
+    "RADAR_FRONT_LEFT": 34147,
+    "RADAR_FRONT_RIGHT": 34147
+  },
+  "sweeps_present": false,
+  "maps": 4,
+  "license_sha256": "1a218286e733f6d6135fc5698d614cda2be94ea096f6eee280278458e570636a",
+  "sample_check": {
+    "token": "e93e98b63d3b40209056d129dc53ceee",
+    "lidar_shape": [
+      34720,
+      5
+    ],
+    "cams": {
+      "CAM_FRONT": {
+        "exists": true,
+        "bytes": 156379
+      },
+      "CAM_FRONT_RIGHT": {
+        "exists": true,
+        "bytes": 148005
+      },
+      "CAM_FRONT_LEFT": {
+        "exists": true,
+        "bytes": 147092
+      },
+      "CAM_BACK": {
+        "exists": true,
+        "bytes": 113271
+      },
+      "CAM_BACK_LEFT": {
+        "exists": true,
+        "bytes": 148116
+      },
+      "CAM_BACK_RIGHT": {
+        "exists": true,
+        "bytes": 117068
+      }
+    },
+    "annotations": 10
+  }
+}
