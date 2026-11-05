@@ -299,3 +299,19 @@ nvcc, khiến cell rơi xuống nhánh CUDA 13 + bypass guard (v10: `cuda_11x_to
   phải thành công: ops build gần như chắc chắn fail với nvcc 13 + torch 1.10.
 - Kiểm tra nhanh sau khi push: `SUMMARY support` phải có `cuda_11x_toolkit: "11.8"` **và**
   `ops_built_and_gpu_smoke: true` trước khi tin bất kỳ tiêu chí nào.
+
+### Version 12 — CUDA/toolchain OK, ops compiled, nhưng thiếu `torchvision`
+
+Kernel `COMPLETE` (version 12). Bootstrap + toolchain đạt:
+- `cuda_11x_toolkit: "11.8"`, `cuda_guard_bypassed: false`, `gcc_chosen: /usr/bin/gcc-11`
+- `cuda-nvcc-11-8` + `cuda-cudart-dev-11-8` + `libcusparse/libcublas/libcurand/libcusolver-dev-11-8` cài OK
+- Checkpoint tải OK (Dropbox mirror, `sha256=ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122`)
+- Config invariants OK, pin `da93b27` OK
+
+Build ops (`build_ops.json`): `build_rc=0`, `ops_check_rc=0`, `skipped=false`, CUDA 11.8/gcc-11, arch 7.5 (T4). Các `.so` được copy vào `mmdet3d/ops/*` (spconv, bev_pool, iou3d, voxel, roiaware_pool3d, ball_query, knn, paconv, group_points, interpolate, furthest_point_sample, gather_points).
+
+Nhưng ops smoke (`ops.json`) fail toàn bộ: `ModuleNotFoundError: No module named 'torchvision'`. Root cause: `mmcv` (runner/checkpoint) import `torchvision` khi `mmdet3d.ops.__init__` kéo `mmcv.ops`. Vì `ops_ok=false` nên model/checkpoint-load/forward không chạy.
+
+5 tiêu chí ticket 02 vẫn `false` (cùng hệ quả: ops smoke chưa pass).
+
+Fix tiếp theo (đã áp vào notebook, chưa push lúc ghi): thêm `torchvision==0.11.2+cu113` (pair với `torch==1.10.1+cu113`) vào bước cài pinned stack. Không đổi pin torch/numpy/mmcv/mmdet.
