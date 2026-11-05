@@ -90,6 +90,24 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, os.environ["REPO"])
+
+# numba 0.58 removed the deprecated top-level ``numba.errors`` module, but the
+# pinned da93b27 dataset pipeline imports NumbaPerformanceWarning from it.
+import sys as _sys
+import types as _types
+
+try:
+    import numba.errors  # noqa: F401
+except Exception:
+    try:
+        from numba.core import errors as _numba_core_errors
+
+        _shim = _types.ModuleType("numba.errors")
+        _shim.NumbaPerformanceWarning = _numba_core_errors.NumbaPerformanceWarning
+        _sys.modules["numba.errors"] = _shim
+    except Exception:
+        pass
+
 from nuscenes.utils import splits  # noqa: E402
 from tools.data_converter import nuscenes_converter as nc  # noqa: E402
 
@@ -146,6 +164,23 @@ sys.path.insert(0, os.path.join(os.environ["WORK"], "scripts"))
 import numpy as np
 from mmcv import ConfigDict
 from mmcv.parallel import collate
+
+# numba 0.58 removed ``numba.errors``; the pinned dataset pipeline imports it.
+import sys as _sys
+import types as _types
+
+try:
+    import numba.errors  # noqa: F401
+except Exception:
+    try:
+        from numba.core import errors as _numba_core_errors
+
+        _shim = _types.ModuleType("numba.errors")
+        _shim.NumbaPerformanceWarning = _numba_core_errors.NumbaPerformanceWarning
+        _sys.modules["numba.errors"] = _shim
+    except Exception:
+        pass
+
 from mmdet3d.datasets import build_dataset
 
 import smoke_cfg
