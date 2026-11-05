@@ -17,7 +17,7 @@ import urllib.request
 
 BASE = "https://oparu.uni-ulm.de/server/api"
 ITEM = "a4b310b9-bf50-431b-9676-7398f6da7dd0"
-CHUNK = 1 << 20
+CHUNK = 64 << 10
 MIN_SEG = 32 << 20
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LABELS_ZIP = os.path.join(
@@ -56,13 +56,15 @@ def _fetch_range(url, path, start, end, retries=60):
         try:
             req = urllib.request.Request(
                 url, headers={"Range": f"bytes={start + local}-{end}"})
-            with urllib.request.urlopen(req, timeout=120) as resp, open(
+            with urllib.request.urlopen(req, timeout=20) as resp, open(
                     path, "ab") as out:
-                while True:
-                    chunk = resp.read(CHUNK)
+                remaining = want - local
+                while remaining > 0:
+                    chunk = resp.read(min(CHUNK, remaining))
                     if not chunk:
                         break
                     out.write(chunk)
+                    remaining -= len(chunk)
         except Exception as exc:  # connection drops are common upstream
             print(f"\n  retry {os.path.basename(path)}: {exc}")
         if os.path.getsize(path) != want:
@@ -155,8 +157,11 @@ def extract(dest):
         for name in ("radar_labels", "object_labels"):
             src = os.path.join(tmp, name)
             if os.path.isdir(src):
-                shutil.copytree(
-                    src, os.path.join(scene_root, name), dirs_exist_ok=True)
+                for child in os.listdir(src):
+                    shutil.copytree(
+                        os.path.join(src, child),
+                        os.path.join(scene_root, child),
+                        dirs_exist_ok=True)
     else:
         print(f"warning: label zip not found at {LABELS_ZIP}")
 
@@ -190,9 +195,34 @@ def main():
 
     os.makedirs(os.path.join(args.dest, "tmp"), exist_ok=True)
     if args.download or args.all:
-        for name, size, href in files:
-            download(href, os.path.join(args.dest, "tmp", name), size,
-                     jobs=args.jobs)
+        lock = os.path.join(args.dest, "tmp", ".download.lock")
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                pid = int(open(lock).read().strip() or 0)
+            except ValueError:
+                pid = 0
+            alive = False
+            if pid:
+                try:
+                    os.kill(pid, 0)
+                    alive = True
+                except OSError:
+                    alive = False
+            if alive:
+                raise SystemExit(
+                    f"another download is already running (pid {pid})")
+            os.remove(lock)
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        try:
+            for name, size, href in files:
+                download(href, os.path.join(args.dest, "tmp", name), size,
+                         jobs=args.jobs)
+        finally:
+            os.remove(lock)
     if args.extract or args.all:
         extract(args.dest)
 
