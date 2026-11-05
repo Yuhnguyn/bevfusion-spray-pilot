@@ -330,3 +330,43 @@ tại `mmdet3d/models/heads/bbox/transfusion.py:208` (`if isinstance(self.train_
 Nguyên nhân: resolved config được nạp từ dict/JSON nên `train_cfg` là plain `dict`, nhưng mmcv 1.4.0/mmdet3d pin này dùng attribute access (`.assigner`). Đây là lỗi smoke harness (không phải pin stack).
 
 Fix (áp dụng cho v14, chưa push lúc ghi): trong `smoke_model.build`, wrap `cfg_model` bằng `mmcv.ConfigDict` đệ quy trước `build_model`. Không đổi pin.
+
+
+### Version 14 — checkpoint + ops OK, forward/model harness fail (`vtransform.out_channels`)
+
+Kernel `COMPLETE` (version 14). Tiến bộ lớn:
+- `cuda_11x_toolkit: "11.8"`, `cuda_guard_bypassed: false`, `ops_built_and_gpu_smoke: true` ✅
+- `env_pinned: true`, `pin_da93b27: true`, `config_invariants: true`, `checkpoint_obtained: true` ✅
+- Checkpoint (`checkpoint.json`): `sha256=ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122`, 163,715,701 B, served by Dropbox mirror; **582/582 matched, missing 0, unexpected 0, shape_mismatch 0**, `cross_check_mmcv.ok=true`, `load_seconds=0.21`.
+- Tiêu chí 1,2,6 đạt. 3,4,5 `false` vì `model_built:false` / `forward/depth_check/finite_check=null` (harness crash, không phải lỗi checkpoint).
+
+Blocker harness mới:
+- `step_model.py:57`: `AttributeError: 'DepthLSSTransform' object has no attribute 'out_channels'`
+- `step_forward.py:268`: cùng lỗi (`V_C = int(vtransform.out_channels)`), dù forward đã chạy tới head (có Swin download + warning transfusion). `model.json`/`forward.json` không được ghi.
+
+Fix (đã patch notebook local, chưa push): đọc `out_channels` từ `getattr(vtransform,'out_channels', cfg['model']['encoders']['camera']['vtransform']['out_channels'])` trong `step_model`/`step_forward` embedded scripts. Không đổi pin.
+
+**Hành động đề xuất cho lần chạy tay (session Kaggle mới):** sửa `out_channels` như trên → chạy `01-bootstrap` (nếu sửa qua notebook) → rerun `11-model,12-checkpoint-load,13-batch,14-forward,15-report` (hoặc bundle). Không cần rebuild ops/venv nếu session cũ còn; nếu session mới thì run full nhưng bug harness đã vá.
+
+
+### Version 15 (chạy tay) — ALL_PASS
+
+Chạy cell-by-cell trong session Kaggle (sau khi vá `smoke_model.build` để bỏ tải Swin init_cfg):
+
+```
+SUMMARY support : checkpoint_obtained=true, config_invariants=true, env_pinned=true,
+                  ops_built_and_gpu_smoke=true, pin_da93b27=true,
+                  cuda_11x_toolkit=11.8, cuda_guard_bypassed=false, model_built=true
+SUMMARY criteria: 1_checkpoint_loads=true  2_missing_unexpected_keys_listed=true
+                  3_forward_no_shape_error=true  4_outputs_finite=true
+                  5_depth_channels_match=true   6_report_saved=true
+ALL_PASS
+```
+
+Model: 40,800,087 params; `DepthLSSTransform` out_channels=80, D=118, feature_size [32,88],
+dtransform first layer `Conv2d(1, 8, 1)`; init_cfg disabled (Swin download skipped) — fused
+checkpoint cung cấp đủ weight.
+
+Fix cuối: `smoke_model.build` đặt `cfg_model["encoders"]["camera"]["backbone"]["init_cfg"]=None`
+trước `build_model` (đã đưa vào notebook local). Ticket 02 đạt; cập nhật số cụ thể từ
+`artifacts/report.json` của session.

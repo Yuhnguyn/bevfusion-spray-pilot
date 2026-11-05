@@ -17,6 +17,6 @@
 - Size: `163715701` bytes.
 - `sha256`: `ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122`.
 - Format: torch archive (magic `504b0304`).
-- Source of these values: `smoke_test/state.json` from the Kaggle smoke-test run on
-  2026-11-05 (ticket 02). The checkpoint download and hash succeeded; the same run later
-  failed while building the `mmdet3d` CUDA ops, so no model/forward result exists yet.
+- Source of these values: the Kaggle smoke-test run on 2026-11-05 (ticket 02). Final run:
+  checkpoint loaded into the model with **582/582 keys matched, 0 missing, 0 unexpected,
+  0 shape mismatches**; forward succeeded and all outputs were finite.
