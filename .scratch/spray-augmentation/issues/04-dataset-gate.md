@@ -33,3 +33,15 @@
   làm đúng logic devkit cho một sample.
 - Phần còn thiếu duy nhất của ticket: `create_data.py` và load qua pipeline
   MIT, cả hai phụ thuộc toolchain của ticket 02.
+
+## Kết quả tạo infos (version đã commit, 2026-11-05)
+
+- `infos.json`: train **120 infos** (3 scene), val **34,029 infos** (toàn bộ phần còn lại),
+  file 1,729,648 B / 407,187,382 B; `max_sweeps=0`.
+- First info: 6 camera, 0 sweep, 10 GT (train) / 37 GT (val); `lidar_path` trỏ
+  `/kaggle/working/data/nuscenes/samples/LIDAR_TOP/...`.
+- Lưu ý: `create_nuscenes_infos` gán mọi sample **không thuộc train scene** vào val, nên
+  `MAX_SCENES` chỉ chặn train. Đã sửa cell: filter `nusc.sample` theo train∪val scene.
+- Load sample fail ở `LoadBEVSegmentation`: mirror chỉ có `maps/*.png`, thiếu
+  `maps/expansion/*.json`. `modality.use_map=false` nên cell đã drop transform này khi load;
+  cần rerun để lấy `dataset_sample.json`.

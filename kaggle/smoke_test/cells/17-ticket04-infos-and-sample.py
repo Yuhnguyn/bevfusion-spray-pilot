@@ -116,6 +116,20 @@ if max_scenes > 0:
     splits.train = splits.train[:max_scenes]
     splits.val = splits.val[:max_scenes]
 
+    # ``create_nuscenes_infos`` puts every sample that is not in a train scene
+    # into val. Filtering the scene lists alone therefore still produces a
+    # 34k-sample val split; limit nusc.sample to the selected scenes too.
+    _orig_fill = nc._fill_trainval_infos
+
+    def _fill_selected(nusc, train_scenes, val_scenes, test=False, max_sweeps=10):
+        keep = set(train_scenes) | set(val_scenes)
+        nusc.sample = [s for s in nusc.sample if s["scene_token"] in keep]
+        return _orig_fill(
+            nusc, train_scenes, val_scenes, test=test, max_sweeps=max_sweeps
+        )
+
+    nc._fill_trainval_infos = _fill_selected
+
 data_root = os.environ["DATA"]
 started = time.time()
 nc.create_nuscenes_infos(data_root, "nuscenes", version="v1.0-trainval", max_sweeps=0)
@@ -187,6 +201,15 @@ import smoke_cfg
 
 cfg, files = smoke_cfg.load(os.environ["CONFIG_PATH"])
 dataset_cfg = ConfigDict(cfg["data"]["val"])
+dropped_transforms = []
+if not dataset_cfg.get("modality", {}).get("use_map", False):
+    kept = []
+    for transform in dataset_cfg["pipeline"]:
+        if transform.get("type") == "LoadBEVSegmentation":
+            dropped_transforms.append(transform["type"])
+        else:
+            kept.append(transform)
+    dataset_cfg["pipeline"] = kept
 started = time.time()
 dataset = build_dataset(dataset_cfg)
 infos = dataset.data_infos
@@ -234,6 +257,7 @@ missing_paths = [path for path in cam_paths.values() if path and not os.path.exi
 report.update(
     {
         "config_files": files,
+        "dropped_transforms": dropped_transforms,
         "num_infos": len(infos),
         "index": index,
         "token": info.get("token"),
