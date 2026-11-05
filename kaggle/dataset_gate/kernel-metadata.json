@@ -1,0 +1,18 @@
+{
+  "id": "nguynhuy9669/bevfusion-spray-dataset-gate",
+  "title": "BEVFusion spray dataset gate",
+  "code_file": "bevfusion-spray-dataset-gate.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "keywords": [],
+  "dataset_sources": [
+    "sahangunasekara92/nuscenes-v1-0-full-keyframes"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": []
+}
