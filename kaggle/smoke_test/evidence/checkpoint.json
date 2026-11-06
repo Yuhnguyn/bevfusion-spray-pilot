@@ -1,0 +1,61 @@
+{
+  "build": {
+    "init_cfg_disabled": true,
+    "num_params": 40800087,
+    "state_dict_keys": 582
+  },
+  "checkpoint": {
+    "checkpoint_object_type": "dict",
+    "ckpt_num_keys": 582,
+    "cross_check_mmcv": {
+      "ok": true,
+      "used": true
+    },
+    "load_error": null,
+    "load_seconds": 0.2,
+    "matched_keys": 582,
+    "meta": null,
+    "missing_keys": [],
+    "missing_keys_total": 0,
+    "missing_keys_weight_affecting": [],
+    "missing_keys_weight_affecting_total": 0,
+    "model_num_keys": 582,
+    "module_prefix_stripped": false,
+    "module_prefixed_keys": 0,
+    "ok": true,
+    "path": "/root/bevfusion_smoke/ckpt/bevfusion-det.pth",
+    "sha256": "ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122",
+    "shape_mismatch": [],
+    "shape_mismatch_count": 0,
+    "size_bytes": 163715701,
+    "top_level_keys": [
+      "state_dict"
+    ],
+    "unexpected_keys": [],
+    "unexpected_keys_total": 0,
+    "vtransform_param_keys": 59,
+    "vtransform_weight_affecting_missing": [],
+    "weight_sample_check": [
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.0.weight"
+      },
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.1.bias"
+      },
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.1.num_batches_tracked"
+      },
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.1.running_mean"
+      },
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.1.running_var"
+      }
+    ]
+  }
+}

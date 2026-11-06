@@ -1,0 +1,109 @@
+{
+  "add_depth_features_present": false,
+  "camera_backbone_type": "SwinTransformer",
+  "expected": {
+    "add_depth_features_present": false,
+    "fuser_in_channels": [
+      80,
+      256
+    ],
+    "height_expand_present": false,
+    "image_size": [
+      256,
+      704
+    ],
+    "no_unresolved_interpolation": true,
+    "point_cloud_range": [
+      -54.0,
+      -54.0,
+      -5.0,
+      54.0,
+      54.0,
+      3.0
+    ],
+    "voxel_size": [
+      0.075,
+      0.075,
+      0.2
+    ],
+    "vtransform_out_channels": 80,
+    "vtransform_type": "DepthLSSTransform"
+  },
+  "failed": [],
+  "fuser_in_channels": [
+    80,
+    256
+  ],
+  "fuser_out_channels": 256,
+  "fuser_type": "ConvFuser",
+  "head_num_classes": 10,
+  "head_test_grid_size": [
+    1440,
+    1440,
+    41
+  ],
+  "head_test_voxel_size": [
+    0.075,
+    0.075
+  ],
+  "height_expand_present": false,
+  "image_size": [
+    256,
+    704
+  ],
+  "lidar_output_channels": 128,
+  "lidar_sparse_shape": [
+    1440,
+    1440,
+    41
+  ],
+  "lidar_voxel_size": [
+    0.075,
+    0.075,
+    0.2
+  ],
+  "no_unresolved_interpolation": true,
+  "ok": true,
+  "passed": [
+    "image_size",
+    "point_cloud_range",
+    "voxel_size",
+    "vtransform_type",
+    "vtransform_out_channels",
+    "fuser_in_channels",
+    "no_unresolved_interpolation",
+    "add_depth_features_present",
+    "height_expand_present"
+  ],
+  "point_cloud_range": [
+    -54.0,
+    -54.0,
+    -5.0,
+    54.0,
+    54.0,
+    3.0
+  ],
+  "unresolved_example": null,
+  "voxel_size": [
+    0.075,
+    0.075,
+    0.2
+  ],
+  "vtransform_dbound": [
+    1.0,
+    60.0,
+    0.5
+  ],
+  "vtransform_downsample": 2,
+  "vtransform_feature_size": [
+    32,
+    88
+  ],
+  "vtransform_image_size": [
+    256,
+    704
+  ],
+  "vtransform_in_channels": 256,
+  "vtransform_out_channels": 80,
+  "vtransform_type": "DepthLSSTransform"
+}

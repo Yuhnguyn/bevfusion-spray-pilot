@@ -1,0 +1,36 @@
+{
+ "data_root": "/kaggle/working/data/nuscenes",
+ "max_scenes": 3,
+ "max_sweeps": 0,
+ "train": {
+  "path": "/kaggle/working/data/nuscenes/nuscenes_infos_train.pkl",
+  "bytes": 1734691,
+  "num_infos": 120,
+  "metadata": {
+   "version": "v1.0-trainval"
+  },
+  "first": {
+   "token": "e93e98b63d3b40209056d129dc53ceee",
+   "lidar_path": "/kaggle/working/data/nuscenes/samples/LIDAR_TOP/n015-2018-07-18-11-07-57+0800__LIDAR_TOP__1531883530449377.pcd.bin",
+   "num_cams": 6,
+   "num_sweeps": 0,
+   "num_gt": 10
+  }
+ },
+ "val": {
+  "path": "/kaggle/working/data/nuscenes/nuscenes_infos_val.pkl",
+  "bytes": 1074333,
+  "num_infos": 120,
+  "metadata": {
+   "version": "v1.0-trainval"
+  },
+  "first": {
+   "token": "fd8420396768425eabec9bdddf7e64b6",
+   "lidar_path": "/kaggle/working/data/nuscenes/samples/LIDAR_TOP/n015-2018-08-02-17-16-37+0800__LIDAR_TOP__1533201470448696.pcd.bin",
+   "num_cams": 6,
+   "num_sweeps": 0,
+   "num_gt": 37
+  }
+ },
+ "seconds": 109.4
+}

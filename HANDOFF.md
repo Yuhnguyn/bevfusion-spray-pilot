@@ -109,6 +109,21 @@ git -C mit/bevfusion rev-parse --short HEAD   # phải in da93b27
 
 Dataset nuScenes và SemanticSpray nằm trên Kaggle/ổ ngoài, không commit vào repo.
 
+### Cái gì ở ngoài git (và lấy lại thế nào)
+
+| Thứ | Ở đâu | Cần làm gì |
+|---|---|---|
+| Kaggle credentials | `~/.kaggle/kaggle.json` trên máy | Tạo/đăng nhập lại; **không bao giờ commit** |
+| Kernel | `nguynhuy9669/bevfusion-smoke-test` (private) | Code đã có trong `kaggle/smoke_test/`; push lại bằng `kaggle kernels push -p kaggle/smoke_test` |
+| Output kernel (infos pkl, log) | Version v19 trên Kaggle | `kaggle kernels output nguynhuy9669/bevfusion-smoke-test -p /tmp/k7` |
+| Evidence JSON nhỏ | `kaggle/smoke_test/evidence/` | **Đã commit** (report, infos, sample, checkpoint, cfg, toolchain) |
+| Dataset nuScenes | Kaggle dataset public, gắn qua `kernel-metadata.json` | Tự attach khi push; không cần tải local |
+| Checkpoint fused | Dropbox mirror | URL + sha256 trong `mit/PIN.md`; kernel tự tải |
+| Kanban artifact | artifacts.commandcode.ai | Link private, mở bằng cùng account; bản local ở `docs/kanban.html` |
+
+Tóm lại: code/docs/tickets/evidence JSON đã ở git; Kaggle chỉ giữ kernel + output
+lớn, và mọi thứ tái tạo được từ repo + `HANDOFF.md`.
+
 ## Prompt dán vào CommandCode (máy mới)
 
 ```text

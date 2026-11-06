@@ -1,0 +1,62 @@
+{
+ "batch_shapes": {
+  "img": "list",
+  "points": "list",
+  "gt_bboxes_3d": "list",
+  "gt_labels_3d": "list",
+  "camera_intrinsics": "list",
+  "camera2ego": "list",
+  "lidar2ego": "list",
+  "lidar2camera": "list",
+  "lidar2image": "list",
+  "img_aug_matrix": "list",
+  "lidar_aug_matrix": "list",
+  "metas": "list"
+ },
+ "batch_keys": [
+  "camera2ego",
+  "camera_intrinsics",
+  "gt_bboxes_3d",
+  "gt_labels_3d",
+  "img",
+  "img_aug_matrix",
+  "lidar2camera",
+  "lidar2ego",
+  "lidar2image",
+  "lidar_aug_matrix",
+  "metas",
+  "points"
+ ],
+ "config_files": [
+  "/root/bevfusion_smoke/bevfusion/configs/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml"
+ ],
+ "dropped_transforms": [
+  "LoadBEVSegmentation",
+  "Collect3D.gt_masks_bev"
+ ],
+ "num_infos": 120,
+ "index": 0,
+ "token": "88a090c54cc844cc878f00d08274a683",
+ "lidar_path": "/kaggle/working/data/nuscenes/samples/LIDAR_TOP/n015-2018-07-18-11-41-49+0800__LIDAR_TOP__1531885320049418.pcd.bin",
+ "num_cams": 6,
+ "num_sweeps": 0,
+ "num_gt": 2,
+ "missing_image_paths": [],
+ "velocity": {
+  "finite": 2,
+  "vehicle_boxes": 1,
+  "vehicle_finite": 1,
+  "speed_ge_30_kmh": 0,
+  "speed_ge_50_kmh": 0,
+  "speed_ge_50_front_30m": 0,
+  "max_speed_kmh": 0.5
+ },
+ "seconds": 1.31
+}

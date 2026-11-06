@@ -1,0 +1,455 @@
+{
+  "all_pass": true,
+  "batch": {
+    "batch_size": 1,
+    "cam_order": [
+      "CAM_FRONT",
+      "CAM_FRONT_LEFT",
+      "CAM_FRONT_RIGHT",
+      "CAM_BACK",
+      "CAM_BACK_LEFT",
+      "CAM_BACK_RIGHT"
+    ],
+    "camera2ego_CAM_FRONT": [
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.5
+      ],
+      [
+        -1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        -1.0,
+        0.0,
+        1.6
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "data_source": "synthetic",
+    "device": "cuda",
+    "intrinsics_4x4": [
+      [
+        400.0,
+        0.0,
+        352.0,
+        0.0
+      ],
+      [
+        0.0,
+        400.0,
+        128.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "num_points_per_sample": 20000,
+    "point_cloud_range": [
+      -54.0,
+      -54.0,
+      -5.0,
+      54.0,
+      54.0,
+      3.0
+    ],
+    "seed": 0,
+    "shapes": {
+      "camera2ego": [
+        1,
+        6,
+        4,
+        4
+      ],
+      "camera_intrinsics": [
+        1,
+        6,
+        4,
+        4
+      ],
+      "img": [
+        1,
+        6,
+        3,
+        256,
+        704
+      ],
+      "img_aug_matrix": [
+        1,
+        6,
+        4,
+        4
+      ],
+      "lidar2camera": [
+        1,
+        6,
+        4,
+        4
+      ],
+      "lidar2ego": [
+        1,
+        4,
+        4
+      ],
+      "lidar2image": [
+        1,
+        6,
+        4,
+        4
+      ],
+      "lidar_aug_matrix": [
+        1,
+        4,
+        4
+      ],
+      "points": [
+        1,
+        20000,
+        5
+      ]
+    },
+    "why_synthetic": "nuscenes_infos_{train,val}.pkl are missing on the Kaggle mirror, so no real sample can go through the MIT pipeline yet (ticket 04)"
+  },
+  "checkpoint": {
+    "ckpt_num_keys": 582,
+    "cross_check_mmcv": {
+      "ok": true,
+      "used": true
+    },
+    "load_error": null,
+    "matched_keys": 582,
+    "missing_keys": [],
+    "missing_keys_total": 0,
+    "missing_keys_weight_affecting_total": 0,
+    "model_num_keys": 582,
+    "path": "/root/bevfusion_smoke/ckpt/bevfusion-det.pth",
+    "primary_url_probe": {
+      "probe": "http_code=404 bytes=3108 effective=https://hanlab.mit.edu/projects/bevfusion/files/pretrained/bevfusion-det.pth",
+      "url": "https://bevfusion.mit.edu/files/pretrained/bevfusion-det.pth"
+    },
+    "served_by": "https://www.dropbox.com/scl/fi/ulaz9z4wdwtypjhx7xdi3/bevfusion-det.pth?rlkey=ovusfi2rchjub5oafogou255v&dl=1",
+    "sha256": "ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122",
+    "shape_mismatch": [],
+    "shape_mismatch_count": 0,
+    "size_bytes": 163715701,
+    "top_level_keys": [
+      "state_dict"
+    ],
+    "unexpected_keys": [],
+    "unexpected_keys_total": 0,
+    "weight_sample_check": [
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.0.weight"
+      },
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.1.bias"
+      },
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.1.num_batches_tracked"
+      },
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.1.running_mean"
+      },
+      {
+        "identical": true,
+        "key": "decoder.backbone.blocks.0.1.running_var"
+      }
+    ]
+  },
+  "criteria": {
+    "1_checkpoint_loads": true,
+    "2_missing_unexpected_keys_listed": true,
+    "3_forward_no_shape_error": true,
+    "4_outputs_finite": true,
+    "5_depth_channels_match": true,
+    "6_report_saved": true
+  },
+  "cuda_toolchain": {
+    "cudart_header": true,
+    "nvcc": "/usr/local/cuda-11/bin/nvcc",
+    "path": "/usr/local/cuda-11",
+    "raw": "Build cuda_11.8.r11.8/compiler.31833905_0",
+    "release": "11.8",
+    "strategy": "apt-ubuntu2204-cuda-11-8"
+  },
+  "depth_check": {
+    "V_C": 80,
+    "V_D": 118,
+    "channels_match": true,
+    "class_source_lines": [
+      "self.dtransform = nn.Sequential(",
+      "nn.Conv2d(1, 8, 1),",
+      "def get_cam_feats(self, x, d):"
+    ],
+    "depth_spatial_matches_image_size": true,
+    "depth_spatial_size": [
+      256,
+      704
+    ],
+    "depth_tensor_channels": 1,
+    "depth_tensor_finite": true,
+    "depth_tensor_max": 75.04766845703125,
+    "depth_tensor_min": 0.0,
+    "depth_tensor_nonzero_fraction": 0.02359933592379093,
+    "depth_tensor_shape": [
+      6,
+      1,
+      256,
+      704
+    ],
+    "dtransform_accepted_channels": 1,
+    "dtransform_first_layer": "Conv2d(1, 8, kernel_size=(1, 1), stride=(1, 1))",
+    "dtransform_output_matches_feature_size": true,
+    "dtransform_output_size_computed": [
+      32,
+      88
+    ],
+    "feature_size": [
+      32,
+      88
+    ],
+    "forward_source_lines": [
+      "depth = torch.zeros(batch_size, 6, 1, *self.image_size).to(points[0].device)"
+    ],
+    "image_size": [
+      256,
+      704
+    ],
+    "pass": true
+  },
+  "env": {
+    "cuda_available": true,
+    "cudnn": 8200,
+    "device_0": "Tesla T4",
+    "device_0_capability": [
+      7,
+      5
+    ],
+    "device_0_total_memory_gb": 14.56,
+    "device_count": 2,
+    "executable": "/root/bevfusion_smoke/env/bin/python",
+    "mmcv": "1.4.0",
+    "mmdet": "2.20.0",
+    "numpy": "1.22.4",
+    "pinned_ok": true,
+    "python": "3.8.20 (default, Oct  2 2024, 16:34:12) \n[Clang 18.1.8 ]",
+    "python_version": [
+      3,
+      8,
+      20
+    ],
+    "torch": "1.10.1+cu113",
+    "torch_cuda_build": "11.3"
+  },
+  "finite_check": {
+    "head": {
+      "head[0][0].center": true,
+      "head[0][0].dense_heatmap": true,
+      "head[0][0].dim": true,
+      "head[0][0].heatmap": true,
+      "head[0][0].height": true,
+      "head[0][0].query_heatmap_score": true,
+      "head[0][0].rot": true,
+      "head[0][0].vel": true
+    },
+    "outputs": {
+      "boxes_3d": true,
+      "scores_3d": true
+    },
+    "pass": true,
+    "stages": {
+      "camera_bev": true,
+      "decoder_neck": true,
+      "depth": true,
+      "fused_bev": true
+    }
+  },
+  "forward": {
+    "error": null,
+    "full_forward_ok": true,
+    "peak_gpu_mem_gb": 1.98,
+    "seconds": 0.66,
+    "trunk_only_fallback": false
+  },
+  "ops": {
+    "gpu_smoke": {
+      "bev_pool": {
+        "finite": true,
+        "ok": true,
+        "shape": [
+          1,
+          4,
+          4,
+          8,
+          8
+        ]
+      },
+      "voxelize": {
+        "coord_shape": [
+          49984,
+          3
+        ],
+        "counts_shape": [
+          49984
+        ],
+        "feat_shape": [
+          49984,
+          10,
+          5
+        ],
+        "ok": true,
+        "voxels": 49984
+      }
+    },
+    "ok": true
+  },
+  "outputs": {
+    "sample_0": {
+      "boxes_3d_count": 200,
+      "boxes_3d_first5": [
+        [
+          -29.874,
+          -13.774,
+          -3.398,
+          0.858,
+          2.58,
+          1.603,
+          0.153,
+          0.001,
+          -0.001
+        ],
+        [
+          -28.573,
+          9.386,
+          -4.042,
+          0.924,
+          2.539,
+          1.71,
+          -0.454,
+          0.0,
+          -0.0
+        ],
+        [
+          -27.879,
+          -11.57,
+          -3.431,
+          0.864,
+          2.458,
+          1.646,
+          -1.019,
+          0.0,
+          -0.0
+        ],
+        [
+          -20.287,
+          -0.733,
+          -1.613,
+          2.634,
+          8.337,
+          2.828,
+          -2.196,
+          -0.03,
+          -0.024
+        ],
+        [
+          -44.365,
+          -17.54,
+          -3.431,
+          0.84,
+          2.483,
+          1.598,
+          -0.283,
+          0.0,
+          0.0
+        ]
+      ],
+      "boxes_3d_stats": {
+        "abs_max": 52.6797981262207,
+        "dtype": "torch.float32",
+        "finite_sample": true,
+        "inf_count_sample": 0,
+        "max": 48.894500732421875,
+        "mean": -0.46020203828811646,
+        "min": -52.6797981262207,
+        "nan_count_sample": 0,
+        "nonzero_sample": 1800,
+        "numel": 1800,
+        "samples_checked": 1800,
+        "shape": [
+          200,
+          9
+        ]
+      },
+      "labels_3d_top5": [
+        6,
+        6,
+        6,
+        8,
+        6
+      ],
+      "scores_3d_stats": {
+        "abs_max": 0.024630926549434662,
+        "dtype": "torch.float32",
+        "finite_sample": true,
+        "inf_count_sample": 0,
+        "max": 0.024630926549434662,
+        "mean": 0.004629648290574551,
+        "min": 5.277267064229818e-06,
+        "nan_count_sample": 0,
+        "nonzero_sample": 200,
+        "numel": 200,
+        "samples_checked": 200,
+        "shape": [
+          200
+        ]
+      },
+      "scores_3d_top5": [
+        0.0244,
+        0.0215,
+        0.0149,
+        0.0001,
+        0.0104
+      ]
+    }
+  },
+  "pin": {
+    "commit": "da93b27d0fe4563eecd46604e6cc5ddf1c5bd1ea",
+    "short": "da93b27"
+  },
+  "supporting": {
+    "checkpoint_obtained": true,
+    "checkpoint_served_by": "https://www.dropbox.com/scl/fi/ulaz9z4wdwtypjhx7xdi3/bevfusion-det.pth?rlkey=ovusfi2rchjub5oafogou255v&dl=1",
+    "config_invariants": true,
+    "cuda_11x_toolkit": "11.8",
+    "cuda_guard_bypassed": false,
+    "env_pinned": true,
+    "model_built": true,
+    "ops_built_and_gpu_smoke": true,
+    "pin_da93b27": true
+  },
+  "ticket": "02-smoke-test-checkpoint"
+}

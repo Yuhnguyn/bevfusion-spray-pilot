@@ -1,0 +1,65 @@
+{
+  "apt_keyring_present": true,
+  "apt_source_list": "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /",
+  "attempts": [
+    {
+      "apt_policy": "cuda-nvcc-11-8:\n  Installed: (none)\n  Candidate: 11.8.89-1\n  Version table:\n     11.8.89-1 600\n        600 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64  Packages",
+      "install_cusolver_rc": 0,
+      "install_libs_rc": 0,
+      "install_rc": 0,
+      "strategy": "apt-ubuntu2204-cuda-11-8",
+      "toolkits_found": [
+        {
+          "cudart_header": true,
+          "nvcc": "/usr/local/cuda-11/bin/nvcc",
+          "path": "/usr/local/cuda-11",
+          "raw": "Build cuda_11.8.r11.8/compiler.31833905_0",
+          "release": "11.8",
+          "strategy": "apt-ubuntu2204-cuda-11-8"
+        },
+        {
+          "cudart_header": true,
+          "nvcc": "/usr/local/cuda-11.8/bin/nvcc",
+          "path": "/usr/local/cuda-11.8",
+          "raw": "Build cuda_11.8.r11.8/compiler.31833905_0",
+          "release": "11.8"
+        }
+      ]
+    }
+  ],
+  "bypass_cuda_guard": false,
+  "chosen": {
+    "cudart_header": true,
+    "nvcc": "/usr/local/cuda-11/bin/nvcc",
+    "path": "/usr/local/cuda-11",
+    "raw": "Build cuda_11.8.r11.8/compiler.31833905_0",
+    "release": "11.8",
+    "strategy": "apt-ubuntu2204-cuda-11-8"
+  },
+  "gcc_chosen": "/usr/bin/gcc-11",
+  "gcc_default": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "ok": true,
+  "toolkits_initial": [
+    {
+      "cudart_header": true,
+      "nvcc": "/usr/local/cuda/bin/nvcc",
+      "path": "/usr/local/cuda",
+      "raw": "Build cuda_13.0.r13.0/compiler.36424714_0",
+      "release": "13.0"
+    },
+    {
+      "cudart_header": true,
+      "nvcc": "/usr/local/cuda-13/bin/nvcc",
+      "path": "/usr/local/cuda-13",
+      "raw": "Build cuda_13.0.r13.0/compiler.36424714_0",
+      "release": "13.0"
+    },
+    {
+      "cudart_header": true,
+      "nvcc": "/usr/local/cuda-13.0/bin/nvcc",
+      "path": "/usr/local/cuda-13.0",
+      "raw": "Build cuda_13.0.r13.0/compiler.36424714_0",
+      "release": "13.0"
+    }
+  ]
+}
