@@ -150,7 +150,7 @@ META = {
         "why": "Không dùng SemanticSpray để train/eval; chỉ dùng thống kê để hiệu chỉnh simulator.",
         "next": "Đã xong.",
         "evidence": "4/4; so sánh cluster dense, xét cả extent lẫn khoảng cách tới xe gần nhất.",
-        "files": ["docs/semantic-spray-stats.md", "spray/stats/"],
+        "files": ["docs/semantic-spray-stats.md", "spray/spray_stats.py"],
     },
     "13": {
         "short": "Dựa trên mini A/B, quyết định mở rộng hay dừng; nếu không có khác biệt thì ghi 'no measurable gap'.",

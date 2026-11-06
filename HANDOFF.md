@@ -88,12 +88,26 @@ Ba scene subset đầu có **0** frame ≥50 km/h (max 43.5 km/h). Nếu giữ 5
 
 ```bash
 git pull
+python3 -m pip install numpy pytest   # test local chỉ cần hai gói này
 python3 -m pytest -q tests/
-python3 scripts/build_kanban.py   # rồi publish lại artifact
+python3 scripts/build_kanban.py       # rồi publish lại artifact
 ```
 
 Cần `kaggle` CLI đã đăng nhập nếu muốn push/pull kernel. Artifact Kanban (private, cùng account):
 https://artifacts.commandcode.ai/ee7xfw4tlt45qh96
+
+### Dựng lại working copy MIT (không nằm trong git)
+
+`mit/bevfusion/`, `third_party/` và `data/` bị `.gitignore`. Ticket 06 không cần dataset;
+chỉ cần clone MIT đúng pin để đọc code/format:
+
+```bash
+git clone https://github.com/mit-han-lab/bevfusion.git mit/bevfusion
+git -C mit/bevfusion checkout da93b27d0fe4563eecd46604e6cc5ddf1c5bd1ea
+git -C mit/bevfusion rev-parse --short HEAD   # phải in da93b27
+```
+
+Dataset nuScenes và SemanticSpray nằm trên Kaggle/ổ ngoài, không commit vào repo.
 
 ## Prompt dán vào CommandCode (máy mới)
 
