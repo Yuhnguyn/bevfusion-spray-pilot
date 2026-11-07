@@ -15,6 +15,15 @@ tự không?
 - Kích thước plume thật chưa kết luận được vì clustering có thể nối
   chuỗi điểm; xem caveat về extent.
 
+## Đo hình học plume theo cự ly (ticket 16)
+
+Số đo hình học theo bucket cự ly, cùng sample **2.070 frame** và clustering
+single-linkage radius **0,5 m** như trên, ở `docs/plume-geometry-vs-real.md`.
+Bucket **>50 m** có **0 dense cluster** `[ĐO]`, nên một sample mở rộng
+**207 scene × 20 frame = 4.140 frame** đã được chạy lại; bảng của sample mở
+rộng ở `docs/plume-geometry-vs-real-expanded.md`. Bucket >50 m vẫn **0**
+cluster trong sample mở rộng `[ĐO]`.
+
 ## Sample
 
 - scenes: **207**
