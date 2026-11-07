@@ -40,25 +40,23 @@ Lịch sử fix môi trường: thiếu `numba` → uv không resolve được t
 | 12 | SemanticSpray statistics | **done** | — | — |
 | 13 | Gate review sau mini A/B | blocked | 11 | quyết định đi tiếp hay dừng |
 | 14 | Arm B0 — lọc spray rồi detect | ready-for-agent | 02, 05 | filter + frame list chốt với PM |
-| 16 | Đo hình học plume thật theo cự ly (SemanticSpray) | **ready-for-agent** | — | CommandCode chạy ngay được, không cần Kaggle |
-| 17 | Đặt điểm trên vỏ cầu phía cảm biến | blocked | 16 | chờ số `r_range/r_extent` của 16 |
-| 18 | Quét lại eligibility nuScenes (ego speed, scene count, bảng 2 chiều) | **ready-for-agent** | — | CommandCode, 1 lần push Kaggle |
+| 16 | Đo hình học plume thật theo cự ly (SemanticSpray) | **done** `08f6715` | — | số: `docs/plume-geometry-vs-real.md` |
+| 17 | Sửa generator theo số đo của 16 (count theo cự ly + bẹp 0,64) | **ready-for-agent** | — (16 xong) | CommandCode |
+| 18 | Quét lại eligibility nuScenes (ego speed, scene count, bảng 2 chiều) | **done** — 3 lần push | — | số: `docs/nuscenes-eligibility.md` |
 
-## Thứ tự hiện tại (2026-11-07)
+## Thứ tự hiện tại (2026-11-07, sau khi 16/18 xong)
 
-Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ học làm sau.** Cơ học không bị lật khi thiết kế
-đổi; còn thiết kế đổi thì mọi số đo trước đó phải vứt.
+Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ học làm sau.**
 
-| Bước | Ticket | Vì sao ở vị trí này |
+| Bước | Ticket | Trạng thái |
 |---|---|---|
-| 1 | **18** (đo) | Cổng khả thi: có đủ frame **và** scene để đo không? Nếu không, cả dự án phải đổi thiết kế |
-| 2 | **16** (đo) | Cổng trung thực: dải cự ly nào plume còn hợp lý → quyết định chọn hàng nào trong bảng của 18 |
-| 3 | **08 → 09** | Cơ học, không bị ảnh hưởng bởi kết quả 16/18 → làm sau cũng không phải làm lại |
-| 4 | **17** | Sửa hình học generator theo số của 16 |
-| 5 | **10 → 11 → 13** | Chốt eval set theo bảng của 18, generator đã final → mới được sinh số |
+| 1 | **18** đo khả thi | ✅ xong → eval set = val, d≤50 m, 196 frame / 16 scene |
+| 2 | **16** đo hình học | ✅ xong → 17,0 điểm/cụm trung bình, giảm 3,0× theo cự ly, `r_range/r_extent` = 1,28 |
+| 3 | **17** sửa generator theo số | **làm ngay** — đóng bộ sinh trước khi đo |
+| 4 | **08 → 09** | cơ học, không bị lật bởi 16/17 |
+| 5 | **10 → 11 → 13** | chốt eval set + generator final → mới sinh số |
 
-`14` (B0) và `15` (docstring) độc lập, chen vào lúc chờ Kaggle. `15` mất ~5 phút và đang là doc **sai**
-trong `plume.py` nên nên làm sớm để agent sau không đọc phải.
+`14` (B0) chạy song song được với `10–11`. `15` xong.
 
 ## Critical path
 
