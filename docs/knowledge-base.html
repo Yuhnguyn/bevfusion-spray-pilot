@@ -1,0 +1,1397 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sổ tay dự án — Spray plume cho BEVFusion</title>
+<style>
+  :root{
+    --bg:#FBFBF7;
+    --surface:#FFFFFF;
+    --ink:#16212B;
+    --ink-soft:#3E4E5B;
+    --muted:#7C8B97;
+    --line:#E7EAE4;
+    --mint:#0FA98B;      --mint-soft:#E6F7F2;
+    --sky:#3B82F6;       --sky-soft:#EAF1FE;
+    --violet:#7C5CFF;    --violet-soft:#F0EDFF;
+    --amber:#D08413;     --amber-soft:#FDF2E1;
+    --rose:#DE5250;      --rose-soft:#FCEDEC;
+    --radius:20px;
+    --shadow:0 1px 2px rgba(22,33,43,.04), 0 14px 34px -22px rgba(22,33,43,.35);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    font-size:16.5px;
+    line-height:1.66;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,h4{line-height:1.22;letter-spacing:-.02em;margin:0}
+  p{margin:0 0 .9em}
+  p:last-child{margin-bottom:0}
+  a{color:var(--sky);text-decoration:none}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    background:rgba(251,251,247,.86);
+    backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-in{
+    max-width:1140px;margin:0 auto;padding:10px 24px;
+    display:flex;align-items:center;gap:18px;
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-weight:650;letter-spacing:-.02em;white-space:nowrap}
+  .brand .dot{
+    width:11px;height:11px;border-radius:50%;
+    background:conic-gradient(from 200deg,var(--mint),var(--sky),var(--violet),var(--mint));
+  }
+  nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-left:auto}
+  nav::-webkit-scrollbar{display:none}
+  nav a{
+    font-size:13.5px;color:var(--muted);padding:6px 11px;border-radius:999px;
+    white-space:nowrap;transition:.18s;
+  }
+  nav a:hover{color:var(--ink);background:#fff}
+  nav a.on{color:#fff;background:var(--ink)}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+  section{padding:64px 0;scroll-margin-top:74px}
+  section + section{border-top:1px solid var(--line)}
+  .eyebrow{
+    display:flex;align-items:center;gap:10px;
+    font-size:12.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:14px;
+  }
+  .eyebrow::before{content:"";width:22px;height:2px;border-radius:2px;background:var(--mint)}
+  h2{font-size:clamp(26px,3.4vw,36px);margin-bottom:10px}
+  .lede{max-width:70ch;color:var(--ink-soft);font-size:17.5px}
+  .mt{margin-top:26px}
+
+  /* ---------- hero ---------- */
+  .hero{
+    padding:72px 0 60px;
+    background:
+      radial-gradient(900px 380px at 12% -10%, #E6F7F2 0%, transparent 62%),
+      radial-gradient(760px 340px at 88% 0%, #EAF1FE 0%, transparent 60%),
+      radial-gradient(620px 320px at 55% 120%, #F0EDFF 0%, transparent 65%);
+  }
+  .hero h1{font-size:clamp(32px,4.9vw,52px);max-width:20ch;margin-bottom:18px}
+  .hero p{max-width:62ch;color:var(--ink-soft);font-size:18px}
+  .hero-stats{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+  .hstat{
+    background:#fff;border:1px solid var(--line);border-radius:16px;
+    padding:12px 18px;box-shadow:var(--shadow);
+  }
+  .hstat b{display:block;font-size:21px;letter-spacing:-.03em}
+  .hstat span{font-size:12.5px;color:var(--muted)}
+
+  /* ---------- cards ---------- */
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:24px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .card h3{font-size:18px;margin-bottom:8px}
+  .card p{color:var(--ink-soft);font-size:15.5px}
+  .card .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:30px;height:30px;border-radius:10px;font-size:14px;font-weight:700;
+    margin-bottom:12px;
+  }
+  .accent-mint{border-top:3px solid var(--mint)}
+  .accent-sky{border-top:3px solid var(--sky)}
+  .accent-violet{border-top:3px solid var(--violet)}
+  .accent-amber{border-top:3px solid var(--amber)}
+  .accent-rose{border-top:3px solid var(--rose)}
+  .c-mint{background:var(--mint-soft);color:var(--mint)}
+  .c-sky{background:var(--sky-soft);color:#2563EB}
+  .c-violet{background:var(--violet-soft);color:var(--violet)}
+  .c-amber{background:var(--amber-soft);color:var(--amber)}
+  .c-rose{background:var(--rose-soft);color:var(--rose)}
+
+  /* ---------- callout ---------- */
+  .callout{
+    display:flex;gap:14px;align-items:flex-start;
+    border-radius:16px;padding:16px 20px;font-size:15px;line-height:1.6;
+    border:1px solid transparent;
+  }
+  .callout .ic{font-weight:800;font-size:15px;line-height:1.5}
+  .co-mint{background:var(--mint-soft);border-color:#CBEEE4;color:#0B6B58}
+  .co-amber{background:var(--amber-soft);border-color:#F5E0BC;color:#8A5A0A}
+  .co-rose{background:var(--rose-soft);border-color:#F6D5D3;color:#9B302E}
+  .co-sky{background:var(--sky-soft);border-color:#CFE0FB;color:#2158A8}
+
+  /* ---------- tags ---------- */
+  .tag{
+    display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.04em;
+    padding:2px 8px;border-radius:6px;vertical-align:1px;white-space:nowrap;
+  }
+  .t-paper{background:var(--violet-soft);color:var(--violet)}
+  .t-meas{background:var(--mint-soft);color:var(--mint)}
+  .t-code{background:var(--sky-soft);color:#2563EB}
+  .t-pick{background:var(--amber-soft);color:var(--amber)}
+
+  /* ---------- pipeline ---------- */
+  .pipe{position:relative;padding-left:34px}
+  .pipe::before{
+    content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(180deg,var(--mint),var(--sky) 45%,var(--violet));
+    opacity:.35;border-radius:2px;
+  }
+  .step{position:relative;margin-bottom:14px}
+  .step::before{
+    content:"";position:absolute;left:-29px;top:20px;
+    width:12px;height:12px;border-radius:50%;background:#fff;
+    border:2.5px solid var(--sky);
+  }
+  .step:nth-child(1)::before{border-color:var(--mint)}
+  .step:nth-child(2)::before{border-color:var(--sky)}
+  .step:nth-child(3)::before{border-color:var(--violet)}
+  .step:nth-child(4)::before{border-color:var(--amber)}
+  .step:nth-child(5)::before{border-color:var(--rose)}
+  .step:nth-child(6)::before{border-color:var(--mint)}
+  .step:nth-child(7)::before{border-color:var(--sky)}
+  .step .box{
+    background:#fff;border:1px solid var(--line);border-radius:14px;
+    padding:14px 18px;box-shadow:var(--shadow);
+  }
+  .step .box b{display:block;font-size:15.5px;margin-bottom:2px}
+  .step .box span{display:block;font-size:14.5px;color:var(--ink-soft)}
+  .code-inline{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+    background:#F4F6F4;border:1px solid var(--line);border-radius:6px;
+    padding:1px 6px;color:#33424E;
+  }
+  .branch{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+  .branch .box{height:100%}
+  .b-cam{background:linear-gradient(180deg,#fff,var(--sky-soft));border-color:#D8E6FB}
+  .b-lid{background:linear-gradient(180deg,#fff,var(--mint-soft));border-color:#CBEEE4}
+
+  /* ---------- plume steps ---------- */
+  .s8{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .s8 .card{padding:18px 20px;border-radius:16px}
+  .s8 .hd{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .s8 .hd .n{
+    width:26px;height:26px;flex:0 0 26px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:700;
+  }
+  .s8 .hd b{font-size:15px;letter-spacing:-.01em}
+  .s8 .val{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12.5px;color:#33424E;background:#F4F6F4;
+    border:1px solid var(--line);border-radius:8px;
+    padding:6px 9px;margin-top:8px;display:block;overflow-x:auto;white-space:nowrap;
+  }
+  .s8 .card p{font-size:14px;margin:0}
+
+  /* ---------- funnel ---------- */
+  .funnel{display:flex;flex-direction:column;gap:14px}
+  .frow{}
+  .frow .lab{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:14px;margin-bottom:6px}
+  .frow .lab b{font-weight:600}
+  .frow .lab i{font-style:normal;color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .track{height:14px;border-radius:999px;background:#EDF1EC;overflow:hidden}
+  .fill{height:100%;border-radius:999px}
+  .f1 .fill{background:linear-gradient(90deg,#8FD9C8,#0FA98B)}
+  .f2 .fill{background:linear-gradient(90deg,#8FB8F7,#3B82F6)}
+  .f3 .fill{background:linear-gradient(90deg,#BDB0FF,#7C5CFF)}
+  .f4 .fill{background:linear-gradient(90deg,#F3B49E,#DE5250)}
+
+  /* ---------- timeline ---------- */
+  .tl{position:relative;padding-left:26px}
+  .tl::before{content:"";position:absolute;left:6px;top:10px;bottom:10px;width:2px;background:var(--line);border-radius:2px}
+  .tl .item{position:relative;padding-bottom:20px}
+  .tl .item:last-child{padding-bottom:0}
+  .tl .item::before{
+    content:"";position:absolute;left:-25px;top:8px;width:10px;height:10px;
+    border-radius:50%;background:#fff;border:2.5px solid var(--mint);
+  }
+  .tl .item:nth-child(2n)::before{border-color:var(--sky)}
+  .tl .item:nth-child(3n)::before{border-color:var(--violet)}
+  .tl .item:nth-child(5n)::before{border-color:var(--amber)}
+  .tl .when{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .tl .what{font-size:15.5px;font-weight:600;margin:1px 0 2px}
+  .tl .why{font-size:14px;color:var(--ink-soft)}
+
+  /* ---------- chips / tickets ---------- */
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;
+    border:1px solid var(--line);background:#fff;color:var(--ink-soft);
+  }
+  .chip.done{background:var(--mint-soft);border-color:#CBEEE4;color:#0B6B58}
+  .chip.ready{background:var(--amber-soft);border-color:#F5E0BC;color:#8A5A0A}
+  .chip.wait{background:#F6F7F5;color:var(--muted)}
+
+  /* ---------- misc ---------- */
+  .stat-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .stat{
+    background:#fff;border:1px solid var(--line);border-radius:16px;
+    padding:16px 18px;box-shadow:var(--shadow);
+  }
+  .stat b{display:block;font-size:24px;letter-spacing:-.035em;line-height:1.15}
+  .stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:3px}
+  details{
+    background:#fff;border:1px solid var(--line);border-radius:16px;
+    padding:14px 20px;box-shadow:var(--shadow);
+  }
+  details summary{cursor:pointer;font-weight:650;font-size:15px;list-style:none}
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:"＋";float:right;color:var(--muted)}
+  details[open] summary::after{content:"－"}
+  .gloss{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 26px;margin-top:14px;font-size:14.5px}
+  .gloss b{color:var(--ink)}
+  .gloss span{color:var(--ink-soft)}
+  figure{margin:0}
+  figcaption{font-size:12.5px;color:var(--muted);margin-top:10px;text-align:center}
+  .sub{font-size:21px;margin:38px 0 6px;letter-spacing:-.02em}
+  .subs{color:var(--muted);font-size:14.5px;margin:0 0 16px}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:var(--shadow)}
+  table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:640px}
+  th,td{text-align:left;padding:11px 15px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);background:#FAFBF8;font-weight:700;white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  td b{font-weight:650}
+  .mono{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+    color:#33424E;background:#F4F6F4;border:1px solid var(--line);
+    border-radius:9px;padding:8px 12px;display:block;margin:10px 0;
+  }
+  .formula{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:15px;letter-spacing:-.01em;color:#1F3B4D;
+    background:linear-gradient(180deg,#F7FAFF,#EEF5FD);
+    border:1px solid #D8E6FB;border-radius:12px;padding:12px 16px;margin:12px 0;
+  }
+  svg{display:block;width:100%;height:auto}
+  .figcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+
+  footer{padding:44px 0 64px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px}
+  footer b{color:var(--ink-soft);font-weight:600}
+
+  /* reveal */
+  .rv{opacity:0;transform:translateY(14px);transition:opacity .55s ease,transform .55s ease}
+  .rv.in{opacity:1;transform:none}
+
+  @media (max-width:900px){
+    .g3,.g4,.stat-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .g2,.s8,.two,.gloss{grid-template-columns:1fr}
+  }
+  @media (max-width:600px){
+    .g3,.g4,.stat-row{grid-template-columns:1fr}
+    .branch{grid-template-columns:1fr}
+    section{padding:48px 0}
+    .wrap,.topbar-in{padding-left:18px;padding-right:18px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .rv{opacity:1;transform:none;transition:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand"><span class="dot"></span> Sổ tay dự án</div>
+    <nav id="nav">
+      <a href="#bai-toan">Bài toán</a>
+      <a href="#hanh-trinh">Hành trình</a>
+      <a href="#plume">Cụm nước</a>
+      <a href="#thu-tu">Thứ tự</a>
+      <a href="#thi-nghiem">Thí nghiệm</a>
+      <a href="#du-lieu">Dữ liệu</a>
+      <a href="#quyet-dinh">Quyết định</a>
+      <a href="#gioi-han">Giới hạn</a>
+      <a href="#lidar">LiDAR</a>
+      <a href="#dataset">Chấm điểm</a>
+      <a href="#tien-do">Tiến độ</a>
+    </nav>
+  </div>
+</div>
+
+<main>
+
+<!-- ============ HERO ============ -->
+<section class="hero" style="border-top:none">
+  <div class="wrap">
+    <div class="eyebrow">BEVFusion · thí nghiệm spray plume</div>
+    <h1>Khi xe phía trước làm bắn nước, AI còn nhìn rõ đường không?</h1>
+    <p>Sổ tay này ghi lại toàn bộ kiến thức và quyết định của dự án — viết bằng lời thường, kèm hình, để bất kỳ ai mở lần đầu cũng hiểu.</p>
+    <div class="hero-stats">
+      <div class="hstat"><b>34.720</b><span>điểm 3D trong một frame</span></div>
+      <div class="hstat"><b>196</b><span>frame dùng để đo kết quả</span></div>
+      <div class="hstat"><b>2 – 8</b><span>cụm nước mỗi xe phía trước</span></div>
+      <div class="hstat"><b>35</b><span>test tự động đang chạy xanh</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 01 BÀI TOÁN ============ -->
+<section id="bai-toan">
+  <div class="wrap rv">
+    <div class="eyebrow">01 — Bài toán</div>
+    <h2>Ba câu là hiểu xong</h2>
+    <p class="lede">Không phải sửa cảm biến hỏng. Chỉ là: dữ liệu dạy AI đang thiếu một hiện tượng có thật ngoài đường.</p>
+
+    <div class="grid g3 mt">
+      <div class="card accent-sky">
+        <div class="num c-sky">1</div>
+        <h3>Chuyện gì xảy ra</h3>
+        <p>Xe chạy nhanh trên đường ướt hất nước ra sau. Tia laser đập vào đám nước, thu về hàng trăm điểm giả. AI tưởng đó là vật cản, hoặc bị che mất chiếc xe thật.</p>
+      </div>
+      <div class="card accent-violet">
+        <div class="num c-violet">2</div>
+        <h3>Câu hỏi</h3>
+        <p>Nếu lúc dạy, ta cho AI làm quen với đám nước giả này, nó có bớt bị lừa khi gặp nước thật không?</p>
+      </div>
+      <div class="card accent-mint">
+        <div class="num c-mint">3</div>
+        <h3>Cách trả lời</h3>
+        <p>Dạy hai phiên bản AI giống hệt nhau, chỉ khác đúng một thứ: bản B được thấy nước giả. Rồi cho cả hai thi trên cùng một bộ frame.</p>
+      </div>
+    </div>
+
+    <div class="callout co-mint mt">
+      <span class="ic">→</span>
+      <div><b>Một biến duy nhất thay đổi.</b> Mọi thứ khác — checkpoint, dữ liệu, seed, số bước train — giữ nguyên. Nếu khác hai thứ trở lên thì không còn biết cái nào tạo ra chênh lệch.</div>
+    </div>
+
+    <div class="mt">
+      <details>
+        <summary>Từ khó — hiểu trong 10 giây</summary>
+        <div class="gloss">
+          <div><b>Plume</b> — <span>đám hơi nước / nước bắn lơ lửng phía sau xe.</span></div>
+          <div><b>Frame</b> — <span>một lần chụp: một ảnh quét 3D + 6 ảnh camera + danh sách xe.</span></div>
+          <div><b>LiDAR</b> — <span>cảm biến bắn laser, mỗi tia trả về một điểm 3D.</span></div>
+          <div><b>mAP</b> — <span>điểm số độ chính xác phát hiện vật thể. Cao hơn = tốt hơn.</span></div>
+          <div><b>Seed</b> — <span>con số quyết định "ngẫu nhiên" ra sao. Cùng seed = cùng kết quả.</span></div>
+          <div><b>Arm</b> — <span>một nhánh thí nghiệm (A, B, B0).</span></div>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 HÀNH TRÌNH ============ -->
+<section id="hanh-trinh">
+  <div class="wrap rv">
+    <div class="eyebrow">02 — Hành trình</div>
+    <h2>Một frame đi qua những đâu</h2>
+    <p class="lede">Đọc từ trên xuống. Chỗ quan trọng nhất là bước 5: <b>một frame, hai phiên bản</b>.</p>
+
+    <div class="pipe mt">
+      <div class="step">
+        <div class="box">
+          <b>1 · Đọc dữ liệu</b>
+          <span>Một frame có ~34.720 điểm 3D, 6 ảnh camera, và danh sách xe: vị trí, kích thước, hướng, <b>vận tốc</b>.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="box">
+          <b>2 · Xoay &amp; lật ngẫu nhiên</b>
+          <span>Đổi góc nhìn để AI không học thuộc. Điểm và xe bị xoay <b>cùng lúc</b> — chi tiết này quan trọng ở mục 04.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="box">
+          <b>3 · Chèn nước giả <span class="code-inline">PlumeTransform</span></b>
+          <span>Sinh thêm K điểm. Đồng thời giữ lại một bản sao sạch, y nguyên trước khi chèn.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="box">
+          <b>4 · Đóng gói</b>
+          <span>Chuyển thành tensor, gom nhiều frame thành một batch.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="box">
+          <b>5 · Tách hai nhánh</b>
+          <span>Đây là chỗ dễ hiểu sai nhất. Cùng một frame nhưng hai nhánh nhận hai bản khác nhau.</span>
+          <div class="branch">
+            <div class="box b-cam">
+              <b>Nhánh camera</b>
+              <span>Nhận <b>bản sạch</b>. Vì nó chiếu từng điểm 3D lên ảnh để lấy độ sâu — điểm nước sẽ chiếu sai chỗ và làm hỏng kết quả.</span>
+            </div>
+            <div class="box b-lid">
+              <b>Nhánh LiDAR</b>
+              <span>Nhận <b>bản có nước</b>. Vì đây chính là thứ AI phải học cách bỏ qua.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="box">
+          <b>6 · Ghép hai nhánh</b>
+          <span>Hai nguồn nhìn được gộp lại, rồi dự đoán: hộp 3D, độ tin cậy, nhãn.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="box">
+          <b>7 · Chấm điểm</b>
+          <span>So dự đoán với đáp án → đếm đúng/sai → ra mAP. Kèm khoảng tin cậy tính theo <b>cảnh</b>, không theo frame.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout co-sky mt">
+      <span class="ic">!</span>
+      <div><b>Vì sao phải có hai bản?</b> Trên xe thật, hai nhánh không thể nhìn hai thứ khác nhau. Ở đây ta cố ý tách ra để chỉ có <i>một</i> biến thay đổi. Đổi lại, kết quả dương tính là <b>cận trên lạc quan</b> — phải ghi rõ khi báo cáo.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 PLUME ============ -->
+<section id="plume">
+  <div class="wrap rv">
+    <div class="eyebrow">03 — Cụm nước</div>
+    <h2>Đám nước được sinh ra thế nào</h2>
+    <p class="lede">Tám bước, mỗi bước một con số. Hình dưới là nhìn từ trên xuống.</p>
+
+    <figure class="figcard mt">
+      <svg viewBox="0 0 820 300" role="img" aria-label="Sơ đồ nhìn từ trên xuống: xe mình, xe phía trước và các cụm nước ở giữa">
+        <rect x="0" y="90" width="820" height="140" fill="#F5F9F8"/>
+        <line x1="0" y1="90" x2="820" y2="90" stroke="#E2EAE7" stroke-dasharray="10 9"/>
+        <line x1="0" y1="230" x2="820" y2="230" stroke="#E2EAE7" stroke-dasharray="10 9"/>
+        <line x1="0" y1="160" x2="820" y2="160" stroke="#DCE7E3" stroke-dasharray="18 16" stroke-width="2"/>
+
+        <!-- ego car -->
+        <rect x="38" y="122" width="100" height="58" rx="16" fill="#EAF1FE" stroke="#3B82F6" stroke-width="2"/>
+        <rect x="52" y="132" width="30" height="38" rx="7" fill="#C9DDFB"/>
+        <circle cx="90" cy="128" r="3.2" fill="#3B82F6"/>
+        <text x="88" y="212" font-size="12.5" fill="#5B6B7B" text-anchor="middle">xe mình · cảm biến ở đây</text>
+
+        <!-- lead car -->
+        <rect x="620" y="112" width="140" height="76" rx="20" fill="#E6F7F2" stroke="#0FA98B" stroke-width="2"/>
+        <rect x="636" y="124" width="34" height="52" rx="9" fill="#BFE9DD"/>
+        <rect x="680" y="124" width="34" height="52" rx="9" fill="#BFE9DD"/>
+        <text x="690" y="103" font-size="12.5" fill="#5B6B7B" text-anchor="middle">xe phía trước</text>
+
+        <!-- velocity arrow -->
+        <line x1="690" y1="74" x2="800" y2="74" stroke="#0FA98B" stroke-width="2.5" marker-end="url(#arrowMint)"/>
+        <text x="745" y="63" font-size="12.5" fill="#0B6B58" text-anchor="middle">v = 20 m/s (72 km/h)</text>
+
+        <!-- clusters -->
+        <circle cx="420" cy="120" r="26" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.6" opacity=".95"/>
+        <circle cx="420" cy="120" r="2.2" fill="#7C5CFF"/><circle cx="410" cy="112" r="2.2" fill="#7C5CFF"/>
+        <circle cx="430" cy="128" r="2.2" fill="#7C5CFF"/><circle cx="414" cy="131" r="2.2" fill="#7C5CFF"/>
+        <circle cx="428" cy="110" r="2.2" fill="#7C5CFF"/><circle cx="423" cy="127" r="2.2" fill="#7C5CFF"/>
+        <circle cx="407" cy="124" r="2.2" fill="#7C5CFF"/>
+
+        <circle cx="382" cy="170" r="20" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.6"/>
+        <circle cx="382" cy="170" r="2.2" fill="#7C5CFF"/><circle cx="373" cy="164" r="2.2" fill="#7C5CFF"/>
+        <circle cx="390" cy="177" r="2.2" fill="#7C5CFF"/><circle cx="378" cy="178" r="2.2" fill="#7C5CFF"/>
+        <circle cx="388" cy="163" r="2.2" fill="#7C5CFF"/>
+
+        <circle cx="468" cy="172" r="17" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.6"/>
+        <circle cx="468" cy="172" r="2.2" fill="#7C5CFF"/><circle cx="459" cy="166" r="2.2" fill="#7C5CFF"/>
+        <circle cx="475" cy="178" r="2.2" fill="#7C5CFF"/><circle cx="465" cy="179" r="2.2" fill="#7C5CFF"/>
+
+        <circle cx="352" cy="118" r="13" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.6"/>
+        <circle cx="352" cy="118" r="2.2" fill="#7C5CFF"/><circle cx="346" cy="113" r="2.2" fill="#7C5CFF"/>
+        <circle cx="358" cy="123" r="2.2" fill="#7C5CFF"/>
+
+        <text x="416" y="80" font-size="12.5" fill="#5B6B7B" text-anchor="middle">cụm nước (bán kính ~0,3 m)</text>
+        <line x1="416" y1="86" x2="419" y2="96" stroke="#C9C2E8" stroke-width="1.4"/>
+
+        <!-- spray direction -->
+        <line x1="612" y1="208" x2="492" y2="208" stroke="#7C5CFF" stroke-width="2.5" marker-end="url(#arrowViolet)"/>
+        <text x="552" y="226" font-size="12.5" fill="#5B6B7B" text-anchor="middle">nước bắn ra sau</text>
+
+        <!-- distance bracket -->
+        <line x1="500" y1="262" x2="618" y2="262" stroke="#B9C4CC" stroke-width="1.6"/>
+        <line x1="500" y1="256" x2="500" y2="268" stroke="#B9C4CC" stroke-width="1.6"/>
+        <line x1="618" y1="256" x2="618" y2="268" stroke="#B9C4CC" stroke-width="1.6"/>
+        <text x="559" y="283" font-size="12.5" fill="#5B6B7B" text-anchor="middle">1 – 10 m tính từ tâm xe</text>
+
+        <defs>
+          <marker id="arrowMint" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 Z" fill="#0FA98B"/>
+          </marker>
+          <marker id="arrowViolet" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 Z" fill="#7C5CFF"/>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>Nhìn từ trên xuống. Nước bắn ngược chiều xe chạy, rơi vào khoảng giữa xe phía trước và xe mình — đúng chỗ cảm biến hay nhìn.</figcaption>
+    </figure>
+
+    <div class="s8 mt">
+      <div class="card">
+        <div class="hd"><span class="n c-mint">1</span><b>Xe chạy bao nhanh?</b></div>
+        <p>Lấy hai thành phần vận tốc, tính độ dài, đổi sang km/h.</p>
+        <code class="val">√(vx² + vy²) × 3,6  →  72 km/h</code>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="n c-sky">2</span><b>Đủ nhanh chưa?</b></div>
+        <p>Dưới 50 km/h thì nước chưa bắn lên đủ nhiều → bỏ qua xe đó.</p>
+        <code class="val">72 ≥ 50  →  đi tiếp</code>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="n c-violet">3</span><b>Bắn mấy cụm?</b></div>
+        <p>2 cụm ở 50 km/h, tăng dần đến 8 cụm ở 130 km/h.</p>
+        <code class="val">2 + (72−50)/80 × 6 = 3,65 → 4 cụm</code>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="n c-amber">4</span><b>Bắn về hướng nào?</b></div>
+        <p>Ngược chiều xe chạy. Có dấu trừ ở đây — bỏ dấu trừ là nước bắn về phía trước, sai hoàn toàn.</p>
+        <code class="val">direction = −v / |v|</code>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="n c-rose">5</span><b>Đặt cụm ở đâu?</b></div>
+        <p>Ra sau 1–10 m, lệch ngang một chút, cao 0,2–2 m.</p>
+        <code class="val">center = box_xy + dir×d + perp×lateral</code>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="n c-mint">6</span><b>Cụm to cỡ nào?</b></div>
+        <p>Thường 0,30 m. Thỉnh thoảng có cụm rất to — phân bố "lệch", giống thực tế.</p>
+        <code class="val">median 0,30 m · σ 0,8 · kẹp 0,10–1,50</code>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="n c-sky">7</span><b>Bao nhiêu điểm?</b></div>
+        <p>Phụ thuộc cự ly: cụm càng xa thì càng ít tia cắt qua nên càng ít điểm. Thỉnh thoảng vài trăm — cùng kiểu phân bố lệch.</p>
+        <code class="val">median 30 / 20 / 14 / 10 / 10 theo 0–5 / 5–10 / 10–20 / 20–30 / &gt;30 m · σ 0,67 · kẹp 3–200</code>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="n c-violet">8</span><b>Rải điểm ra sao?</b></div>
+        <p>Chọn hướng ngẫu nhiên, chọn bán kính theo mũ 1/3 để điểm không dồn vào tâm, rồi bẹp cụm theo phương tia.</p>
+        <code class="val">điểm = tâm + R · u^(1/3) · hướng  →  bẹp theo tia ×0,885</code>
+      </div>
+    </div>
+
+    <div class="grid g2 mt">
+      <div class="card accent-amber">
+        <h3>Dọn dẹp sau khi sinh</h3>
+        <p>· Bỏ điểm ra ngoài vùng nhìn <b>±54 m</b>.<br>
+           · Bỏ điểm rơi vào <b>trong thân xe thật</b> (nới 0,2 m).<br>
+           · Tối đa <b>2.000 điểm</b> mỗi frame — nhồi quá sẽ đẩy điểm thật ra khỏi lưới.</p>
+      </div>
+      <div class="card accent-rose">
+        <h3>Sơn màu cho điểm</h3>
+        <p>Độ sáng (intensity) đặt bằng <b>0</b>, không phải giá trị trung bình. Lý do: <b>82%</b> điểm nước thật đo được có độ sáng đúng bằng 0 — tia không phản xạ đủ mạnh.</p>
+      </div>
+    </div>
+
+    <div class="callout co-amber mt">
+      <span class="ic">i</span>
+      <div><b>Vì sao dùng phân bố "lệch" (lognormal)?</b> Bán kính và số điểm không thể âm, và thực tế là: rất nhiều cụm nhỏ, rất ít cụm khổng lồ. Phân bố chuẩn thường cho giá trị âm và không có đuôi dài — sai hình dạng.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 THỨ TỰ ============ -->
+<section id="thu-tu">
+  <div class="wrap rv">
+    <div class="eyebrow">04 — Thứ tự</div>
+    <h2>Đặt sai chỗ thì code vẫn chạy, nhưng kết quả vô nghĩa</h2>
+    <p class="lede">Vận tốc của xe được lưu theo góc nhìn của cảm biến. Khi ta xoay frame, cả điểm và xe phải xoay cùng nhau. Chèn nước trước bước xoay là hướng "ra sau" bị lệch.</p>
+
+    <figure class="figcard mt">
+      <svg viewBox="0 0 760 250" role="img" aria-label="So sánh hai trường hợp: nước ở đúng sau xe và nước bị lệch hướng">
+        <!-- panel A -->
+        <rect x="6" y="6" width="360" height="238" rx="18" fill="#F3FBF8" stroke="#CBEEE4"/>
+        <text x="26" y="34" font-size="13" font-weight="700" fill="#0B6B58">ĐÚNG · chèn sau khi xoay</text>
+        <rect x="150" y="86" width="118" height="64" rx="16" fill="#E6F7F2" stroke="#0FA98B" stroke-width="2"/>
+        <rect x="163" y="97" width="26" height="42" rx="7" fill="#BFE9DD"/>
+        <rect x="196" y="97" width="26" height="42" rx="7" fill="#BFE9DD"/>
+        <line x1="274" y1="118" x2="338" y2="118" stroke="#0FA98B" stroke-width="2.4" marker-end="url(#a1)"/>
+        <text x="306" y="108" font-size="11.5" fill="#0B6B58" text-anchor="middle">chiều chạy</text>
+        <circle cx="112" cy="104" r="20" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.5"/>
+        <circle cx="80" cy="132" r="14" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.5"/>
+        <circle cx="126" cy="146" r="11" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.5"/>
+        <line x1="146" y1="118" x2="60" y2="118" stroke="#7C5CFF" stroke-width="2.2" marker-end="url(#a2)"/>
+        <text x="186" y="196" font-size="12.5" fill="#3E4E5B" text-anchor="middle">nước nằm đúng sau đuôi xe</text>
+        <text x="186" y="218" font-size="11.5" fill="#7C8B97" text-anchor="middle">✓ hình học khớp với điểm thật</text>
+
+        <!-- panel B -->
+        <rect x="394" y="6" width="360" height="238" rx="18" fill="#FDF3F2" stroke="#F6D5D3"/>
+        <text x="414" y="34" font-size="13" font-weight="700" fill="#9B302E">SAI · chèn trước khi xoay</text>
+        <rect x="542" y="96" width="118" height="64" rx="16" fill="#FCEDEC" stroke="#DE5250" stroke-width="2" transform="rotate(-8 601 128)"/>
+        <line x1="666" y1="128" x2="726" y2="128" stroke="#0FA98B" stroke-width="2.4" marker-end="url(#a1)"/>
+        <text x="696" y="117" font-size="11.5" fill="#0B6B58" text-anchor="middle">chiều chạy</text>
+        <circle cx="516" cy="72" r="20" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.5" opacity=".75"/>
+        <circle cx="540" cy="44" r="14" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.5" opacity=".75"/>
+        <circle cx="500" cy="46" r="11" fill="#F0EDFF" stroke="#7C5CFF" stroke-width="1.5" opacity=".75"/>
+        <line x1="538" y1="120" x2="508" y2="56" stroke="#DE5250" stroke-width="2.2" stroke-dasharray="6 5" marker-end="url(#a3)"/>
+        <text x="574" y="196" font-size="12.5" fill="#3E4E5B" text-anchor="middle">nước trôi lệch ~60°</text>
+        <text x="574" y="218" font-size="11.5" fill="#9B302E" text-anchor="middle">✗ không có lỗi nào được báo</text>
+
+        <defs>
+          <marker id="a1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#0FA98B"/></marker>
+          <marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#7C5CFF"/></marker>
+          <marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#DE5250"/></marker>
+        </defs>
+      </svg>
+      <figcaption>Trái: thứ tự đúng. Phải: chèn quá sớm → đám nước xoay theo frame cũ trong khi chiếc xe đã xoay theo frame mới.</figcaption>
+    </figure>
+
+    <div class="grid g2 mt">
+      <div class="card accent-mint">
+        <h3>Thứ tự chuẩn</h3>
+        <p><b>Đọc dữ liệu → Xoay/lật → <span style="color:var(--violet)">Chèn nước</span> → Xáo thứ tự → Đóng gói</b></p>
+        <p style="font-size:14px;color:var(--muted)">Chèn sau bước xoay, vì lúc đó vận tốc và điểm đã cùng một hệ quy chiếu.</p>
+      </div>
+      <div class="card accent-sky">
+        <h3>Vì sao trước bước "xáo thứ tự"?</h3>
+        <p>Xáo chỉ đổi thứ tự, không đổi toạ độ — về toán đặt sau cũng đúng. Nhưng đặt trước thì điểm mới luôn nằm ở <b>cuối mảng</b>, nên test có thể kiểm tra chính xác đã chèn bao nhiêu.</p>
+      </div>
+    </div>
+
+    <div class="callout co-rose mt">
+      <span class="ic">!</span>
+      <div><b>Bẫy nguy hiểm nhất của dự án này:</b> mọi lỗi ở trên đều <b>không làm chương trình báo lỗi</b>. Không exception, không warning. Chỉ có kết quả sai. Vì vậy mỗi bước đều phải có test riêng.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 THÍ NGHIỆM ============ -->
+<section id="thi-nghiem">
+  <div class="wrap rv">
+    <div class="eyebrow">05 — Thí nghiệm</div>
+    <h2>Ba nhánh, ba câu hỏi</h2>
+    <p class="lede">Cùng checkpoint gốc, cùng bộ đo, cùng seed, cùng số bước train. Chỉ dữ liệu train khác nhau.</p>
+
+    <div class="grid g3 mt">
+      <div class="card accent-sky">
+        <div class="num c-sky">A</div>
+        <h3>Mốc gốc</h3>
+        <p><b>Train:</b> chỉ frame sạch<br><b>Thi:</b> frame có nước</p>
+        <p style="margin-top:10px;font-size:14px;color:var(--muted)">Trả lời: AI chưa từng thấy nước thì mất bao nhiêu điểm?</p>
+      </div>
+      <div class="card accent-mint">
+        <div class="num c-mint">B</div>
+        <h3>Bản được dạy</h3>
+        <p><b>Train:</b> frame sạch + nước giả<br><b>Thi:</b> frame có nước</p>
+        <p style="margin-top:10px;font-size:14px;color:var(--muted)">Trả lời: được dạy thì mức mất có thu hẹp lại không?</p>
+      </div>
+      <div class="card accent-amber">
+        <div class="num c-amber">B0</div>
+        <h3>Bản "chỉ lọc"</h3>
+        <p><b>Train:</b> không train<br><b>Thi:</b> lọc bớt điểm lạ rồi chạy bản A</p>
+        <p style="margin-top:10px;font-size:14px;color:var(--muted)">Trả lời: chỉ cần lọc là đủ, hay buộc phải train lại?</p>
+      </div>
+    </div>
+
+    <div class="grid g2 mt">
+      <div class="card accent-violet">
+        <h3>Cách đọc kết quả</h3>
+        <p>Gọi <b>G</b> là mức tụt: điểm khi trời sạch trừ điểm khi có nước.</p>
+        <p style="font-family:ui-monospace,Menlo,monospace;font-size:13.5px;background:#F4F6F4;border:1px solid var(--line);border-radius:10px;padding:10px 12px">G = mAP(sạch) − mAP(có nước)</p>
+        <p><b>Ví dụ minh hoạ</b> (không phải kết quả thật): A tụt 0,060; B tụt 0,015 → augment thu hẹp được 75% khoảng mất.</p>
+      </div>
+      <div class="card accent-rose">
+        <h3>Năm điều kiện để được nói "thành công"</h3>
+        <p>1 · Mức tụt của A phải lớn hơn nhiễu đo được.<br>
+           2 · Bản B khi trời sạch không được kém A quá 10%.<br>
+           3 · Mức tụt của B ≤ một nửa mức tụt của A.<br>
+           4 · Số FP trên frame có nước giảm, khoảng tin cậy không chứa 0.<br>
+           5 · B phải tốt hơn B0.</p>
+        <p style="font-size:14px;color:var(--muted)">Chốt trước khi xem số. Không sửa sau.</p>
+      </div>
+    </div>
+
+    <div class="callout co-sky mt">
+      <span class="ic">i</span>
+      <div><b>Hai chi tiết bắt buộc khi đo:</b> (1) <b>Nước lúc thi phải khác lúc dạy</b> — khác mật độ, khác seed, nếu không AI chỉ học thuộc. (2) <b>Khoảng tin cậy tính theo cảnh, không theo frame</b> — 40 frame trong cùng một cảnh quá giống nhau, gộp lại sẽ cho khoảng tin cậy hẹp giả tạo.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 DỮ LIỆU ============ -->
+<section id="du-lieu">
+  <div class="wrap rv">
+    <div class="eyebrow">06 — Dữ liệu</div>
+    <h2>Con số nào đáng tin</h2>
+    <p class="lede">Mọi con số dưới đây đều có nguồn. Bốn nhãn: <span class="tag t-paper">PAPER</span> từ bài báo · <span class="tag t-meas">ĐO</span> đo trong repo · <span class="tag t-code">CODE</span> đọc từ code · <span class="tag t-pick">CHỌN</span> quyết định của nhóm.</p>
+
+    <div class="stat-row mt">
+      <div class="stat"><b>850</b><span>cảnh trong bộ trainval</span></div>
+      <div class="stat"><b>34.149</b><span>frame trong trainval</span></div>
+      <div class="stat"><b>6.019</b><span>frame thuộc val (150 cảnh)</span></div>
+      <div class="stat"><b>196</b><span>frame đủ điều kiện đo (16 cảnh)</span></div>
+    </div>
+
+    <div class="table-wrap mt">
+      <table>
+        <thead>
+          <tr><th>Con số</th><th>Giá trị đo</th><th>Nguồn</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Trần của val để eval</b></td>
+            <td>196 frame / 16 cảnh — val, box ≥50 km/h phía trước, d ≤ 50 m, không lọc ego</td>
+            <td><span class="tag t-meas">ĐO</span> <span class="code-inline">docs/nuscenes-eligibility.md</span></td>
+          </tr>
+          <tr>
+            <td><b>Hình học cụm thật</b></td>
+            <td><b>r_range/r_extent</b> = 1,28 · median điểm/cụm = 17,0 · giảm 3,0× theo cự ly</td>
+            <td><span class="tag t-meas">ĐO</span> <span class="code-inline">docs/plume-geometry-vs-real.md</span></td>
+          </tr>
+          <tr>
+            <td><b>Quy mô nuScenes</b></td>
+            <td>850 cảnh / 34.149 keyframe (trainval) · val = 150 cảnh / 6.019 frame</td>
+            <td><span class="tag t-meas">ĐO</span> <span class="code-inline">docs/nuscenes-eligibility.md</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card mt">
+      <h3>Vì sao bộ đo chỉ còn 196 frame</h3>
+      <p style="margin-bottom:18px;font-size:14.5px;color:var(--muted)">Lọc dần trên val split. Mỗi bước là một điều kiện vật lý hợp lý.</p>
+      <div class="funnel">
+        <div class="frow f1">
+          <div class="lab"><b>Tất cả frame của val</b><i>6.019 frame · 150 cảnh</i></div>
+          <div class="track"><div class="fill" style="width:100%"></div></div>
+        </div>
+        <div class="frow f2">
+          <div class="lab"><b>Có xe ≥50 km/h phía trước, trong 50 m</b><i>196 frame · 16 cảnh</i></div>
+          <div class="track"><div class="fill" style="width:max(8px,3.3%)"></div></div>
+        </div>
+        <div class="frow f3">
+          <div class="lab"><b>…và chỉ tính xe ở ≤30 m</b><i>117 frame · 13 cảnh</i></div>
+          <div class="track"><div class="fill" style="width:max(8px,1.9%)"></div></div>
+        </div>
+        <div class="frow f4">
+          <div class="lab"><b>…và xe mình cũng phải chạy ≥50 km/h</b><i>2 frame · 2 cảnh</i></div>
+          <div class="track"><div class="fill" style="width:max(8px,0.05%)"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g2 mt">
+      <div class="card accent-mint">
+        <h3>SemanticSpray — dữ liệu nước thật</h3>
+        <p>207 cảnh · 2.070 frame được đọc mẫu · ~28.546 điểm mỗi lần quét.</p>
+        <p style="margin-top:8px">· Nước chiếm <b>144 điểm/frame</b><br>
+           · <b>17 điểm</b> mỗi cụm dày<br>
+           · <b>82%</b> điểm nước có độ sáng = 0<br>
+           · <b>0,25–0,5%</b> tổng số điểm</p>
+        <p style="font-size:13.5px;color:var(--muted);margin-top:10px">Chỉ dùng để <b>hiệu chỉnh tham số</b>. Không train, không chấm điểm trên bộ này.</p>
+      </div>
+      <div class="card accent-amber">
+        <h3>Vì sao không dùng nó để thi</h3>
+        <p>· Chỉ có <b>1 camera</b> (cần 6).<br>
+           · <b>100% frame đều có nước</b> → không có bản sạch để so.<br>
+           · Chỉ <b>2.595 hộp</b> trên 36 cảnh, 1 xe/frame → mAP là nhiễu, không phải phép đo.<br>
+           · Chỉ 1 điều kiện thời tiết cố định → không quét được độ nhạy.</p>
+      </div>
+    </div>
+
+    <div class="callout co-amber mt">
+      <span class="ic">!</span>
+      <div><b>Một đính chính đã ghi vào sổ:</b> con số <b>34.029 frame</b> từng bị gọi là "val". Sai. Đó là <b>toàn bộ trainval</b>. Val thật chỉ có <b>6.019</b> frame. Phép đo vẫn đúng — chỉ cái nhãn sai.</div>
+    </div>
+
+    <div class="callout co-rose mt">
+      <span class="ic">!</span>
+      <div><b>Cao tốc thì không khả thi:</b> toàn bộ nuScenes chỉ có <b>2 cảnh</b> cao tốc, và <b>0 cảnh</b> nằm trong val. Nên phương án "chỉ dùng cảnh cao tốc" đã bị loại bỏ.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 07 QUYẾT ĐỊNH ============ -->
+<section id="quyet-dinh">
+  <div class="wrap rv">
+    <div class="eyebrow">07 — Quyết định</div>
+    <h2>Sổ ghi những gì đã chốt</h2>
+    <p class="lede">Mỗi dòng: chốt cái gì, và vì sao. Những điều này không mở lại nữa trừ khi có bằng chứng mới.</p>
+
+    <div class="tl mt">
+      <div class="item">
+        <div class="when">04-11</div>
+        <div class="what">Đóng băng phiên bản code BEVFusion ở <span class="code-inline">da93b27</span></div>
+        <div class="why">Để bất kỳ ai chạy lại cũng ra cùng kết quả. Bản mới hơn làm lệch cấu trúc đầu vào, không nạp được checkpoint.</div>
+      </div>
+      <div class="item">
+        <div class="when">04-11</div>
+        <div class="what">Đời đầu chỉ mô phỏng nước trên LiDAR</div>
+        <div class="why">Đường ướt, nước làm tối điểm phía sau, nước bắn lên camera — mỗi hiệu ứng cần một mô hình riêng. Ở mật độ hiện tại, hiệu ứng làm tối chỉ ~1–2% nên chưa đáng làm.</div>
+      </div>
+      <div class="item">
+        <div class="when">04-11</div>
+        <div class="what">Không train hay chấm điểm trên SemanticSpray</div>
+        <div class="why">Thiếu camera, thiếu bản sạch, thiếu đáp án đa lớp. Chỉ mượn số liệu thống kê của nó.</div>
+      </div>
+      <div class="item">
+        <div class="when">05-11</div>
+        <div class="what">Nước giả chỉ vào nhánh LiDAR; camera nhận bản sạch</div>
+        <div class="why">Để chỉ có đúng một biến thay đổi giữa hai arm. Cái giá: kết quả dương là cận trên lạc quan.</div>
+      </div>
+      <div class="item">
+        <div class="when">05-11</div>
+        <div class="what">Ngưỡng bắt đầu sinh nước: 50 km/h</div>
+        <div class="why">Theo bài báo — dưới ngưỡng đó bánh xe không hất đủ nước. Có thêm dung sai 0,001 km/h để không loại oan xe đúng 50,0.</div>
+      </div>
+      <div class="item">
+        <div class="when">07-11</div>
+        <div class="what">Giữ 50 km/h và <b>bỏ</b> điều kiện "xe mình cũng phải chạy nhanh"</div>
+        <div class="why">Bài báo có cả cảnh xe mình đứng yên mà xe khác vẫn bắn nước. Nếu giữ điều kiện đó, val chỉ còn <b>2 frame</b> — không đo được gì.</div>
+      </div>
+      <div class="item">
+        <div class="when">07-11</div>
+        <div class="what">Bộ đo chính thức: 196 frame / 16 cảnh</div>
+        <div class="why">Đây là trần cứng của val. Tự chia lại train để lấy thêm frame sẽ bị rò rỉ — checkpoint đã từng thấy 700 cảnh train.</div>
+      </div>
+      <div class="item">
+        <div class="when">07-11</div>
+        <div class="what">Không dùng cảnh cao tốc</div>
+        <div class="why">Chỉ có 2 cảnh trên toàn bộ dữ liệu, và không cảnh nào nằm trong val.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 08 GIỚI HẠN ============ -->
+<section id="gioi-han">
+  <div class="wrap rv">
+    <div class="eyebrow">08 — Giới hạn</div>
+    <h2>Những chỗ ta biết là chưa đúng</h2>
+    <p class="lede">Ghi ra để không ai đọc kết quả rồi tưởng đây là mô phỏng nước hoàn hảo. Biết giới hạn là một phần của kết quả.</p>
+
+    <div class="grid g3 mt">
+      <div class="card accent-rose">
+        <div class="num c-rose">1</div>
+        <h3>Cụm chỉ là ellipsoid gần đúng</h3>
+        <p>Đo <b>11.607</b> cụm dày: <b>r_range/r_extent = 1,28</b> → cụm <b>có bề dày theo phương bán kính</b>, không phải vỏ mỏng. Paper cũng lấy range của mỗi detection theo phân bố chuẩn quanh <b>tâm</b> cụm, không phải trên bề mặt.</p>
+        <p style="font-size:13px;color:var(--muted);margin-top:8px">Đã sửa ở ticket 17: bẹp theo phương tia ×0,885. Vẫn chưa mô phỏng từng tia.</p>
+      </div>
+      <div class="card accent-amber">
+        <div class="num c-amber">2</div>
+        <h3>Số điểm chỉ giảm theo bậc cự ly</h3>
+        <p>Đo được median điểm/cụm giảm <b>3,0×</b>: 30 điểm ở 0–5 m xuống 10 điểm ở 20–30 m. Generator nay lấy số điểm theo 5 bậc <b>30 / 20 / 14 / 10 / 10</b>.</p>
+        <p style="font-size:13px;color:var(--muted);margin-top:8px">Đã sửa ở ticket 17. Vẫn là bậc thang, chưa theo xác suất từng tia.</p>
+      </div>
+      <div class="card accent-violet">
+        <div class="num c-violet">3</div>
+        <h3>Độ cao tính tuyệt đối</h3>
+        <p>Nước luôn nằm ở 0,2–2 m so với cảm biến, bất kể xe to hay nhỏ. Xe buýt và xe con ra cùng độ cao.</p>
+        <p style="font-size:13px;color:var(--muted);margin-top:8px">Đơn giản hoá có chủ ý.</p>
+      </div>
+    </div>
+
+    <div class="grid g2 mt">
+      <div class="card">
+        <h3>Thiếu so với bài báo</h3>
+        <p>· Cụm nước không <b>tan dần</b> theo thời gian.<br>
+           · Không mô phỏng <b>từng tia laser</b> và xác suất phát hiện.<br>
+           · Không có hiệu ứng <b>làm tối</b> điểm phía sau đám nước.<br>
+           · Không mô phỏng đám nước <b>che khuất</b> điểm thật.</p>
+      </div>
+      <div class="card">
+        <h3>Vì thế, không được nói gì</h3>
+        <p>· Không so trực tiếp với con số <b>+17,39 AP</b> của bài báo.<br>
+           · Không nói kết quả này chứng minh giúp được <b>nước thật</b>.<br>
+           · Không nói gì về đường ướt, mưa, hay tốc độ dưới 50 km/h.</p>
+      </div>
+    </div>
+
+    <div class="callout co-rose mt">
+      <span class="ic">!</span>
+      <div><b>Rủi ro đã biết của bộ đo:</b> chỉ 16 cảnh → khoảng tin cậy rộng. Nếu kết quả không đạt, kết luận đúng là <b>"chưa đo được với 16 cảnh"</b>, không phải "augment vô dụng".</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 09 LIDAR ============ -->
+<section id="lidar">
+  <div class="wrap rv">
+    <div class="eyebrow">09 — Nền tảng</div>
+    <h2>LiDAR hoạt động thế nào</h2>
+    <p class="lede">Một câu: bắn một tia sáng, bấm đồng hồ, đo thời gian nó quay về. Đi càng lâu thì vật càng xa.</p>
+
+    <figure class="figcard mt">
+      <svg viewBox="0 0 760 210" role="img" aria-label="Nguyên lý đo thời gian bay của LiDAR">
+        <rect x="36" y="78" width="104" height="52" rx="14" fill="#EAF1FE" stroke="#3B82F6" stroke-width="2"/>
+        <text x="88" y="109" font-size="13" fill="#2158A8" text-anchor="middle">cảm biến</text>
+        <rect x="636" y="34" width="80" height="140" rx="14" fill="#E6F7F2" stroke="#0FA98B" stroke-width="2"/>
+        <text x="676" y="112" font-size="13" fill="#0B6B58" text-anchor="middle">vật</text>
+
+        <line x1="144" y1="92" x2="626" y2="92" stroke="#3B82F6" stroke-width="2.4" marker-end="url(#t1)"/>
+        <text x="385" y="80" font-size="12.5" fill="#2158A8" text-anchor="middle">① phát xung sáng</text>
+
+        <line x1="626" y1="122" x2="150" y2="122" stroke="#0FA98B" stroke-width="2.4" marker-end="url(#t2)"/>
+        <text x="385" y="144" font-size="12.5" fill="#0B6B58" text-anchor="middle">② dội về sau Δt</text>
+
+        <text x="380" y="187" font-size="15" fill="#1F3B4D" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">d = c × Δt / 2      100 ns → 15 m</text>
+
+        <defs>
+          <marker id="t1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#3B82F6"/></marker>
+          <marker id="t2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#0FA98B"/></marker>
+        </defs>
+      </svg>
+      <figcaption>Chia hai vì ánh sáng phải đi rồi về. Độ chính xác cỡ vài cm — LiDAR giỏi đo hình học, nhưng không biết vật màu gì.</figcaption>
+    </figure>
+
+    <div class="grid g2 mt">
+      <div class="card accent-sky">
+        <h3>Công thức gốc</h3>
+        <p>Thời gian bay càng dài, vật càng xa. Không có phép màu nào khác.</p>
+        <div class="formula">d = c × Δt / 2</div>
+        <p style="font-size:14px;color:var(--muted)">c là tốc độ ánh sáng ≈ 300.000 km/s. Một xung đi 15 m rồi về mất 100 ns.</p>
+      </div>
+      <div class="card accent-mint">
+        <h3>Mỗi điểm 3D có 5 con số</h3>
+        <div class="mono">x · y · z · intensity · ring</div>
+        <p><b>intensity</b> = tín hiệu dội về mạnh hay yếu. <b>ring</b> = điểm này do tia thứ mấy bắn ra.</p>
+        <p style="font-size:14px;color:var(--muted)">nuScenes: mỗi frame ~34.720 điểm như vậy. Điểm nước giả được chèn với intensity = 0.</p>
+      </div>
+    </div>
+
+    <h3 class="sub">Beam · Channel · Ring — ba từ rất dễ lẫn</h3>
+    <p class="subs">Người mới hay dùng lẫn cả ba. Nhớ theo thứ tự: cái bắn → cái giữ góc → cái để lại dấu.</p>
+
+    <div class="grid g3">
+      <div class="card accent-sky">
+        <div class="num c-sky">B</div>
+        <h3>Beam — tia</h3>
+        <p>Một lần bắn laser. Là một đường thẳng trong không gian, có hướng và có độ loe.</p>
+      </div>
+      <div class="card accent-violet">
+        <div class="num c-violet">C</div>
+        <h3>Channel — kênh</h3>
+        <p>Một cặp phát–thu cố định, luôn bắn ở một góc cao độ. 32 kênh = 32 tia xếp chồng lên nhau.</p>
+      </div>
+      <div class="card accent-mint">
+        <div class="num c-mint">R</div>
+        <h3>Ring — vành</h3>
+        <p>Khi đầu quét xoay một vòng, mỗi kênh vẽ ra một vòng tròn điểm. Số ring chính là số kênh.</p>
+      </div>
+    </div>
+
+    <figure class="figcard mt">
+      <svg viewBox="0 0 760 300" role="img" aria-label="Các tia xếp chồng theo góc, càng xa khoảng cách giữa hai tia càng lớn">
+        <line x1="0" y1="248" x2="760" y2="248" stroke="#D7E2DD" stroke-width="2"/>
+        <text x="742" y="268" font-size="12" fill="#7C8B97" text-anchor="end">mặt đường</text>
+
+        <rect x="26" y="34" width="88" height="44" rx="12" fill="#EAF1FE" stroke="#3B82F6" stroke-width="2"/>
+        <text x="70" y="61" font-size="12.5" fill="#2158A8" text-anchor="middle">cảm biến</text>
+        <text x="132" y="30" font-size="12.5" fill="#5B6B7B">32 tia, mỗi tia một góc cố định</text>
+
+        <g stroke="#7C5CFF" stroke-width="1.6" opacity=".5">
+          <line x1="114" y1="68" x2="170" y2="248"/>
+          <line x1="114" y1="68" x2="228" y2="248"/>
+          <line x1="114" y1="68" x2="298" y2="248"/>
+          <line x1="114" y1="68" x2="382" y2="248"/>
+          <line x1="114" y1="68" x2="484" y2="248"/>
+          <line x1="114" y1="68" x2="612" y2="248"/>
+          <line x1="114" y1="68" x2="752" y2="248"/>
+        </g>
+        <g fill="#7C5CFF">
+          <circle cx="170" cy="248" r="3.2"/><circle cx="228" cy="248" r="3.2"/>
+          <circle cx="298" cy="248" r="3.2"/><circle cx="382" cy="248" r="3.2"/>
+          <circle cx="484" cy="248" r="3.2"/><circle cx="612" cy="248" r="3.2"/>
+          <circle cx="752" cy="248" r="3.2"/>
+        </g>
+
+        <rect x="522" y="206" width="15" height="42" rx="4" fill="#FDF2E1" stroke="#D08413" stroke-width="2"/>
+        <text x="529" y="198" font-size="11.5" fill="#8A5A0A" text-anchor="middle">vật nhỏ</text>
+        <text x="529" y="290" font-size="11.5" fill="#8A5A0A" text-anchor="middle">có thể lọt giữa hai tia</text>
+
+        <line x1="484" y1="268" x2="612" y2="268" stroke="#B9C4CC" stroke-width="1.4"/>
+        <line x1="484" y1="262" x2="484" y2="274" stroke="#B9C4CC" stroke-width="1.4"/>
+        <line x1="612" y1="262" x2="612" y2="274" stroke="#B9C4CC" stroke-width="1.4"/>
+      </svg>
+      <figcaption>Nhìn nghiêng. Khoảng cách giữa hai tia không đổi theo góc, nên càng xa thì khe hở càng rộng: ở 50 m ≈ 0,29 m, ở 100 m ≈ 0,58 m (với bước 0,33°).</figcaption>
+    </figure>
+
+    <div class="grid g3 mt">
+      <div class="card accent-amber">
+        <h3>Vật nhỏ ở xa rất dễ mất</h3>
+        <p>Một người rộng 0,5 m ở 100 m có thể nằm gọn giữa hai tia. Không phải AI kém — dữ liệu đầu vào không có điểm nào ở đó.</p>
+      </div>
+      <div class="card accent-violet">
+        <h3>Mật độ giảm theo bình phương</h3>
+        <p>Cùng một góc nhìn, ở xa phủ diện tích lớn hơn. Gấp đôi khoảng cách → số điểm trên cùng một vật giảm khoảng <b>4 lần</b>.</p>
+      </div>
+      <div class="card accent-mint">
+        <h3>Ảnh bị méo khi đang chạy</h3>
+        <p>Một vòng quét mất ~50 ms. Ở 72 km/h, xe đã đi <b>1 m</b> trong lúc quét — điểm đầu và điểm cuối không cùng một chỗ đứng.</p>
+      </div>
+    </div>
+
+    <h3 class="sub">Các thông số quyết định chất lượng</h3>
+    <p class="subs">Khi đọc thông số một con LiDAR, đây là sáu con số đáng quan tâm nhất.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Thông số</th><th>Nghĩa</th><th>Ảnh hưởng tới bài toán</th><th>Ví dụ VLP-32C</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Số kênh</b></td><td>Số tia xếp chồng theo phương đứng.</td><td>Càng nhiều kênh, càng ít khe hở ở xa.</td><td>32</td></tr>
+          <tr><td><b>Góc nhìn ngang</b></td><td>Quét được bao nhiêu độ quanh xe.</td><td>360° mới thấy được cả phía sau.</td><td>360°</td></tr>
+          <tr><td><b>Góc nhìn dọc</b></td><td>Quét từ sát đất lên tới đâu.</td><td>Quyết định nhìn được xa hay chỉ nhìn gần.</td><td>+15° → −25°</td></tr>
+          <tr><td><b>Độ phân giải góc</b></td><td>Khoảng cách góc giữa hai tia cạnh nhau.</td><td>Vật nhỏ có bị lọt hay không.</td><td>~0,33° gần chân trời</td></tr>
+          <tr><td><b>Tầm xa</b></td><td>Xa nhất còn nhận được tín hiệu.</td><td>Giới hạn vùng quan tâm hợp lý.</td><td>~200 m</td></tr>
+          <tr><td><b>Tần số quét</b></td><td>Số vòng mỗi giây.</td><td>Độ trễ và độ méo do xe chạy.</td><td>20 Hz</td></tr>
+          <tr><td><b>Số lần dội</b></td><td>Một tia trả về 1 hay nhiều điểm.</td><td>Dual return nhìn xuyên được vật mỏng.</td><td>1–2</td></tr>
+          <tr><td><b>Bước sóng</b></td><td>905 nm hoặc 1550 nm.</td><td>An toàn cho mắt → cho phép công suất cao hơn → xa hơn.</td><td>905 nm</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout co-sky mt">
+      <span class="ic">i</span>
+      <div><b>Vì sao 1550 nm đi xa hơn:</b> ánh sáng 905 nm xuyên tới võng mạc, nên bị giới hạn công suất vì an toàn mắt. 1550 nm bị nước trong giác mạc hấp thụ trước khi tới võng mạc, nên được phép mạnh hơn nhiều. Đổi lại, cả hai đều bị nước (mưa, sương) làm yếu.</div>
+    </div>
+
+    <h3 class="sub">Các kiểu LiDAR trên thị trường</h3>
+    <p class="subs">Không cần thuộc hết. Chỉ cần biết dự án này dùng loại nào và vì sao.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Kiểu</th><th>Cách quét</th><th>Ưu</th><th>Nhược</th><th>Ví dụ</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Cơ khí quay</b></td><td>Cả cụm phát–thu xoay tròn.</td><td>360°, ổn định, dễ hiểu.</td><td>Đắt, có bộ phận chuyển động, cồng kềnh.</td><td>Velodyne VLP-32C, HDL-64E</td></tr>
+          <tr><td><b>Bán rắn (MEMS)</b></td><td>Gương siêu nhỏ dao động để lái tia.</td><td>Nhỏ, rẻ, bền hơn.</td><td>Góc nhìn hẹp, thường ~120°.</td><td>Hesai AT128, RoboSense</td></tr>
+          <tr><td><b>Flash</b></td><td>Chiếu sáng cả vùng trong một lần như đèn flash.</td><td>Không bộ phận chuyển động.</td><td>Tầm ngắn, tín hiệu yếu ở xa.</td><td>Continental HFL110</td></tr>
+          <tr><td><b>OPA</b></td><td>Điều khiển chùm bằng pha, không cần gương.</td><td>Quét hoàn toàn điện tử.</td><td>Còn non, giá cao.</td><td>Đang phát triển</td></tr>
+          <tr><td><b>FMCW</b></td><td>Đo giao thoa tần số, không chỉ thời gian bay.</td><td>Đo được vận tốc từng điểm, chống nắng và nhiễu tốt.</td><td>Đắt, xử lý phức tạp.</td><td>Aeva, Aurora</td></tr>
+          <tr><td><b>Quét phi lặp</b></td><td>Lăng kính xoay theo hoa văn không lặp.</td><td>Rẻ, mật độ cao ở vùng giữa.</td><td>Không có “vành” cố định, khó mô phỏng theo ring.</td><td>Livox Mid-40</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout co-mint mt">
+      <span class="ic">→</span>
+      <div><b>Liên hệ với dự án:</b> cả nuScenes và SemanticSpray đều dùng <b>Velodyne VLP-32C</b> — loại cơ khí quay, 32 kênh, 20 Hz. Vì cùng cảm biến, các đặc điểm hình học (khe hở giữa tia, mật độ giảm theo cự ly, ring) <b>chuyển được</b> từ bộ này sang bộ kia. Đó là lý do có thể dùng số đo của SemanticSpray để hiệu chỉnh plume chèn vào nuScenes.</div>
+    </div>
+
+    <div class="callout co-mint mt">
+      <span class="ic">→</span>
+      <div><b>Generator đã theo số đo LiDAR:</b> số điểm trong cụm giảm theo cự ly (30 → 10, đo được <b>3,0×</b>), và cụm được bẹp theo phương tia ×0,885 để <b>r_range/r_extent</b> = 1,28 như thật. Điểm vẫn là ellipsoid đặc, chưa mô phỏng từng tia. Xem mục 08.</div>
+    </div>
+
+    <div class="callout co-amber mt">
+      <span class="ic">?</span>
+      <div><b>[?] Thông số datasheet cảm biến:</b> các con số ở mục này (góc nhìn, 20 Hz, tầm ~200 m, bước 0,33°, 905/1550 nm, ~120° của MEMS) không có file nguồn trong repo; đối chiếu datasheet của hãng. Repo chỉ xác nhận “VLP32C 32 tia” (<span class="code-inline">docs/adr/0003</span>).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10 CHẤM ĐIỂM & DATASET ============ -->
+<section id="dataset">
+  <div class="wrap rv">
+    <div class="eyebrow">10 — Dữ liệu &amp; chấm điểm</div>
+    <h2>Người ta chấm điểm AI bằng cách nào</h2>
+    <p class="lede">Ba cách chấm khác nhau, và mỗi bộ dữ liệu chọn một cách. Hiểu cách chấm là hiểu luôn bộ dữ liệu đó được thiết kế để làm gì.</p>
+
+    <div class="grid g3 mt">
+      <div class="card accent-sky">
+        <div class="num c-sky">1</div>
+        <h3>So hình hộp (IoU)</h3>
+        <p>Dự đoán và đáp án phải <b>chồng lên nhau</b> đủ nhiều. Thường ngưỡng 0,5 hoặc 0,7.</p>
+        <p style="font-size:13.5px;color:var(--muted);margin-top:8px">Dùng ở KITTI, COCO, và evaluator tự viết của dự án này.</p>
+      </div>
+      <div class="card accent-mint">
+        <div class="num c-mint">2</div>
+        <h3>So tâm hộp</h3>
+        <p>Chỉ cần <b>tâm</b> hai hộp gần nhau dưới một ngưỡng mét. Không quan tâm hộp to nhỏ ra sao.</p>
+        <p style="font-size:13.5px;color:var(--muted);margin-top:8px">Dùng ở nuScenes.</p>
+      </div>
+      <div class="card accent-violet">
+        <div class="num c-violet">3</div>
+        <h3>So từng điểm</h3>
+        <p>Mỗi điểm 3D được gán nhãn đúng hay sai. Không có “hộp” nào cả.</p>
+        <p style="font-size:13.5px;color:var(--muted);margin-top:8px">Dùng ở SemanticSpray, SemanticKITTI.</p>
+      </div>
+    </div>
+
+    <h3 class="sub">AP và mAP — hai chữ nghe đáng sợ nhưng rất đơn giản</h3>
+    <p class="subs">AP là “chất lượng của một lớp”. mAP là trung bình AP của nhiều lớp. Hết.</p>
+
+    <div class="grid g2">
+      <div>
+        <p><b>Cách tính AP:</b></p>
+        <p>1 · Sắp xếp mọi dự đoán theo <b>độ tin cậy giảm dần</b>.<br>
+           2 · Đi từng dự đoán: đúng thì tăng TP, sai thì tăng FP.<br>
+           3 · Vẽ đường <b>precision</b> theo <b>recall</b>.<br>
+           4 · AP = <b>diện tích dưới đường cong</b> đó.</p>
+        <p style="font-size:14px;color:var(--muted)">Vì sao phải sắp theo độ tin cậy: AI luôn có thể hét “chắc chắn” cho mọi thứ. Sắp xếp buộc nó phải <b>đúng trước, sai sau</b>.</p>
+        <div class="callout co-sky" style="margin-top:14px">
+          <span class="ic">i</span>
+          <div>Nếu AI bỏ sót nhiều vật, recall không bao giờ lên tới 1 → đường cong cụt → AP thấp. Nếu AI đoán bừa, precision tụt → AP thấp.</div>
+        </div>
+      </div>
+      <figure class="figcard" style="padding:14px">
+        <svg viewBox="0 0 460 320" role="img" aria-label="Đường precision-recall: bản sạch và bản có nước">
+          <!-- grid -->
+          <g stroke="#EEF1EC" stroke-width="1">
+            <line x1="62" y1="197" x2="400" y2="197"/>
+            <line x1="62" y1="145" x2="400" y2="145"/>
+            <line x1="62" y1="92" x2="400" y2="92"/>
+            <line x1="231" y1="40" x2="231" y2="250"/>
+          </g>
+          <!-- shaded loss -->
+          <path d="M62,40 C95,44 110,48 126,50 C160,55 172,60 190,65 C222,74 236,78 254,86 C286,99 300,107 318,120 C352,143 378,163 400,177 L400,204 C378,193 352,176 318,156 C300,146 286,137 254,120 C236,110 222,101 190,86 C172,79 160,72 126,61 C110,57 95,50 62,40 Z" fill="#FCEDEC" opacity=".85"/>
+          <!-- axes -->
+          <line x1="62" y1="250" x2="400" y2="250" stroke="#C9D3CC" stroke-width="1.5"/>
+          <line x1="62" y1="250" x2="62" y2="40" stroke="#C9D3CC" stroke-width="1.5"/>
+          <!-- clean -->
+          <path d="M62,40 C95,44 110,48 126,50 C160,55 172,60 190,65 C222,74 236,78 254,86 C286,99 300,107 318,120 C352,143 378,163 400,177" fill="none" stroke="#0FA98B" stroke-width="2.6"/>
+          <!-- spray -->
+          <path d="M62,40 C95,50 110,57 126,61 C160,72 172,79 190,86 C222,101 236,110 254,120 C286,137 300,146 318,156 C352,176 378,193 400,204" fill="none" stroke="#DE5250" stroke-width="2.6" stroke-dasharray="7 5"/>
+          <!-- labels -->
+          <text x="330" y="108" font-size="12" fill="#0B6B58" font-weight="700">sạch</text>
+          <text x="336" y="188" font-size="12" fill="#9B302E" font-weight="700">có nước</text>
+          <text x="150" y="232" font-size="11.5" fill="#7C8B97">AP = diện tích dưới đường</text>
+          <text x="62" y="30" font-size="11.5" fill="#7C8B97">precision ↑</text>
+          <text x="400" y="272" font-size="11.5" fill="#7C8B97" text-anchor="end">recall →</text>
+          <text x="62" y="266" font-size="10.5" fill="#9AA8B2">0</text>
+          <text x="231" y="266" font-size="10.5" fill="#9AA8B2" text-anchor="middle">0,5</text>
+          <text x="400" y="266" font-size="10.5" fill="#9AA8B2" text-anchor="end">1,0</text>
+        </svg>
+        <figcaption>Vùng hồng là phần điểm số bị mất khi có nước. Đây chính là <b>G</b> trong mục 05.</figcaption>
+      </figure>
+    </div>
+
+    <h3 class="sub">nuScenes chấm điểm chính thức thế nào</h3>
+    <p class="subs">Đây là con số bạn thấy trên bảng xếp hạng. Nó khác evaluator tự viết của dự án.</p>
+
+    <div class="grid g2 mt">
+      <div class="card accent-mint">
+        <h3>Bước 1 — khớp dự đoán với đáp án</h3>
+        <p>Hai hộp được coi là khớp nếu <b>tâm</b> cách nhau dưới ngưỡng. nuScenes thử <b>4 ngưỡng</b>: 0,5 m · 1 m · 2 m · 4 m, rồi lấy trung bình.</p>
+        <p>Không dùng IoU. Nghĩa là hộp dự đoán to/nhỏ sai vẫn được tính là khớp — phần đó bị phạt riêng ở điểm kích thước.</p>
+      </div>
+      <div class="card accent-sky">
+        <h3>Bước 2 — tính AP cho từng lớp</h3>
+        <p>Lấy <b>101 điểm recall</b> từ 0 đến 1, nội suy precision tại mỗi điểm, cắt bỏ vùng recall &lt; 10% và precision &lt; 10%, rồi lấy trung bình.</p>
+        <p>mAP = trung bình AP của 10 lớp × 4 ngưỡng khoảng cách.</p>
+      </div>
+    </div>
+
+    <div class="card mt">
+      <h3>Bước 3 — NDS: một con số gộp tất cả</h3>
+      <p>nuScenes không chỉ thưởng “tìm ra vật”, mà còn thưởng “đo đúng”. Có 5 loại lỗi:</p>
+      <div class="table-wrap" style="margin-top:12px;box-shadow:none">
+        <table>
+          <thead><tr><th>Ký hiệu</th><th>Đo cái gì</th><th>Điểm = </th></tr></thead>
+          <tbody>
+            <tr><td><b>mATE</b></td><td>Sai vị trí tâm hộp (mét)</td><td><span class="mono" style="display:inline-block;margin:0">max(0, 1 − lỗi)</span></td></tr>
+            <tr><td><b>mASE</b></td><td>Sai kích thước (1 − IoU)</td><td>như trên</td></tr>
+            <tr><td><b>mAOE</b></td><td>Sai hướng (radian)</td><td>như trên</td></tr>
+            <tr><td><b>mAVE</b></td><td>Sai vận tốc (m/s)</td><td>như trên</td></tr>
+            <tr><td><b>mAAE</b></td><td>Sai thuộc tính (xe đang chạy / đỗ)</td><td>như trên</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="formula" style="margin-top:14px">NDS = ( 5 × mAP + mATE_score + mASE_score + mAOE_score + mAVE_score + mAAE_score ) / 10</div>
+      <p style="font-size:14.5px;color:var(--muted)">mAP chiếm một nửa trọng số. Nửa còn lại là chất lượng đo hình học. Vì thế một model “tìm đúng nhưng hộp lệch” vẫn bị điểm thấp.</p>
+    </div>
+
+    <h3 class="sub">Dự án này chấm thế nào (proxy mAP)</h3>
+    <p class="subs">Tự viết, cố tình đơn giản hơn. Không phải để so với bảng xếp hạng, mà để so A với B.</p>
+
+    <div class="grid g2">
+      <div class="card accent-violet">
+        <h3>Luật khớp của evaluator tự viết</h3>
+        <p>· Hai hộp khớp nếu <b>BEV IoU ≥ 0,5</b> và cùng lớp.<br>
+           · Bỏ dự đoán có <b>độ tin cậy &lt; 0,05</b>.<br>
+           · Chỉ tính vật trong <b>54 m</b>.<br>
+           · Ghép tham lam: dự đoán tin cậy cao được chọn trước.</p>
+        <p style="font-size:14px;color:var(--muted);margin-top:8px">AP tính bằng mọi điểm recall (không phải 101 điểm), mAP = trung bình các lớp có đáp án.</p>
+      </div>
+      <div class="card accent-amber">
+        <h3>Vì sao dùng bản riêng</h3>
+        <p>· Cần đo <b>chênh lệch A − B</b> trên cùng bộ frame, không cần con số so với thiên hạ.<br>
+           · Chạy được trên laptop, không cần devkit hay GPU.<br>
+           · Dễ đọc, dễ debug: chỉ IoU và đếm TP/FP/FN.<br>
+           · Báo thêm <b>recall theo dải cự ly</b> — thứ bảng xếp hạng không cho.</p>
+      </div>
+    </div>
+
+    <div class="callout co-rose mt">
+      <span class="ic">!</span>
+      <div><b>Đừng so số proxy mAP với bảng nuScenes.</b> Hai định nghĩa khác nhau: một bên dùng IoU, một bên dùng khoảng cách tâm; một bên có NDS, một bên không. Chỉ so <b>trong cùng một bảng</b> của dự án.</div>
+    </div>
+
+    <h3 class="sub">Hồ sơ nuScenes</h3>
+    <p class="subs">Bộ dữ liệu chuẩn của ngành cho xe tự lái đô thị.</p>
+
+    <div class="grid g2">
+      <div class="card accent-mint">
+        <h3>Nó là gì</h3>
+        <p>· <b>1.000 cảnh</b> quay 20 giây; 850 cảnh có nhãn (700 train / 150 val), 150 cảnh test giấu nhãn.<br>
+           · <b>6 camera</b> 360° + <b>1 LiDAR</b> 32 tia 20 Hz + <b>5 radar</b>.<br>
+           · Nhãn ở <b>2 Hz</b> (keyframe), cảm biến chạy 20 Hz (sweep).<br>
+           · <b>34.149</b> keyframe, <b>10 lớp</b> phát hiện: xe, xe tải, buýt, rơ-moóc, xe công trình, người đi bộ, mô tô, xe đạp, cọc giao thông, rào chắn.</p>
+        <p style="font-size:13px;color:var(--muted);margin-top:8px">[?] 1.000 cảnh / 150 cảnh test / 5 radar / nhãn 2 Hz: kiến thức chung về nuScenes, không có file nguồn trong repo; repo xác nhận 850 / 34.149 và 700 train / 150 val.</p>
+      </div>
+      <div class="card accent-amber">
+        <h3>Mạnh và yếu cho dự án này</h3>
+        <p><b>Mạnh:</b> chuẩn để so sánh, đa cảm biến, nhãn dày, có sẵn đáp án hộp 3D.</p>
+        <p><b>Yếu:</b> là đường <b>đô thị</b> nên xe chạy chậm — chỉ <b>2%</b> frame có xe đạt 50 km/h. Không có nhãn nước. Thời tiết ít mưa.</p>
+        <p style="font-size:14px;color:var(--muted);margin-top:8px">Vì thế phải <b>chèn nước giả</b>, và phải chấp nhận bộ đo nhỏ (196 frame).</p>
+      </div>
+    </div>
+
+    <h3 class="sub">Hồ sơ SemanticSpray</h3>
+    <p class="subs">Bộ dữ liệu hiếm: có nước thật, gán nhãn tới từng điểm.</p>
+
+    <div class="grid g2">
+      <div class="card accent-violet">
+        <h3>Nó là gì</h3>
+        <p>· <b>207 chuỗi</b>, <b>17.419 lần quét</b>, cùng loại LiDAR VLP-32C.<br>
+           · Hai loại xe thử nghiệm: <b>VW Crafter</b> (xe tải nhỏ) và <b>VW Golf</b>.<br>
+           · Mỗi điểm có một trong ba nhãn: <b>0 nền</b> · <b>1 xe</b> · <b>2 nhiễu</b>.<br>
+           · Chỉ <b>36/207 cảnh</b> có nhãn hộp vật thể (2.595 hộp, 1 xe/frame).</p>
+      </div>
+      <div class="card accent-rose">
+        <h3>Mạnh và yếu cho dự án này</h3>
+        <p><b>Mạnh:</b> nước <b>thật</b>, nhãn từng điểm, đúng cảm biến → hiệu chỉnh được hình dạng plume.</p>
+        <p><b>Yếu:</b> chỉ <b>1 camera</b>; <b>100% frame đều có nước</b> nên không có bản sạch để so; chỉ 1 lớp vật thể; chỉ 1 điều kiện thời tiết.</p>
+        <p style="font-size:14px;color:var(--muted);margin-top:8px">Vì thế <b>không</b> dùng để train hay chấm mAP. Chỉ dùng để <b>đo</b>.</p>
+      </div>
+    </div>
+
+    <div class="callout co-amber mt">
+      <span class="ic">!</span>
+      <div><b>Cẩn thận với nhãn “nhiễu”:</b> lớp 2 của SemanticSpray gồm nước bắn <b>và</b> các nguồn nhiễu khác như mưa, phản xạ. Vì vậy phần lớn cụm chỉ có 1 điểm. Muốn đo hình dạng plume, phải lọc lấy cụm <b>≥ 5 điểm</b>.</div>
+    </div>
+
+    <h3 class="sub">Đặt cạnh nhau</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th></th><th>nuScenes</th><th>SemanticSpray</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Trả lời câu hỏi</b></td><td>Phát hiện vật thể 3D trong đô thị.</td><td>Nước bắn trông thế nào, lọc được không.</td></tr>
+          <tr><td><b>Cảm biến</b></td><td>6 camera + 1 LiDAR + 5 radar.</td><td>1 LiDAR + 1 camera trước.</td></tr>
+          <tr><td><b>Quy mô</b></td><td>850 cảnh có nhãn / 34.149 keyframe.</td><td>207 cảnh / 17.419 lần quét.</td></tr>
+          <tr><td><b>Nhãn</b></td><td>Hộp 3D, 10 lớp.</td><td>Từng điểm: nền / xe / nhiễu.</td></tr>
+          <tr><td><b>Có bản sạch để so?</b></td><td>Có — tự bật/tắt chèn nước.</td><td>Không — frame nào cũng có nước.</td></tr>
+          <tr><td><b>Cách chấm điểm</b></td><td>mAP + NDS.</td><td>IoU / AUROC / AUPR trên từng điểm.</td></tr>
+          <tr><td><b>Vai trò trong dự án</b></td><td><b>Sân thi</b> chính.</td><td><b>Thước đo</b> để hiệu chỉnh tham số.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout co-mint mt">
+      <span class="ic">→</span>
+      <div><b>Cách nhớ:</b> nuScenes là <b>sân thi</b> — có đối thủ, có đáp án, có bảng điểm. SemanticSpray là <b>cái thước</b> — dùng để biết đám nước mình vẽ ra có giống thật không. Không ai thi trên cái thước, và không ai đo bằng sân thi.</div>
+    </div>
+
+    <div class="callout co-amber mt">
+      <span class="ic">?</span>
+      <div><b>[?] Cách chấm điểm nuScenes:</b> các con số 4 ngưỡng tâm 0,5 / 1 / 2 / 4 m, 101 điểm recall, cắt 10% / 10%, trọng số NDS và 5 loại lỗi là kiến thức <span class="code-inline">nuscenes-devkit</span>, không có file nguồn trong repo; đối chiếu devkit chính thức.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 11 TIẾN ĐỘ ============ -->
+<section id="tien-do">
+  <div class="wrap rv">
+    <div class="eyebrow">11 — Tiến độ</div>
+    <h2>Đang ở đâu</h2>
+    <p class="lede">Thứ tự có lý do: việc nào quyết định thiết kế thì làm trước, việc cơ học làm sau — vì thiết kế đổi thì số đo cũ phải vứt.</p>
+
+    <div class="grid g3 mt">
+      <div class="card accent-mint">
+        <h3 style="font-size:15px;color:var(--mint);text-transform:uppercase;letter-spacing:.08em">Đã xong</h3>
+        <div class="chips">
+          <span class="chip done">01 · pin</span>
+          <span class="chip done">02 · smoke</span>
+          <span class="chip done">02b · môi trường</span>
+          <span class="chip done">03 · vận tốc</span>
+          <span class="chip done">04 · dữ liệu</span>
+          <span class="chip done">05 · chấm điểm</span>
+          <span class="chip done">06 · adapter</span>
+          <span class="chip done">07 · chèn nước</span>
+          <span class="chip done">12 · thống kê</span>
+          <span class="chip done">15 · tài liệu</span>
+          <span class="chip done">16 · đo hình học</span>
+          <span class="chip done">17 · sửa generator</span>
+          <span class="chip done">18 · eligibility</span>
+        </div>
+      </div>
+      <div class="card accent-amber">
+        <h3 style="font-size:15px;color:var(--amber);text-transform:uppercase;letter-spacing:.08em">Làm được ngay</h3>
+        <div class="chips">
+          <span class="chip ready">08 · nối hai nhánh</span>
+          <span class="chip ready">14 · lọc điểm</span>
+        </div>
+        <p style="font-size:13.5px;color:var(--muted);margin-top:12px">14 chạy song song được với 10–11 — chỉ cần evaluator + model.</p>
+      </div>
+      <div class="card accent-sky">
+        <h3 style="font-size:15px;color:var(--sky);text-transform:uppercase;letter-spacing:.08em">Đang chờ</h3>
+        <div class="chips">
+          <span class="chip wait">09 · e2e</span>
+          <span class="chip wait">10 · config</span>
+          <span class="chip wait">11 · chạy A/B</span>
+          <span class="chip wait">13 · cổng kết luận</span>
+        </div>
+        <p style="font-size:13.5px;color:var(--muted);margin-top:12px">09 chờ 08; 10 → 11 chờ 09.</p>
+      </div>
+    </div>
+
+    <div class="callout co-mint mt">
+      <span class="ic">→</span>
+      <div><b>Đường tới kết quả:</b> <b>16 ✓ → 17 ✓</b> (generator đã khớp hình dạng đo được) · <b>08 → 09</b> (nối hai nhánh + test đầu-cuối) · <b>10 → 11</b> (chạy ba arm) · <b>13</b> (quyết định).</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><b>Bản 3 · cập nhật 07-11-2026.</b> Nguồn: <span class="code-inline">docs/PROJECT.md</span>, <span class="code-inline">docs/plume-geometry-vs-real.md</span>, <span class="code-inline">docs/nuscenes-eligibility.md</span> cùng các tài liệu trong <span class="code-inline">docs/</span> và <span class="code-inline">.scratch/spray-augmentation/</span>. Phần kiến thức LiDAR và cách chấm điểm đối chiếu với <span class="code-inline">nuscenes-devkit</span> (mã nguồn chính thức) và paper SemanticSpray (Piroli et al., RA-L 2023).</p>
+    <p style="margin-top:6px">Trang này là bản tóm tắt để đọc và chia sẻ. Khi dự án có thêm quyết định hoặc số mới, nhắn mình cập nhật — đường link giữ nguyên.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // reveal on scroll
+  var els = document.querySelectorAll('.rv');
+  if(!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    els.forEach(function(e){ e.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, {rootMargin:'0px 0px -8% 0px', threshold:0.08});
+    els.forEach(function(e){ io.observe(e); });
+  }
+
+  // scrollspy
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var secs = Array.prototype.slice.call(document.querySelectorAll('main section[id]'));
+  if('IntersectionObserver' in window){
+    var spy = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){
+          links.forEach(function(a){ a.classList.remove('on'); });
+          var a = map[en.target.id];
+          if(a){ a.classList.add('on'); }
+        }
+      });
+    }, {rootMargin:'-45% 0px -50% 0px'});
+    secs.forEach(function(s){ spy.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>
