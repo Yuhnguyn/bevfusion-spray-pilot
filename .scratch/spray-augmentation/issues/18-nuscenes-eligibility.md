@@ -22,8 +22,16 @@ Con số đó thiếu ba thứ khiến nó **không dùng được để chốt 
 
 ## Việc phải làm
 
-Thêm **một cell** vào kernel `kaggle/smoke_test` (cell mới nhất là 21 = ticket 07), đọc trực tiếp
-**nuScenes devkit**, **không** dùng infos pkl (không cần `create_data.py`, không chờ 30 phút):
+Tạo **kernel riêng nhẹ** `kaggle/eligibility/` (`kernel-metadata.json` + một file `main.py`), **CPU, không
+GPU, không tải checkpoint**, attach cùng dataset nuScenes
+(`sahangunasekara92/nuscenes-v1-0-full-keyframes`), `enable_internet: true` để `pip install nuscenes-devkit`.
+
+Lý do không nhét vào kernel cũ: mỗi lần push `kaggle/smoke_test` tốn ~13 phút vì phải dựng lại venv
+Python 3.8 + tải checkpoint từ Dropbox — với một phép đếm annotation thì quá đắt, và làm tăng nguy cơ
+đụng vào artifact đang chứng minh ticket 04/06/07.
+
+Đọc trực tiếp **nuScenes devkit**, **không** dùng infos pkl (không cần `create_data.py`, không chờ
+30 phút):
 
 ### Định nghĩa phải dùng đúng (đừng tự đặt biến thể khác)
 
