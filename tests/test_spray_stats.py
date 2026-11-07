@@ -112,7 +112,8 @@ def test_simulator_estimate_uses_reference_cluster_formula():
     assert at_fifty["points_per_frame"] == 0
     assert stopped["clusters_per_frame"] == 0
     assert stopped["points_per_frame"] == 0
-    assert at_fast["clusters_per_frame"] == 45
+    # Ticket 22: count là trạng thái dừng round(mean * K), K ≈ 2,59 ở 500 km/h.
+    assert at_fast["clusters_per_frame"] == 117
 
 
 def test_compare_rows_expose_simulator_values():

@@ -27,7 +27,7 @@ Hai bài dưới đây là nền của pilot. Không bài nào trả lời câu 
 
 **Linnhoff et al., "Simulating Road Spray Effects in Automotive Lidar Sensor Models"** (arXiv 2212.08558) — model + augmentation.
 - Giải: mô hình **hình học** plume (cluster dọc quỹ đạo, ray casting, xác suất detection, attenuation), calibrate trên test track, rồi dùng chính nó để augment và **đo detector**.
-- Cấp cho plan: (a) tham số đã calibrate (spray bắt đầu **50 km/h**; bán kính cluster lognormal μ=−1,2 σ=0,8; P_det median ≈ 0,10; attenuation 0,02 m⁻¹; intensity 0); (b) bằng chứng augment có tác dụng: PV-RCNN **+17,39 AP** trên spray thật, clear weather không mất gì (58,90 vs 58,23); (c) ba kết quả phụ: DROR **−5,52 AP**, fog-sim **−14,65 AP**, Voxel-RCNN **+0,62 AP** (gần bằng 0); (d) code augmentation open source.
+- Cấp cho plan: (a) tham số đã calibrate (spray bắt đầu **50 km/h**; bán kính cluster lognormal μ=−1,2 σ=0,8; P_det median ≈ 0,10; attenuation hiệu dụng **0,04 m⁻¹**; intensity 0); (b) bằng chứng augment có tác dụng: PV-RCNN **+17,39 AP** trên spray thật, clear weather không mất gì (58,90 vs 58,23); (c) ba kết quả phụ: DROR **−5,52 AP**, fog-sim **−14,65 AP**, Voxel-RCNN **+0,62 AP** (gần bằng 0); (d) code augmentation open source.
 
 **Đã được công bố, pilot KHÔNG claim:**
 - Spray làm detector sinh misdetection và ghost object (Walz et al. ITSC 2021, được cả hai bài trích).
@@ -187,7 +187,7 @@ cluster_count_for_speed(speed_kmh, config=None) -> int   # 0 nếu dưới ngư�
 **Số kiểm chứng được (dùng làm assert trong test):** 49,9 km/h → 0 điểm; 50 → 2 cụm ≈ 76 điểm (0,22% của
 34.720); 80 → 4 cụm ≈ 99 điểm; 130 → 8 cụm ≈ 174 điểm (0,50%) [ĐO].
 
-**Không làm ở v1** (thuộc v2, xem `ADR-0002`): attenuation 0,02 m⁻¹, occlusion/làm mất điểm thật, wet-ground,
+**Không làm ở v1** (thuộc v2, xem `ADR-0002`): attenuation hiệu dụng **0,04 m⁻¹**, occlusion (thay return yếu), wet-ground,
 ray casting theo từng tia, `P_det` lognormal per-beam, decay T = 0,5–1,5 s. Hệ quả phải nêu trong mọi kết luận:
 v1 chỉ **cộng** điểm lạ, không **lấy đi** điểm thật.
 
@@ -256,7 +256,7 @@ Mọi tên dưới đây là **hợp đồng**, không phải gợi ý. Đổi t
 ## Second generator — định nghĩa, mở có điều kiện
 
 - **Định nghĩa:** implementation độc lập theo cơ chế Linnhoff — ray-cast theo từng tia, `P_det` lognormal
-  (median 0,10), attenuation 0,02 m⁻¹, decay 0,5–1,5 s. Không dùng lại `plume.py`, không share RNG.
+  (median 0,10), attenuation hiệu dụng **0,04 m⁻¹**, decay 0,5–1,5 s. Không dùng lại `plume.py`, không share RNG.
 - **Điều kiện mở:** chỉ sau khi G3 đạt (mini A/B dương và trên noise floor) — evidence ladder bước 3. Không code
   trước, không tạo ticket trước.
 - **Lý do:** cross-generator check chỉ có nghĩa khi đã có tín hiệu để kiểm. Làm trước là đốt thời gian.

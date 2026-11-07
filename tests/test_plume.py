@@ -1,7 +1,12 @@
 import numpy as np
 import pytest
 
-from spray.plume import PlumeConfig, cluster_count_for_speed, inject_plume
+from spray.plume import (
+    PlumeConfig,
+    cluster_count_for_speed,
+    inject_plume,
+    steady_state_cluster_factor,
+)
 
 
 def _config(**overrides):
@@ -164,13 +169,14 @@ def test_activation_threshold_is_40_kmh():
 
 
 def test_cluster_count_grows_with_speed():
+    # Ticket 22: số cụm trong frame = round(mean * K), K ≈ 2,51; không còn dropout.
     assert cluster_count_for_speed(39.0) == 0
     assert cluster_count_for_speed(40.0) == 0
     assert cluster_count_for_speed(50.0) == 0
-    assert cluster_count_for_speed(60.0) == 1
-    assert cluster_count_for_speed(80.0) == 3
-    assert cluster_count_for_speed(100.0) == 5
-    assert cluster_count_for_speed(130.0) == 8
+    assert cluster_count_for_speed(60.0) == 3
+    assert cluster_count_for_speed(80.0) == 8
+    assert cluster_count_for_speed(100.0) == 13
+    assert cluster_count_for_speed(130.0) == 20
 
 
 def test_no_clusters_at_45_kmh():
@@ -178,32 +184,42 @@ def test_no_clusters_at_45_kmh():
 
 
 def test_cluster_count_at_130_kmh_with_one_mm_water_film():
-    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 8
+    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 20
     assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.0)) == 0
 
 
-def test_cluster_count_at_80_kmh_is_three():
-    assert cluster_count_for_speed(80.0) == 3
+def test_cluster_count_at_80_kmh_is_eight():
+    # mean = 3,006 cụm/chu kỳ; × K ≈ 2,52 → 7,57 → 8 (ticket 22).
+    assert cluster_count_for_speed(80.0) == 8
 
 
-def test_lifetime_dropout_survival_fraction():
-    """age ~ U(0, 4T), sống với xác suất exp(-age/T) → trung bình ~0,245."""
+def test_steady_state_cluster_factor_is_geometric_sum():
+    """K = Σ exp(-k·Δt/T), Δt = 0,1 s, T = 0,2 s → 2,51; không phải hằng số bịa."""
+    config = PlumeConfig()
+    at_fifty = steady_state_cluster_factor(50.0, config)
+    expected = sum(np.exp(-k * 0.1 / 0.2) for k in range(9))
+
+    assert at_fifty == pytest.approx(expected)
+    assert at_fifty == pytest.approx(2.5133, abs=1e-3)
+    # T tăng nhẹ theo tốc độ (dee.cpp:530) nên K ở 130 km/h lớn hơn.
+    assert steady_state_cluster_factor(130.0, config) > at_fifty
+
+
+def test_no_lifetime_dropout_generates_full_steady_state_count():
+    """Ticket 22: bỏ dropout age ~ U(0,4T); mọi cụm sinh ra đều còn lại."""
     points = np.zeros((1, 5), dtype=np.float32)
     box = np.array(
-        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 55.0 / 3.6, 0.0]], dtype=np.float32
+        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 80.0 / 3.6, 0.0]], dtype=np.float32
     )
-    config = _config(distance_range_m=(5.0, 5.0), max_injected_points=100)
+    config = _config(distance_range_m=(5.0, 5.0), max_injected_points=100000)
 
-    spawned = 0
-    survived = 0
-    for seed in range(2000):
-        result = inject_plume(points, box, seed=seed, token="lifetime", config=config)
-        spawned += result.stats.clusters_spawned
-        survived += result.stats.clusters
+    result = inject_plume(points, box, seed=0, config=config)
 
-    assert spawned == 2000
-    ratio = survived / spawned
-    assert 0.20 <= ratio <= 0.30, ratio
+    expected = cluster_count_for_speed(80.0, config)
+    assert expected == 8
+    assert result.stats.clusters_spawned == expected
+    assert result.stats.clusters == expected
+    assert result.stats.clusters_dropped_lifetime == 0
 
 
 def test_points_per_cluster_matches_measured_median():
@@ -223,32 +239,28 @@ def test_points_per_cluster_matches_measured_median():
 
 
 def _single_clusters(distance, *, seeds, tag):
-    """Mỗi (cự ly, seed) sinh đúng một cụm sống; retry vì lifetime dropout ~75%."""
+    """Mỗi (cự ly, seed) sinh đúng một cụm; không còn dropout từ ticket 22."""
     box = np.array(
         [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 55.0 / 3.6, 0.0]], dtype=np.float32
     )
     empty = np.empty((0, 5), dtype=np.float32)
     clusters = []
     for seed in seeds:
-        for attempt in range(500):
-            config = PlumeConfig(
-                distance_range_m=(distance, distance),
-                lateral_sigma_m=0.0,
-                height_range_m=(1.0, 1.0),
-                max_injected_points=100000,
-            )
-            result = inject_plume(
-                empty,
-                box,
-                seed=seed,
-                token=f"{tag}:{distance:.1f}:{seed}:{attempt}",
-                config=config,
-            )
-            if result.stats.clusters == 1:
-                clusters.append(result.injected[:, :3].astype(np.float64))
-                break
-        else:
-            raise AssertionError(f"no surviving cluster for {tag} seed={seed}")
+        config = PlumeConfig(
+            distance_range_m=(distance, distance),
+            lateral_sigma_m=0.0,
+            height_range_m=(1.0, 1.0),
+            max_injected_points=100000,
+        )
+        result = inject_plume(
+            empty,
+            box,
+            seed=seed,
+            token=f"{tag}:{distance:.1f}:{seed}",
+            config=config,
+        )
+        assert result.stats.clusters == 1, (tag, distance, seed, result.stats.clusters)
+        clusters.append(result.injected[:, :3].astype(np.float64))
     return clusters
 
 

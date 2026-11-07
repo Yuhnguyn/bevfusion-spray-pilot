@@ -72,9 +72,10 @@ không cần checkpoint. Có thể làm song song với `08`.
 
 - Pin MIT BEVFusion `da93b27`; không dùng HEAD. (`docs/adr/0001`)
 - v1 chỉ plume, không mô phỏng wet-ground/attenuation. (`docs/adr/0002`)
-- Lý do **định lượng** để bỏ attenuation ở v1: hệ số tắt 0,02 m⁻¹ [PAPER §III] × quãng xuyên thực tế
-  0,5–0,8 m (1–2 cụm r = 0,3 m) → intensity còn 98,4–99% → dưới ngưỡng lượng tử hoá intensity của
-  nuScenes. Chỉ đáng làm nếu chuyển sang regime fully-watered của paper (500–1.500 điểm/frame).
+- Lý do **định lượng** để bỏ attenuation ở v1: hệ số tắt hiệu dụng **0,04 m⁻¹** = `exp(−2×0,02×d)`
+  [PAPER §III] × quãng xuyên thực tế 0,5–0,8 m (1–2 cụm r = 0,3 m) → intensity còn **98,0–96,9%** →
+  dưới ngưỡng lượng tử hoá intensity của nuScenes. Chỉ đáng làm nếu chuyển sang regime fully-watered
+  của paper (500–1.500 điểm/frame).
 - v1 đặt điểm plume trên **vỏ cầu phía cảm biến**, không trong khối cầu; không dựng beam grid/OSI
   (ticket 16–17). Mật độ vẫn neo SemanticSpray, **không** phụ thuộc cự ly — nếu ticket 16 chứng minh
   điều đó sai thì PM mở ticket 18.
@@ -102,9 +103,12 @@ không cần checkpoint. Có thể làm song song với `08`.
 
 - Không port model C++ ray-based của Linnhoff (occlusion, drag, beam/ray-sphere); không dựng OSI/beam angles.
 - Code tham chiếu của Linnhoff 2022 **đã publish** trên GitHub `openMSL/sl-1-2-reflection-based-lidar-object-model`
-  (MPL-2.0). v1 port 3 cơ chế: kích hoạt 40 km/h, số cụm theo 50 km/h, lifetime T = 0,2 s — chi tiết giá trị
-  và số dòng ở `docs/plume-model-provenance.md` §Code tham chiếu. Phần **không** port: occlusion, drag,
-  ray-sphere/beam (v1 chỉ **thêm** điểm, không **che** detection có sẵn → kết quả lạc quan hơn model thật).
+  (MPL-2.0). v1 port 3 cơ chế: kích hoạt 40 km/h, số cụm theo 50 km/h (nhân hệ số trạng thái dừng `K`),
+  lifetime `T = wfh·0,02·(v−50) + 0,2` (không phải hằng 0,2 s) — chi tiết giá trị và số dòng ở
+  `docs/plume-model-provenance.md` §Code tham chiếu. Phần **không** port: occlusion, drag, ray-sphere/beam.
+  Occlusion trong model thật chỉ **thay thế các return yếu** (mặt đường, vật tối ở xa); xe thật intensity
+  4–40 gần như không bị che, nên v1 chỉ **thêm** điểm. Xếp lại nguồn lạc quan:
+  **(1) camera branch sạch, (2) số cụm, (3) lifetime, (4) drag, (5) occlusion.**
 - Không tune hyperparameter, không multi-seed ở v1 (1 seed T4, kết quả chỉ mang tính hướng).
 - Không hứa hẹn cải thiện trên spray thật.
 

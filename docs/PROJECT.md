@@ -102,7 +102,7 @@ Bán kính giữ **0,30** theo paper dù đo được 0,755 m — số đo là c
 | Cluster generation | có, nhưng 2–8 cụm (paper tới ~30) | repo chủ động chọn regime "ẩm/ướt một phần" |
 | Update cụm theo thời gian (bay, tan dần) | **không có** | hợp lý: chỉ dùng keyframe, không có chuỗi thời gian |
 | Ray casting + `P_det` mỗi tia | **không có** | repo đặt thẳng số điểm; đây là chỗ lệch lớn nhất |
-| Attenuation `0,02 m⁻¹` | **không có** | ở mật độ hiện tại chỉ làm giảm ~1–2% intensity → dưới ngưỡng lượng tử hoá |
+| Attenuation `0,04 m⁻¹` (`exp(−2×0,02×d)`) | **không có** | ở `d = 0,5–0,8 m` intensity còn 98,0–96,9% → dưới ngưỡng lượng tử hoá |
 
 **Không được so trực tiếp với +17,39 AP của paper.** Cùng bảng đó Voxel-RCNN chỉ +0,62 → hiệu ứng phụ
 thuộc detector rất mạnh.
@@ -171,7 +171,7 @@ Năm điều kiện để được nói "thành công" — chốt trước, khô
 | ngày | quyết định | lý do / bằng chứng |
 |---|---|---|
 | 11-04 | pin MIT `da93b27`, không dùng HEAD | tái lập được (ADR-0001) |
-| 11-04 | v1 chỉ plume, không wet-ground/attenuation | attenuation ở mật độ này ~1–2% intensity (ADR-0002) |
+| 11-04 | v1 chỉ plume, không wet-ground/attenuation | attenuation ở `d = 0,5–0,8 m` ~2–3% intensity (ADR-0002) |
 | 11-04 | không train/eval detection trên SemanticSpray | chỉ để calibrate (ADR-0003) |
 | 11-05 | chèn plume **chỉ** vào nhánh LiDAR, camera nhận `points_clean` | cần đúng một biến thay đổi; đổi lại kết quả là cận trên |
 | 11-05 | ngưỡng 50 km/h | paper §III-A; hạ xuống 30 làm mất tính chính danh |

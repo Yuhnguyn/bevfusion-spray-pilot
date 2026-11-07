@@ -19,6 +19,10 @@ _POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
 _CLUSTER_COUNT_WFH_COEFF = 0.2
 _CLUSTER_COUNT_BASE = 0.1
 
+# [CODE] profile VLP-32 `update_cycle_time` = 0.1 s — chu kỳ model tham chiếu sinh cụm.
+# Dùng để cộng dồn số cụm còn sống qua các chu kỳ (hệ số K, ticket 22).
+_UPDATE_CYCLE_TIME_S = 0.1
+
 
 @dataclass(frozen=True)
 class PlumeConfig:
@@ -104,6 +108,7 @@ class PlumeStats:
     skipped_no_velocity: int = 0
     skipped_low_speed: int = 0
     clusters_spawned: int = 0
+    # Giữ field cho tương thích; luôn 0 từ ticket 22 (dropout đã bỏ, suy giảm nằm trong K).
     clusters_dropped_lifetime: int = 0
     clusters: int = 0
     injected: int = 0
@@ -121,11 +126,13 @@ class PlumeResult:
 
 
 def cluster_count_for_speed(speed_kmh: float, config: PlumeConfig | None = None) -> int:
-    """Số cụm cho một box ở tốc độ cho trước.
+    """Số cụm **nhìn thấy trong một frame** cho một box ở tốc độ cho trước.
 
     [CODE] DetectionEnvironmentalEffects.cpp:502,:554 (kích hoạt trên 40 km/h và
-    wfh > 0) và :509–512 (``mean = (0.2*wfh + 0.1) * (v_kmh - 50)``, làm tròn như
-    ``std::round``). Ở ``v ≤ 50 km/h`` công thức cho 0 cụm — giữ đúng 0.
+    wfh > 0) và :509–512 (``mean = (0.2*wfh + 0.1) * (v_kmh - 50)``). ``mean`` là
+    số cụm **sinh mỗi chu kỳ** ``Δt = 0,1 s``; số cụm trong frame ở trạng thái
+    dừng là ``round(mean × K)`` với ``K = steady_state_cluster_factor`` (ticket 22).
+    Ở ``v ≤ 50 km/h`` công thức cho 0 cụm — giữ đúng 0.
     """
     cfg = config or PlumeConfig()
     if speed_kmh <= cfg.min_speed_kmh or cfg.water_film_height_m <= 0.0:
@@ -133,7 +140,10 @@ def cluster_count_for_speed(speed_kmh: float, config: PlumeConfig | None = None)
     mean = (
         _CLUSTER_COUNT_WFH_COEFF * cfg.water_film_height_m + _CLUSTER_COUNT_BASE
     ) * (speed_kmh - cfg.cluster_count_velocity_offset_kmh)
-    return int(np.floor(max(0.0, mean) + 0.5))
+    if mean <= 0.0:
+        return 0
+    visible = mean * steady_state_cluster_factor(speed_kmh, cfg)
+    return int(np.floor(visible + 0.5))
 
 
 def lifetime_time_constant(
@@ -149,6 +159,29 @@ def lifetime_time_constant(
     )
 
 
+def steady_state_cluster_factor(
+    speed_kmh: float, config: PlumeConfig | None = None
+) -> float:
+    """Hệ số tích luỹ ``K`` của số cụm ở trạng thái dừng (ticket 22).
+
+    Cụm sinh mỗi chu kỳ ``Δt`` sống với xác suất ``exp(-age/T)`` và bị xoá khi
+    ``age > 4T``, nên số cụm còn lại trong một frame là tổng cấp số nhân:
+
+        K = Σ_{k=0}^{4T/Δt} exp(-k·Δt/T)
+
+    ``T = lifetime_time_constant(v)`` (dee.cpp:530), ``Δt = 0,1 s`` từ profile
+    ``update_cycle_time``. Với ``T = 0,2 s`` → ``K ≈ 2,51``; không hard-code vì
+    ``T`` tăng nhẹ theo tốc độ.
+    """
+    cfg = config or PlumeConfig()
+    time_constant = lifetime_time_constant(speed_kmh, cfg)
+    steps = int(
+        np.floor(cfg.lifetime_max_age_factor * time_constant / _UPDATE_CYCLE_TIME_S)
+    )
+    k = np.arange(steps + 1, dtype=np.float64)
+    return float(np.exp(-k * _UPDATE_CYCLE_TIME_S / time_constant).sum())
+
+
 def inject_plume(
     points: np.ndarray,
     boxes: np.ndarray,
@@ -159,10 +192,12 @@ def inject_plume(
 ) -> PlumeResult:
     """Thêm cụm plume vào sau các box đang chạy.
 
-    Lifetime: generator chạy per-frame, không có state qua frame, nên chỉ tái lập
-    **phân bố tuổi** tại một keyframe chứ không tái lập coherence thời gian.
-    ``age ~ U(0, 4T)``, giữ cụm với xác suất ``exp(-age / T)``; vì vậy tỉ lệ cụm
-    sống trung bình trên ``[0, 4T]`` là ~24,5%. Deterministic theo ``seed``/``token``.
+    Số cụm mỗi box là số cụm **nhìn thấy trong một frame** ở trạng thái dừng:
+    ``cluster_count_for_speed`` = ``round(mean × K)``, với ``K`` là tổng cấp số
+    nhân của xác suất sống ``exp(-age/T)`` trên ``[0, 4T]``. Generator chạy
+    per-frame, không có state qua frame; **không** còn dropout ``age ~ U(0,4T)``
+    vì suy giảm lifetime đã nằm trong ``K`` (ticket 22). Deterministic theo
+    ``seed``/``token``.
     """
     cfg = config or PlumeConfig()
     clean = _as_five_columns(points)
@@ -197,14 +232,9 @@ def inject_plume(
         stats.eligible_boxes += 1
         direction = -np.array([vx, vy], dtype=np.float64) / speed
         perp = np.array([-direction[1], direction[0]])
-        time_constant = lifetime_time_constant(speed_kmh, cfg)
 
         for _ in range(n_clusters):
             stats.clusters_spawned += 1
-            age = rng.uniform(0.0, cfg.lifetime_max_age_factor * time_constant)
-            if float(np.exp(-age / time_constant)) < rng.random():
-                stats.clusters_dropped_lifetime += 1
-                continue
             distance = rng.uniform(*cfg.distance_range_m)
             lateral = rng.normal(0.0, cfg.lateral_sigma_m)
             z = rng.uniform(*cfg.height_range_m)
