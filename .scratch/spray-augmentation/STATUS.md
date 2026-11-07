@@ -33,8 +33,9 @@ Lịch sử fix môi trường: thiếu `numba` → uv không resolve được t
 | 05 | Evaluator core + synthetic tests | **done** | — | — |
 | 06 | Adapter evaluator cho output MIT | **done** | 02, 05 | mAP 0.298 trên frame thật |
 | 07 | Pipeline transform + `points_clean` | **done** | 03, 05 | 12/12 check |
-| 08 | Model forward routing | ready-for-agent | 07 | route `points_clean` vào camera branch |
-| 09 | End-to-end pipeline test | blocked | 07, 08 | test tích hợp, không cần GPU |
+| 08 | Model forward routing | **done** `16517f1` | 07 | subclass + plumbing, 49 test, vendor giữ `da93b27` |
+| 19 | Kaggle code sync (dataset + kernel) | **ready-for-agent** | — | repo private ⇒ dataset private 2 MB |
+| 09 | End-to-end pipeline test | blocked | 07, 08, **19** | cần `mmdet3d` ⇒ phải chạy trên Kaggle |
 | 10 | Train/eval config A/B | blocked | 04, 09 | config theo arm A/B/B0 |
 | 11 | Mini A/B run + report | blocked | 06, 10 | chạy 1 seed T4, ghi report |
 | 12 | SemanticSpray statistics | **done** | — | — |
