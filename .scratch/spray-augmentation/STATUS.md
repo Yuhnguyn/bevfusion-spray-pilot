@@ -83,6 +83,19 @@ không cần checkpoint. Có thể làm song song với `08`.
 - Velocity của box đã ở LiDAR frame của keyframe hiện tại; plume phải chèn **sau** `GlobalRotScaleTrans`
   và `RandomFlip3D`, **trước** `PointShuffle`; box do `ObjectPaste` set velocity = 0. (`docs/velocity-contract.md`)
 - Ba arm: A = clean baseline, B = có plume, B0 = lọc spray rồi detect.
+- **Eval set (chốt 2026-11-07, ticket 18):** val split, box vehicle ≥50 km/h **phía trước** (`x>0`),
+  `d ≤ 50 m`, **không lọc vận tốc ego** → **196 frame / 16 scene**; báo per-range 0–30 m (117 frame) và
+  30–50 m (79 frame). Nguồn: `docs/nuscenes-eligibility.md`.
+  - **Bỏ lọc ego** vì paper §III-A có kịch bản ego **đứng yên** (xe khác chạy ngang vẫn sinh plume);
+    lọc ego ≥50 km/h làm val còn **0 frame**.
+  - **Không dùng scene highway**: 0 scene highway trong val, chỉ 2 scene trên toàn bộ nuScenes.
+  - **Không tự chia lại trainval** để lấy thêm frame: checkpoint pretrained đã thấy 700 scene train →
+    eval trên đó là rò rỉ, kể cả khi không train thêm.
+  - Rủi ro đã biết: 16 scene → CI rộng; nếu G3#1 fail thì kết luận là "không đo được gap với n=16 scene",
+    **không** phải "augment vô dụng".
+- **Số cũ 34.029 frame / 697 frame / 2,0% là toàn bộ trainval** (850 scene / 34.149 keyframe), không phải
+  val split (150 / 6.019). Hàng đối chứng tái lập đúng (957 box / 698 frame, +0,53%) nên phép đo cũ đúng,
+  chỉ nhãn sai. Đã đính chính `docs/velocity-contract.md`.
 - Kết quả dương trên plume tổng hợp là **cận trên lạc quan**, không chứng minh giúp spray thật. Camera branch
   nhận `points_clean` nên lợi ích nếu có chỉ đến từ LiDAR.
 
