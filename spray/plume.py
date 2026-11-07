@@ -10,13 +10,19 @@ import numpy as np
 class PlumeConfig:
     """Tham số sinh plume.
 
+    Xem docs/plume-model-provenance.md
+
     Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/semantic-spray-stats.md,
     docs/adr/0003):
 
     - Hiệu chỉnh theo Linnhoff et al. 2022 (arXiv 2212.08558): ngưỡng tốc độ
-      50 km/h, phân bố lognormal của bán kính cụm và số điểm/cụm.
-    - Đo trên SemanticSpray (bản release local): số cụm dense mỗi frame.
+      50 km/h; dạng hàm tuyến tính của số cụm theo tốc độ (§III Cluster
+      Generation + Fig. 4); phân bố lognormal của bán kính cụm (Fig. 5).
+    - Đo trên SemanticSpray (bản release local): hằng số neo cho số cụm
+      (median 5 dense clusters/frame) và số điểm/cụm (median 17).
     - Lựa chọn của repo, không có nguồn ngoài: bù hình học, biên an toàn.
+
+    v1 gộp hai chiều mà paper tham số hoá: lớp xe và độ dày màng nước.
     """
 
     point_cloud_range: tuple[float, float, float, float, float, float] = (
@@ -32,9 +38,10 @@ class PlumeConfig:
     # Dung sai để 50,0 km/h không bị loại vì làm tròn float32
     # (float32(50/3.6)*3.6 = 50.0000015, nhưng float32(30/3.6)*3.6 = 29.999999).
     speed_epsilon_kmh: float = 1e-3
-    # Số cụm tăng tuyến tính theo tốc độ; hai đầu là lựa chọn của repo, được
-    # chọn để khớp dense clusters/frame median = 5 của SemanticSpray ở dải giữa.
     clusters_speed_bounds_kmh: tuple[float, float] = (50.0, 130.0)
+    # Dạng hàm tuyến tính theo tốc độ lấy từ Linnhoff §III (Cluster Generation)
+    # + Fig. 4; hằng số 2→8 neo theo SemanticSpray median 5 dense clusters/frame
+    # ở dải giữa. v1 gộp hai chiều lớp xe và độ dày màng nước.
     clusters_at_speed_bounds: tuple[int, int] = (2, 8)
     # Số điểm mỗi cụm: lognormal, median 17 (đo được), sigma chọn để p90 ~ 40.
     points_per_cluster_median: float = 17.0
