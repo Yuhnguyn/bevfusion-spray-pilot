@@ -13,6 +13,16 @@ class RorConfig:
     r: float = 0.5
 
 
+@dataclass(frozen=True)
+class DrorConfig:
+    k: int = 8
+    alpha: float = 0.03
+
+
+ARM_B0_FILTER = "dror"
+ARM_B0_DROR_CONFIG = DrorConfig()
+
+
 def ror_filter(
     points: np.ndarray,
     k: int = 8,
@@ -59,5 +69,58 @@ def ror_filter(
         "time_ms": (time.perf_counter() - start) * 1000.0,
         "k": int(k),
         "r": float(r),
+    }
+    return keep_mask, stats
+
+
+def dror_filter(
+    points: np.ndarray,
+    k: int = 8,
+    alpha: float = 0.03,
+    config: DrorConfig | None = None,
+) -> tuple[np.ndarray, dict]:
+    """Dynamic radius outlier removal for arm B0.
+
+    ``points`` is ``(N, 4)`` or ``(N, 5)`` float32; only ``x, y, z`` are used
+    and the remaining columns never affect the mask. Each point gets its own
+    radius ``r_i = alpha * norm(xyz_i)``, so far points are not deleted just
+    because the sensor grid is sparse out there. A point is removed when it
+    has fewer than ``k`` neighbours (excluding itself) within ``r_i`` metres.
+    The returned mask is ``bool (N,)``, keeps the input order, and the input
+    array is not modified.
+
+    Edge cases: ``N == 0`` returns an empty mask and zero counts. A point at
+    the sensor origin has ``norm == 0`` and therefore ``r_i == 0``; only
+    itself lies in that ball, so the point is removed. Because a point can
+    see at most ``N - 1`` other points, ``N <= k`` removes every point.
+
+    ``config`` overrides ``k`` and ``alpha`` when given.
+    """
+    if config is not None:
+        k, alpha = config.k, config.alpha
+
+    start = time.perf_counter()
+    xyz = np.asarray(points, dtype=np.float64)
+    if xyz.ndim != 2 or xyz.shape[1] < 3:
+        raise ValueError(f"points must be (N, >=3), got {xyz.shape}")
+
+    n_in = int(xyz.shape[0])
+    if n_in == 0:
+        keep_mask = np.zeros(0, dtype=bool)
+    else:
+        xyz3 = xyz[:, :3]
+        radii = alpha * np.linalg.norm(xyz3, axis=1)
+        tree = cKDTree(xyz3)
+        neighbours = tree.query_ball_point(xyz3, radii, return_length=True)
+        keep_mask = (neighbours - 1) >= k
+
+    n_out = int(keep_mask.sum())
+    stats = {
+        "n_in": n_in,
+        "n_out": n_out,
+        "frac_removed": 0.0 if n_in == 0 else 1.0 - n_out / n_in,
+        "time_ms": (time.perf_counter() - start) * 1000.0,
+        "k": int(k),
+        "alpha": float(alpha),
     }
     return keep_mask, stats
