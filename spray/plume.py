@@ -15,6 +15,10 @@ _POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
     (30.0, float("inf"), 10),
 )
 
+# [CODE] dee.cpp:509–512 — mean = (0.2*wfh + 0.1) * (v_kmh - 50).
+_CLUSTER_COUNT_WFH_COEFF = 0.2
+_CLUSTER_COUNT_BASE = 0.1
+
 
 @dataclass(frozen=True)
 class PlumeConfig:
@@ -25,20 +29,20 @@ class PlumeConfig:
     Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/semantic-spray-stats.md,
     docs/adr/0003):
 
-    - Hiệu chỉnh theo Linnhoff et al. 2022 (arXiv 2212.08558): ngưỡng tốc độ
-      50 km/h; dạng hàm tuyến tính của số cụm theo tốc độ (§III Cluster
-      Generation + Fig. 4); phân bố lognormal của bán kính cụm (Fig. 5).
-    - Đo trên SemanticSpray (bản release local): hằng số neo cho số cụm
-      (median 5 dense clusters/frame), số điểm/cụm median **theo cự ly**
+    - Cơ chế port từ code tham chiếu đã publish của Linnhoff et al. 2022
+      (openMSL/sl-1-2, MPL-2.0): kích hoạt trên 40 km/h, số cụm
+      `(0,2*wfh + 0,1) * (v_kmh - 50)`, lifetime `T = wfh*0,02*(v_kmh - 50) + 0,2`.
+      Chi tiết giá trị + số dòng: docs/plume-model-provenance.md.
+    - Đo trên SemanticSpray (bản release local): số điểm/cụm median **theo cự ly**
       (`_POINTS_MEDIAN_BY_RANGE`, ticket 16) và bề dày theo tia
       `r_range/r_extent = 1,28` (ticket 16, hiệu chỉnh bằng `radial_squash`).
-    - Lựa chọn của repo, không có nguồn ngoài: bù hình học, biên an toàn.
+    - Lựa chọn của repo, không có nguồn ngoài: `water_film_height_m` mặc định
+      1 mm (dataset không khai báo độ ướt), bù hình học, biên an toàn.
 
     `cluster_radius_median_m` giữ 0,30 dù ticket 16 đo median `r_extent` = 0,755 m:
     con số 0,755 là **cận trên** vì single-linkage trên `(x, y)` nối chuỗi các cụm
-    gần nhau (`docs/plume-geometry-vs-real.md` §Caveats), còn paper Fig. 5 cho 0,30.
-
-    v1 gộp hai chiều mà paper tham số hoá: lớp xe và độ dày màng nước.
+    gần nhau (`docs/plume-geometry-vs-real.md` §Caveats), còn profile tham chiếu
+    cho lognormal μ=-1,2 σ=0,8 → median 0,30.
     """
 
     point_cloud_range: tuple[float, float, float, float, float, float] = (
@@ -49,16 +53,21 @@ class PlumeConfig:
         54.0,
         3.0,
     )
-    # Linnhoff §III-A: spray bắt đầu ở 50 km/h.
-    min_speed_kmh: float = 50.0
-    # Dung sai để 50,0 km/h không bị loại vì làm tròn float32
-    # (float32(50/3.6)*3.6 = 50.0000015, nhưng float32(30/3.6)*3.6 = 29.999999).
-    speed_epsilon_kmh: float = 1e-3
-    clusters_speed_bounds_kmh: tuple[float, float] = (50.0, 130.0)
-    # Dạng hàm tuyến tính theo tốc độ lấy từ Linnhoff §III (Cluster Generation)
-    # + Fig. 4; hằng số 2→8 neo theo SemanticSpray median 5 dense clusters/frame
-    # ở dải giữa. v1 gộp hai chiều lớp xe và độ dày màng nước.
-    clusters_at_speed_bounds: tuple[int, int] = (2, 8)
+    # [CODE] DetectionEnvironmentalEffects.cpp:502,:554 — spray chỉ kích hoạt khi
+    # object_velocity > 40/3.6 m/s VÀ water_film_height > 0. Đây là ngưỡng KÍCH HOẠT,
+    # không phải offset của công thức số cụm (offset là 50 km/h, xem dưới).
+    min_speed_kmh: float = 40.0
+    # [CHỌN] OSI không cho default, dataset không khai báo độ ướt. Giả định 1 mm
+    # (mặt đường ướt đều) — phải ghi rõ ở mọi báo cáo dùng generator.
+    water_film_height_m: float = 0.001
+    # [CODE] profile num_clusters_velocity_offset_kmh = 50.0. Ở v ≤ 50 km/h
+    # công thức cho 0 cụm; KHÔNG thêm sàn.
+    cluster_count_velocity_offset_kmh: float = 50.0
+    # [CODE] dee.cpp:530 — time_constant = wfh*0.02*(v_kmh - 50) + 0.2 (giây).
+    lifetime_water_film_coeff: float = 0.02
+    lifetime_base_s: float = 0.2
+    # [CODE] dee.cpp:446 — cụm bị xoá khi age > 4 * time_constant.
+    lifetime_max_age_factor: float = 4.0
     # Số điểm mỗi cụm: lognormal quanh median theo cự ly, sigma chọn để p90 ~ 40.
     # Trường `points_per_cluster_median` giữ lại cho tương thích constructor; generator
     # không đọc nữa vì median giờ phụ thuộc cự ly (ticket 16), xem
@@ -94,6 +103,8 @@ class PlumeStats:
     eligible_boxes: int = 0
     skipped_no_velocity: int = 0
     skipped_low_speed: int = 0
+    clusters_spawned: int = 0
+    clusters_dropped_lifetime: int = 0
     clusters: int = 0
     injected: int = 0
     rejected_range: int = 0
@@ -110,17 +121,32 @@ class PlumeResult:
 
 
 def cluster_count_for_speed(speed_kmh: float, config: PlumeConfig | None = None) -> int:
-    """Số cụm cho một box ở tốc độ cho trước (0 nếu dưới ngưỡng)."""
+    """Số cụm cho một box ở tốc độ cho trước.
+
+    [CODE] DetectionEnvironmentalEffects.cpp:502,:554 (kích hoạt trên 40 km/h và
+    wfh > 0) và :509–512 (``mean = (0.2*wfh + 0.1) * (v_kmh - 50)``, làm tròn như
+    ``std::round``). Ở ``v ≤ 50 km/h`` công thức cho 0 cụm — giữ đúng 0.
+    """
     cfg = config or PlumeConfig()
-    if speed_kmh < cfg.min_speed_kmh - cfg.speed_epsilon_kmh:
+    if speed_kmh <= cfg.min_speed_kmh or cfg.water_film_height_m <= 0.0:
         return 0
-    lo_speed, hi_speed = cfg.clusters_speed_bounds_kmh
-    lo_count, hi_count = cfg.clusters_at_speed_bounds
-    if hi_speed <= lo_speed:
-        return lo_count
-    t = (speed_kmh - lo_speed) / (hi_speed - lo_speed)
-    t = min(max(t, 0.0), 1.0)
-    return int(round(lo_count + t * (hi_count - lo_count)))
+    mean = (
+        _CLUSTER_COUNT_WFH_COEFF * cfg.water_film_height_m + _CLUSTER_COUNT_BASE
+    ) * (speed_kmh - cfg.cluster_count_velocity_offset_kmh)
+    return int(np.floor(max(0.0, mean) + 0.5))
+
+
+def lifetime_time_constant(
+    speed_kmh: float, config: PlumeConfig | None = None
+) -> float:
+    """[CODE] dee.cpp:530 — hằng số thời gian ``T`` (giây) của cụm."""
+    cfg = config or PlumeConfig()
+    return (
+        cfg.lifetime_water_film_coeff
+        * cfg.water_film_height_m
+        * (speed_kmh - cfg.cluster_count_velocity_offset_kmh)
+        + cfg.lifetime_base_s
+    )
 
 
 def inject_plume(
@@ -131,6 +157,13 @@ def inject_plume(
     token: str = "",
     config: PlumeConfig | None = None,
 ) -> PlumeResult:
+    """Thêm cụm plume vào sau các box đang chạy.
+
+    Lifetime: generator chạy per-frame, không có state qua frame, nên chỉ tái lập
+    **phân bố tuổi** tại một keyframe chứ không tái lập coherence thời gian.
+    ``age ~ U(0, 4T)``, giữ cụm với xác suất ``exp(-age / T)``; vì vậy tỉ lệ cụm
+    sống trung bình trên ``[0, 4T]`` là ~24,5%. Deterministic theo ``seed``/``token``.
+    """
     cfg = config or PlumeConfig()
     clean = _as_five_columns(points)
     box_arr = _as_boxes(boxes)
@@ -164,8 +197,14 @@ def inject_plume(
         stats.eligible_boxes += 1
         direction = -np.array([vx, vy], dtype=np.float64) / speed
         perp = np.array([-direction[1], direction[0]])
+        time_constant = lifetime_time_constant(speed_kmh, cfg)
 
         for _ in range(n_clusters):
+            stats.clusters_spawned += 1
+            age = rng.uniform(0.0, cfg.lifetime_max_age_factor * time_constant)
+            if float(np.exp(-age / time_constant)) < rng.random():
+                stats.clusters_dropped_lifetime += 1
+                continue
             distance = rng.uniform(*cfg.distance_range_m)
             lateral = rng.normal(0.0, cfg.lateral_sigma_m)
             z = rng.uniform(*cfg.height_range_m)

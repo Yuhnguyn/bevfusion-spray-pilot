@@ -100,8 +100,11 @@ không cần checkpoint. Có thể làm song song với `08`.
 
 ## Non-goals (không làm trong dự án này)
 
-- Không port model C++ ray-based của Linnhoff; không dựng OSI/beam angles.
-- Không dùng code GitLab của Linnhoff (repo chỉ có README, chưa publish).
+- Không port model C++ ray-based của Linnhoff (occlusion, drag, beam/ray-sphere); không dựng OSI/beam angles.
+- Code tham chiếu của Linnhoff 2022 **đã publish** trên GitHub `openMSL/sl-1-2-reflection-based-lidar-object-model`
+  (MPL-2.0). v1 port 3 cơ chế: kích hoạt 40 km/h, số cụm theo 50 km/h, lifetime T = 0,2 s — chi tiết giá trị
+  và số dòng ở `docs/plume-model-provenance.md` §Code tham chiếu. Phần **không** port: occlusion, drag,
+  ray-sphere/beam (v1 chỉ **thêm** điểm, không **che** detection có sẵn → kết quả lạc quan hơn model thật).
 - Không tune hyperparameter, không multi-seed ở v1 (1 seed T4, kết quả chỉ mang tính hướng).
 - Không hứa hẹn cải thiện trên spray thật.
 

@@ -34,7 +34,10 @@ def test_injects_behind_lead_vehicle_within_range():
         [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 20.0, 0.0]], dtype=np.float32
     )
 
-    result = inject_plume(points, boxes, seed=1, config=_config())
+    for seed in range(50):
+        result = inject_plume(points, boxes, seed=seed, config=_config())
+        if result.stats.injected:
+            break
 
     assert result.stats.eligible_boxes == 1
     assert result.stats.injected == len(result.injected) > 0
@@ -77,11 +80,13 @@ def test_caps_injected_points_and_keeps_them_outside_boxes():
     )
     config = _config(
         points_per_cluster_median=100.0,
-        clusters_at_speed_bounds=(6, 6),
         max_injected_points=25,
     )
 
-    result = inject_plume(points, boxes, seed=3, config=config)
+    for seed in range(100):
+        result = inject_plume(points, boxes, seed=seed, config=config)
+        if result.stats.capped > 0:
+            break
 
     assert result.stats.injected == 25
     assert result.stats.capped > 0
@@ -101,9 +106,16 @@ def test_same_seed_and_token_are_reproducible():
     )
     config = _config()
 
-    first = inject_plume(points, boxes, seed=7, token="scene-1", config=config)
-    second = inject_plume(points, boxes, seed=7, token="scene-1", config=config)
-    other = inject_plume(points, boxes, seed=8, token="scene-1", config=config)
+    populated = [
+        seed
+        for seed in range(100)
+        if inject_plume(points, boxes, seed=seed, config=config).stats.injected
+    ]
+    first_seed, other_seed = populated[:2]
+
+    first = inject_plume(points, boxes, seed=first_seed, token="scene-1", config=config)
+    second = inject_plume(points, boxes, seed=first_seed, token="scene-1", config=config)
+    other = inject_plume(points, boxes, seed=other_seed, token="scene-1", config=config)
 
     assert np.array_equal(first.points, second.points)
     assert not np.array_equal(first.points, other.points)
@@ -127,26 +139,71 @@ def test_rejects_invalid_shapes():
         inject_plume(np.zeros((2, 5)), np.zeros((1, 6)), seed=0)
 
 
-def test_speed_threshold_accepts_exact_boundary():
-    """Box đúng 50 km/h phải được nhận, không bị loại vì làm tròn float32."""
+def test_activation_threshold_is_40_kmh():
+    """Box 39 km/h bị bỏ; 40 km/h đã kích hoạt nhưng công thức cho 0 cụm."""
     points = np.zeros((1, 5), dtype=np.float32)
-    v32 = np.float32(50.0 / 3.6)
-    boxes = np.array(
-        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, float(v32), 0.0]], dtype=np.float32
-    )
 
-    result = inject_plume(points, boxes, seed=4, config=_config())
+    def run(speed_kmh):
+        boxes = np.array(
+            [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, speed_kmh / 3.6, 0.0]],
+            dtype=np.float32,
+        )
+        return inject_plume(points, boxes, seed=4, config=_config())
 
-    assert result.stats.eligible_boxes == 1
-    assert result.stats.skipped_low_speed == 0
+    below = run(39.0)
+    assert below.stats.eligible_boxes == 0
+    assert below.stats.skipped_low_speed == 1
+
+    at_threshold = run(40.0)
+    assert at_threshold.stats.eligible_boxes == 0
+    assert at_threshold.stats.skipped_low_speed == 1
+
+    above = run(55.0)
+    assert above.stats.eligible_boxes == 1
+    assert above.stats.skipped_low_speed == 0
 
 
 def test_cluster_count_grows_with_speed():
-    assert cluster_count_for_speed(49.0) == 0
-    assert cluster_count_for_speed(50.0) == 2
-    assert cluster_count_for_speed(90.0) == 5
+    assert cluster_count_for_speed(39.0) == 0
+    assert cluster_count_for_speed(40.0) == 0
+    assert cluster_count_for_speed(50.0) == 0
+    assert cluster_count_for_speed(60.0) == 1
+    assert cluster_count_for_speed(80.0) == 3
+    assert cluster_count_for_speed(100.0) == 5
     assert cluster_count_for_speed(130.0) == 8
-    assert cluster_count_for_speed(160.0) == 8
+
+
+def test_no_clusters_at_45_kmh():
+    assert cluster_count_for_speed(45.0) == 0
+
+
+def test_cluster_count_at_130_kmh_with_one_mm_water_film():
+    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 8
+    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.0)) == 0
+
+
+def test_cluster_count_at_80_kmh_is_three():
+    assert cluster_count_for_speed(80.0) == 3
+
+
+def test_lifetime_dropout_survival_fraction():
+    """age ~ U(0, 4T), sống với xác suất exp(-age/T) → trung bình ~0,245."""
+    points = np.zeros((1, 5), dtype=np.float32)
+    box = np.array(
+        [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 55.0 / 3.6, 0.0]], dtype=np.float32
+    )
+    config = _config(distance_range_m=(5.0, 5.0), max_injected_points=100)
+
+    spawned = 0
+    survived = 0
+    for seed in range(2000):
+        result = inject_plume(points, box, seed=seed, token="lifetime", config=config)
+        spawned += result.stats.clusters_spawned
+        survived += result.stats.clusters
+
+    assert spawned == 2000
+    ratio = survived / spawned
+    assert 0.20 <= ratio <= 0.30, ratio
 
 
 def test_points_per_cluster_matches_measured_median():
@@ -166,28 +223,32 @@ def test_points_per_cluster_matches_measured_median():
 
 
 def _single_clusters(distance, *, seeds, tag):
-    """Mỗi (cự ly, seed) sinh đúng một cụm, token riêng để các mẫu độc lập."""
+    """Mỗi (cự ly, seed) sinh đúng một cụm sống; retry vì lifetime dropout ~75%."""
     box = np.array(
-        [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 20.0, 0.0]], dtype=np.float32
+        [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 55.0 / 3.6, 0.0]], dtype=np.float32
     )
     empty = np.empty((0, 5), dtype=np.float32)
     clusters = []
     for seed in seeds:
-        config = PlumeConfig(
-            clusters_at_speed_bounds=(1, 1),
-            distance_range_m=(distance, distance),
-            lateral_sigma_m=0.0,
-            height_range_m=(1.0, 1.0),
-            max_injected_points=100000,
-        )
-        result = inject_plume(
-            empty,
-            box,
-            seed=seed,
-            token=f"{tag}:{distance:.1f}:{seed}",
-            config=config,
-        )
-        clusters.append(result.injected[:, :3].astype(np.float64))
+        for attempt in range(500):
+            config = PlumeConfig(
+                distance_range_m=(distance, distance),
+                lateral_sigma_m=0.0,
+                height_range_m=(1.0, 1.0),
+                max_injected_points=100000,
+            )
+            result = inject_plume(
+                empty,
+                box,
+                seed=seed,
+                token=f"{tag}:{distance:.1f}:{seed}:{attempt}",
+                config=config,
+            )
+            if result.stats.clusters == 1:
+                clusters.append(result.injected[:, :3].astype(np.float64))
+                break
+        else:
+            raise AssertionError(f"no surviving cluster for {tag} seed={seed}")
     return clusters
 
 

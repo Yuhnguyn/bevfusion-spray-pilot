@@ -103,16 +103,16 @@ def test_accumulator_summarizes_frames_and_clusters():
     assert summary["height_median_m"] == pytest.approx(0.5)
 
 
-def test_simulator_estimate_respects_min_speed_and_clips():
+def test_simulator_estimate_uses_reference_cluster_formula():
     at_fifty = simulator_estimate(speed_kmh=50.0)
     stopped = simulator_estimate(speed_kmh=0.0)
     at_fast = simulator_estimate(speed_kmh=500.0)
 
-    assert at_fifty["clusters_per_frame"] == 2
-    assert at_fifty["points_per_frame"] == 34
+    assert at_fifty["clusters_per_frame"] == 0
+    assert at_fifty["points_per_frame"] == 0
     assert stopped["clusters_per_frame"] == 0
     assert stopped["points_per_frame"] == 0
-    assert at_fast["clusters_per_frame"] == 8
+    assert at_fast["clusters_per_frame"] == 45
 
 
 def test_compare_rows_expose_simulator_values():

@@ -31,9 +31,13 @@ def test_enabled_injects_and_keeps_pre_injection_points():
     boxes = np.array(
         [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 20.0, 0.0]], dtype=np.float32
     )
-    out = PlumeTransform(config=_config(), seed=1).__call__(
-        {"points": points, "gt_bboxes_3d": boxes}
-    )
+
+    for seed in range(50):
+        out = PlumeTransform(config=_config(), seed=seed).__call__(
+            {"points": points, "gt_bboxes_3d": boxes}
+        )
+        if out["spray_stats"]["injected"] > 0:
+            break
 
     assert np.array_equal(out["points_clean"], points)
     assert len(out["points"]) > len(points)

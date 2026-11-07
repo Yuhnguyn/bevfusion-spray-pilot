@@ -261,7 +261,7 @@ def compare_to_simulator(
             "metric": "clusters/frame",
             "real": summary["dense_clusters_frame_median"],
             "simulator": sim["clusters_per_frame"],
-            "note": "dense clusters only, vs clipped k*speed",
+            "note": "dense clusters only, vs reference (0.2*wfh+0.1)*(v-50)",
         },
         {
             "metric": "points/cluster (median)",
