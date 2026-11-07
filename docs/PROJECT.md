@@ -34,7 +34,7 @@ augmentation plume có làm giảm mức mất đó không?
 | `mit/bevfusion` | working copy MIT pinned `da93b27` (**gitignored**) | — |
 | `kaggle/smoke_test/` | kernel build env + checkpoint + ticket 04/06/07 | xong |
 | `kaggle/eligibility/` | kernel đo eligibility nuScenes (CPU, không checkpoint) | xong (ticket 18) |
-| `tests/` | 56 test, chạy được trên laptop không cần GPU | 56 passed |
+| `tests/` | 57 test, chạy được trên laptop không cần GPU | 57 passed (2026-11-07) |
 | `.scratch/spray-augmentation/` | spec, STATUS, 18 ticket | nguồn sự thật của tiến độ |
 
 ---
@@ -67,9 +67,9 @@ Tám bước, theo đúng thứ tự trong `spray/plume.py::inject_plume`. Công
 | # | Bước | Công thức / giá trị | Nguồn |
 |---|---|---|---|
 | a | tốc độ box | `speed_kmh = hypot(vx,vy) × 3.6` | [CODE] |
-| b | cổng tốc độ | bỏ box `< 50 − 1e-3` km/h (epsilon chống lỗi float32 đúng 50,0) | [PAPER] §III-A |
-| c | số cụm | tuyến tính `2` @50 km/h → `8` @130 km/h | dạng [PAPER] Fig. 4, hằng số [CHỌN] neo SemanticSpray |
-| d | bán kính cụm | lognormal median **0,30 m**, σ 0,8, kẹp [0,10; 1,50] | [PAPER] Fig. 5 (μ=−1,2) |
+| b | cổng kích hoạt | `v > 40 km/h` **và** `wfh > 0`; ở `v ≤ 50 km/h` công thức số cụm cho 0 (không thêm sàn) | [CODE] `dee.cpp:502,:554`; offset 50 từ profile |
+| c | số cụm / frame | `round(mean × K)` với `mean = (0,2·wfh + 0,1)·(v − 50)`, `K = Σ exp(−0,1k/0,2) = 2,51` | [CODE] `dee.cpp:509–512` (ticket 21), `K` từ lifetime (ticket 22) |
+| d | bán kính cụm | lognormal median **0,30 m**, σ 0,8, kẹp **[0,10; 1,00]** | [PAPER] Fig. 5 (μ=−1,2); trần 1,0 m [CODE] `dee.cpp:528` (ticket 23) |
 | e | số điểm/cụm | median **theo cự ly**: 30 / 20 / 14 / 10 / 10 cho `0–5 / 5–10 / 10–20 / 20–30 / >30 m`, σ 0,67, kẹp [3; 200] | [ĐO] ticket 16 (median **gộp = 17,0**, đúng hằng số cũ) |
 | f | đặt cụm | sau đuôi box `1–10 m` theo `−v/|v|`, lệch ngang `N(0;0,5)`, cao `U(0,2;2,0)` | [PAPER] định tính, khoảng cách [CHỌN] |
 | g | rải điểm | đều trong khối cầu `u^(1/3)`, rồi **bẹp theo phương tia ×0,885** | dạng [CHỌN], hệ số [ĐO] ticket 17 → `r_range/r_extent` = 1,28 |
@@ -90,22 +90,57 @@ khỏi vị trí hình học. Chi tiết: `docs/velocity-contract.md`.
 như số đo. Giả thuyết cũ "cảm biến chỉ thấy bề mặt cụm" là **sai**: paper cũng lấy range quanh **tâm** cụm,
 và số đo cho cụm có bề dày theo tia.
 
-**Còn biết là thiếu:** attenuation/occlusion (ADR-0002), `P_det` per-tia, cụm tan dần theo thời gian.
-Bán kính giữ **0,30** theo paper dù đo được 0,755 m — số đo là cận trên do single-linkage chaining.
+**Còn biết là thiếu:** attenuation/occlusion (ADR-0002), `P_det` per-tia, cụm tan dần theo thời gian,
+self-spray của ego (§5.2 dòng 12). Bán kính giữ **0,30** theo paper dù đo được 0,755 m — số đo là cận trên do
+single-linkage chaining. Hai chỗ **chưa có số đo** và yếu nhất: vị trí cụm (§5.2 dòng 10) và `wfh` (§5.2 dòng 11).
 
 ---
 
-## 5. Đối chiếu với paper
+## 5. Khác biệt so với paper — và căn cứ để chọn như vậy
 
-| khối trong paper (Fig. 2) | repo | ghi chú |
-|---|---|---|
-| Cluster generation | có, nhưng 2–8 cụm (paper tới ~30) | repo chủ động chọn regime "ẩm/ướt một phần" |
-| Update cụm theo thời gian (bay, tan dần) | **không có** | hợp lý: chỉ dùng keyframe, không có chuỗi thời gian |
-| Ray casting + `P_det` mỗi tia | **không có** | repo đặt thẳng số điểm; đây là chỗ lệch lớn nhất |
-| Attenuation `0,04 m⁻¹` (`exp(−2×0,02×d)`) | **không có** | ở `d = 0,5–0,8 m` intensity còn 98,0–96,9% → dưới ngưỡng lượng tử hoá |
+Chi tiết từng tham số: `docs/plume-model-provenance.md`. Mục này là **bảng quyết định**: mỗi chỗ repo làm khác
+paper đều phải trả lời được "dựa vào đâu".
 
-**Không được so trực tiếp với +17,39 AP của paper.** Cùng bảng đó Voxel-RCNN chỉ +0,62 → hiệu ứng phụ
-thuộc detector rất mạnh.
+### 5.1 Thứ tự ưu tiên nguồn (khi hai nguồn lệch nhau)
+
+1. **Code publish của paper** (`openMSL/sl-1-2`, MPL-2.0) — paper viết bằng lời và có chỗ viết tắt; code là
+   bản chạy được, đọc được từng dòng. Ví dụ: "loại xe" có trong paper nhưng **không** có trong code.
+2. **Số đo trên dữ liệu của chính mình** — dùng khi paper/code không nói, hoặc nói về cảm biến & xe của họ
+   (VW Golf/Crafter, VLP-32C) chứ không phải nuScenes. Nguồn: ticket 16, `docs/semantic-spray-stats.md`.
+3. **Quyết định của repo** — không có nguồn ngoài, nhưng phải ghi lý do **và** điều kiện mở lại (ADR-0002
+   ghi phần bị cắt là "v2", không phải "không bao giờ").
+
+**Tiêu chí loại bỏ đứng trên cả ba:** cơ chế nào có tác động **đo được** nhỏ hơn ngưỡng nhiễu của phép đo
+thì không vào v1 — vì nó thêm biến thí nghiệm mà không thêm tín hiệu. ADR-0002 chốt: *"một biến duy nhất
+thay đổi giữa hai arm, nên phép so sánh paired còn hiệu lực"*.
+
+### 5.2 Bảng khác biệt
+
+| # | Paper / code tham chiếu | Repo | Căn cứ |
+|---|---|---|---|
+| 1 | **Không có khái niệm "số điểm mỗi cụm"**: điểm rơi ra từ tia cắt khối cầu × `P_det` | Bảng đo `30/20/14/10/10` điểm/cụm theo cự ly | [ĐO] ticket 16, n = 11.607 cụm; median **gộp = 17,0** trùng hằng số gốc ⇒ đọc đúng cơ chế |
+| 2 | **Ray casting + `P_det` mỗi tia** (`min(1, lognormal(−2,3; 1,1))`, median 0,10) | Không có; sinh cụm trực tiếp | Không có beam profile của nuScenes; **áp thêm `P_det` là đếm hai lần** (17 điểm/cụm đo được đã là sau detect; ×0,10 còn 1,7 — vô lý). ADR-0002 |
+| 3 | Paper: số cụm phụ thuộc tốc độ **và loại xe**. Code: chỉ `(0,2·wfh + 0,1)·(v−50)` | Theo **code** | [CODE] `dee.cpp:509–512` + `profile_VLP32.hpp.in`: tham số spray nằm trong profile **loại cảm biến**, không có biến loại xe ⇒ divergence paper ↔ code |
+| 4 | Code rút `T ~ N(T; 0,2)` (std bằng chính mean) | `T` **cố định** 0,2 s | Bỏ vì **15,9%** lần rút cho `T ≤ 0` (cụm chết ngay) → không tái lập được giữa seed, A/B mất hiệu lực. Giá: `K = 2,51` vs `E[K] = 2,76` (**−9%**, tức bớt lạc quan) |
+| 5 | Code cắt `std::min(1.0f, …)` | Trần **1,00 m** | [CODE] `dee.cpp:528`; trần 1,5 m cũ chỉ bóp 2,2% cụm, trần 1,0 bóp **6,7%** — đo lại **6,51%** (ticket 23) |
+| 6 | Attenuation `exp(−2×0,02×d)` = **0,04 m⁻¹** | Không có | Đường tia chỉ xuyên qua cụm **0,5–0,8 m** ⇒ còn **96,9–98,0%** độ sáng; điểm spray gán intensity 0 nên áp lên nó bằng không |
+| 7 | Occlusion: điểm spray thắng theo `power = intensity/d²` (`add_max_detection`) | Không có | Spray 25 m: `3,1×10⁻⁴`; xe 40 m thắng khi `I_xe > 0,5`, mà `I_xe` thật **4–40** ⇒ xe thắng **8–80×**, **81%** tia xuyên ⇒ ảnh hưởng **<3%** |
+| 8 | `simulate_wet_pavement` (Fresnel, `\|z−ground\| < 0,2 m`) | Không có | Chỉ `set_intensity`, không xoá điểm; input của repo **đã là** cloud nuScenes thật; thêm nữa cần độ cao cảm biến + fit mặt phẳng ⇒ thêm biến thứ ba |
+| 9 | Drag `C = −0,15 m⁻¹`, cụm trôi & tan theo thời gian | Không có | Cần state qua frame; `4T ≈ 0,8 s` mà keyframe nuScenes cách **0,5 s**, xác suất sống qua 0,5 s chỉ **8%** |
+| 10 | Paper §III: cụm đặt **uniform trong vùng sau vật thể đang di chuyển** (định tính) | `U(1;10) m` sau đuôi, ngang `N(0;0,5)`, cao `U(0,2;2,0)` | **[CHỌN]**, chỉ đối chiếu clip A (plume thật 1–8 m sau đuôi). **Chỗ yếu nhất của mô hình** — chưa ai đo |
+| 11 | `water_film_height` là **input** của OSI, không có default | `0,001 m` (1 mm) | **[CHỌN]** — dataset không khai độ ướt. Quyết định trực tiếp số cụm: @80 km/h ra **8** cụm, đo thật **17,06** (thiếu **2,13×**). **Không** nâng để khớp |
+| 12 | Paper mô phỏng cả scene | Chỉ sinh sau **xe phía trước** | Self-spray của ego (clip A: `x ≈ −4,5 m`) chưa có; không ảnh hưởng eval set A (`x > 0`) nhưng phải khai |
+
+### 5.3 Hệ quả cho claim
+
+- **Không được so trực tiếp với +17,39 AP của paper.** Cùng bảng đó Voxel-RCNN chỉ +0,62 → hiệu ứng phụ thuộc
+  detector rất mạnh. Claim đúng phạm vi: *plume augmentation calibrated theo thống kê spray **đo được**, cho
+  bài toán fusion trên nuScenes*.
+- Repo **không tái lập** Linnhoff (thiếu ray casting + `P_det` + attenuation + occlusion). Hướng lạc quan đã
+  xếp thứ tự: (1) camera branch sạch → (2) số cụm thiếu 2,13× → (3) lifetime → (4) drag → (5) occlusion.
+- **Chỗ phản biện sẽ đánh trước:** dòng **10** (vị trí cụm) và **11** (`wfh = 1 mm`) — hai con số [CHỌN]
+  quyết định plume nằm đâu và dày bao nhiêu, tức quyết định độ khó bài toán. Cả hai **đo được** bằng dữ liệu
+  đang có (tâm cụm đã có trong frame cảm biến, chỉ cần quy về frame box) — chưa làm, đã ghi nhận.
 
 ---
 
@@ -200,6 +235,6 @@ Năm điều kiện để được nói "thành công" — chốt trước, khô
 
 ## 10. Trạng thái ngắn
 
-Xong: 01, 02, 02b, 03, 04, 05, 06, 07, 08, 12, 15, 16, 17, 18, 19, 20, 21, 22. Test: **56 passed**.
-Tiếp theo: **23** (3 chỉnh nhỏ) → **09** (e2e trên Kaggle) → **10 → 11** (chạy 3 arm) → **13** (cổng kết luận).
+Xong: 01, 02, 02b, 03, 04, 05, 06, 07, 08, 12, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24. Test: **57 passed**.
+Tiếp theo: **09** (e2e trên Kaggle) → **14** (baseline B0) → **10 → 11** (chạy 3 arm) → **13** (cổng kết luận).
 Chi tiết thứ tự và lý do: `STATUS.md`.
