@@ -52,7 +52,7 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 |---|---|---|
 | 1 | **18** đo khả thi | ✅ xong → eval set = val, d≤50 m, 196 frame / 16 scene |
 | 2 | **16** đo hình học | ✅ xong → 17,0 điểm/cụm trung bình, giảm 3,0× theo cự ly, `r_range/r_extent` = 1,28 |
-| 3 | **17** sửa generator theo số | **làm ngay** — đóng bộ sinh trước khi đo |
+| 3 | **17** sửa generator theo số | ✅ xong `5d7c478` — count theo cự ly, bẹp ×0,885 |
 | 4 | **08 → 09** | cơ học, không bị lật bởi 16/17 |
 | 5 | **10 → 11 → 13** | chốt eval set + generator final → mới sinh số |
 

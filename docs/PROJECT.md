@@ -27,14 +27,14 @@ augmentation plume có làm giảm mức mất đó không?
 
 | thư mục | làm gì | trạng thái |
 |---|---|---|
-| `spray/plume.py` | bộ sinh plume (thuần numpy, không phụ thuộc mmdet3d) | xong, `_shell` còn thiếu (ticket 17) |
+| `spray/plume.py` | bộ sinh plume (thuần numpy, không phụ thuộc mmdet3d) | xong, kể cả `_thin_radial` (ticket 17) |
 | `spray/plume_transform.py` | `PlumeTransform` — bọc generator vào pipeline mmdet3d | xong (ticket 07) |
 | `spray/spray_stats.py` | thống kê trên SemanticSpray | xong (ticket 12) |
 | `proxy_eval/` | matcher + AP/mAP, adapter cho output MIT | xong (ticket 05, 06) |
 | `mit/bevfusion` | working copy MIT pinned `da93b27` (**gitignored**) | — |
 | `kaggle/smoke_test/` | kernel build env + checkpoint + ticket 04/06/07 | xong |
 | `kaggle/eligibility/` | kernel đo eligibility nuScenes (CPU, không checkpoint) | xong (ticket 18) |
-| `tests/` | 33 test, chạy được trên laptop không cần GPU | 33 passed |
+| `tests/` | 35 test, chạy được trên laptop không cần GPU | 35 passed |
 | `.scratch/spray-augmentation/` | spec, STATUS, 18 ticket | nguồn sự thật của tiến độ |
 
 ---
@@ -162,7 +162,7 @@ Hai chi tiết bắt buộc khi đo:
 - **Bootstrap theo scene**, không theo frame: mỗi scene 40 keyframe gần giống nhau.
 
 Năm điều kiện để được nói "thành công" — chốt trước, không sửa sau khi thấy số: xem
-`.scratch/spray-augmentation/STATUS.md` và `plan-execution.md` §3 (G3).
+`.scratch/spray-augmentation/STATUS.md` và `docs/walkthrough-tickets.md` §9 (5 điều kiện).
 
 ---
 
@@ -200,6 +200,6 @@ Năm điều kiện để được nói "thành công" — chốt trước, khô
 
 ## 10. Trạng thái ngắn
 
-Xong: 01, 02, 02b, 03, 04, 05, 06, 07, 12, 15, 18. Test: **33 passed**.
+Xong: 01, 02, 02b, 03, 04, 05, 06, 07, 12, 15, 16, 17, 18. Test: **35 passed**.
 Tiếp theo: **16 → 17** (làm generator cho đúng hình dạng) → **08 → 09** (routing + e2e) → **10 → 11**
 (chạy 3 arm) → **13** (cổng kết luận). Chi tiết thứ tự và lý do: `STATUS.md`.
