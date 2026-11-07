@@ -70,9 +70,9 @@ Tám bước, theo đúng thứ tự trong `spray/plume.py::inject_plume`. Công
 | b | cổng tốc độ | bỏ box `< 50 − 1e-3` km/h (epsilon chống lỗi float32 đúng 50,0) | [PAPER] §III-A |
 | c | số cụm | tuyến tính `2` @50 km/h → `8` @130 km/h | dạng [PAPER] Fig. 4, hằng số [CHỌN] neo SemanticSpray |
 | d | bán kính cụm | lognormal median **0,30 m**, σ 0,8, kẹp [0,10; 1,50] | [PAPER] Fig. 5 (μ=−1,2) |
-| e | số điểm/cụm | lognormal median **17**, σ 0,67, kẹp [3; 200] | [ĐO] SemanticSpray |
+| e | số điểm/cụm | median **theo cự ly**: 30 / 20 / 14 / 10 / 10 cho `0–5 / 5–10 / 10–20 / 20–30 / >30 m`, σ 0,67, kẹp [3; 200] | [ĐO] ticket 16 (median **gộp = 17,0**, đúng hằng số cũ) |
 | f | đặt cụm | sau đuôi box `1–10 m` theo `−v/|v|`, lệch ngang `N(0;0,5)`, cao `U(0,2;2,0)` | [PAPER] định tính, khoảng cách [CHỌN] |
-| g | rải điểm | đều **trong khối cầu** `u^(1/3)` | [CHỌN] — **sai hình dạng, ticket 17 sửa** |
+| g | rải điểm | đều trong khối cầu `u^(1/3)`, rồi **bẹp theo phương tia ×0,885** | dạng [CHỌN], hệ số [ĐO] ticket 17 → `r_range/r_extent` = 1,28 |
 | h | lọc | bỏ điểm ngoài `±54 m`, bỏ điểm trong GT box nới `0,2 m`, cap `2.000` điểm/frame | [CHỌN] |
 
 Đầu ra: `points` (đã chèn), `points_clean` (bản sao byte-equal trước khi chèn), `injected` (chỉ điểm mới),
@@ -85,10 +85,13 @@ Tám bước, theo đúng thứ tự trong `spray/plume.py::inject_plume`. Công
 LiDAR frame của keyframe và được xoay/flip cùng box (`lidar_box3d.py:152`); chèn sớm hơn thì plume trôi
 khỏi vị trí hình học. Chi tiết: `docs/velocity-contract.md`.
 
-**Chỗ đang biết là sai (ticket 16–17):** điểm được rải **trong thể tích** khối cầu, trong khi cảm biến chỉ
-thấy điểm trên **bề mặt** cụm phía về phía nó. Ngoài ra số điểm/cụm **không phụ thuộc cự ly**, trong khi số
-tia cắt một quả cầu giảm theo bình phương khoảng cách. Ticket 16 đo trên SemanticSpray để lấy số thật trước
-khi sửa.
+**Đã sửa ở ticket 16–17 (2026-11-07):** số điểm/cụm nay **phụ thuộc cự ly** (30 điểm ở 0–5 m → 10 ở
+20–30 m, đo được giảm **3,0×**), và cụm được **bẹp theo phương tia ×0,885** để `r_range/r_extent` = **1,28**
+như số đo. Giả thuyết cũ "cảm biến chỉ thấy bề mặt cụm" là **sai**: paper cũng lấy range quanh **tâm** cụm,
+và số đo cho cụm có bề dày theo tia.
+
+**Còn biết là thiếu:** attenuation/occlusion (ADR-0002), `P_det` per-tia, cụm tan dần theo thời gian.
+Bán kính giữ **0,30** theo paper dù đo được 0,755 m — số đo là cận trên do single-linkage chaining.
 
 ---
 
@@ -133,7 +136,8 @@ Eligibility — box vehicle ≥50 km/h, **phía trước** (`x>0`), không lọc
 ### SemanticSpray [ĐO, `docs/semantic-spray-stats.md`]
 
 207 scene (mẫu 2.070 frame / 17.419 scan): **28.546 điểm/scan**, spray median **144 điểm/frame**, 14 cụm,
-**17 điểm/cụm**, **82% điểm intensity = 0**. Chỉ dùng để calibrate — không train/eval trên đó (ADR-0003).
+**17 điểm/cụm** (median **gộp**; theo cự ly là 30 → 10, xem ticket 16), **82% điểm intensity = 0**.
+Chỉ dùng để calibrate — không train/eval trên đó (ADR-0003).
 
 ---
 

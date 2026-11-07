@@ -41,7 +41,7 @@ Lịch sử fix môi trường: thiếu `numba` → uv không resolve được t
 | 13 | Gate review sau mini A/B | blocked | 11 | quyết định đi tiếp hay dừng |
 | 14 | Arm B0 — lọc spray rồi detect | ready-for-agent | 02, 05 | filter + frame list chốt với PM |
 | 16 | Đo hình học plume thật theo cự ly (SemanticSpray) | **done** `08f6715` | — | số: `docs/plume-geometry-vs-real.md` |
-| 17 | Sửa generator theo số đo của 16 (count theo cự ly + bẹp 0,64) | **ready-for-agent** | — (16 xong) | CommandCode |
+| 17 | Sửa generator theo số đo của 16 (count theo cự ly + bẹp 0,64) | **done** `5d7c478` | — (16 xong) | S hiệu dụng **0,885**; 35 test |
 | 18 | Quét lại eligibility nuScenes (ego speed, scene count, bảng 2 chiều) | **done** — 3 lần push | — | số: `docs/nuscenes-eligibility.md` |
 
 ## Thứ tự hiện tại (2026-11-07, sau khi 16/18 xong)
