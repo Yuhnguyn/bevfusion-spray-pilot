@@ -62,7 +62,7 @@ Gom theo bucket cự ly: **0–5 / 5–10 / 10–20 / 20–30 / 30–50 / >50 m*
   *"median n_points giảm từ 21,4 (0–5 m) xuống 1,8 (20–30 m), tỉ lệ 11,9×"*.
   Ví dụ sai: *"n_points có vẻ giảm theo cự ly"*.
 - Mọi số mới gắn nhãn `[ĐO]`.
-- `pytest -q tests/` vẫn **29 passed** (không chạm `spray/`).
+- `pytest -q tests/` vẫn **33 passed** (baseline 2026-11-07, sau khi ticket 07 xong; không chạm `spray/`).
 - Commit: `docs(spray): measure real plume geometry vs range on SemanticSpray`
 
 ## Không làm

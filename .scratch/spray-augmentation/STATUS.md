@@ -42,6 +42,23 @@ Lịch sử fix môi trường: thiếu `numba` → uv không resolve được t
 | 14 | Arm B0 — lọc spray rồi detect | ready-for-agent | 02, 05 | filter + frame list chốt với PM |
 | 16 | Đo hình học plume thật theo cự ly (SemanticSpray) | **ready-for-agent** | — | CommandCode chạy ngay được, không cần Kaggle |
 | 17 | Đặt điểm trên vỏ cầu phía cảm biến | blocked | 16 | chờ số `r_range/r_extent` của 16 |
+| 18 | Quét lại eligibility nuScenes (ego speed, scene count, bảng 2 chiều) | **ready-for-agent** | — | CommandCode, 1 lần push Kaggle |
+
+## Thứ tự hiện tại (2026-11-07)
+
+Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ học làm sau.** Cơ học không bị lật khi thiết kế
+đổi; còn thiết kế đổi thì mọi số đo trước đó phải vứt.
+
+| Bước | Ticket | Vì sao ở vị trí này |
+|---|---|---|
+| 1 | **18** (đo) | Cổng khả thi: có đủ frame **và** scene để đo không? Nếu không, cả dự án phải đổi thiết kế |
+| 2 | **16** (đo) | Cổng trung thực: dải cự ly nào plume còn hợp lý → quyết định chọn hàng nào trong bảng của 18 |
+| 3 | **08 → 09** | Cơ học, không bị ảnh hưởng bởi kết quả 16/18 → làm sau cũng không phải làm lại |
+| 4 | **17** | Sửa hình học generator theo số của 16 |
+| 5 | **10 → 11 → 13** | Chốt eval set theo bảng của 18, generator đã final → mới được sinh số |
+
+`14` (B0) và `15` (docstring) độc lập, chen vào lúc chờ Kaggle. `15` mất ~5 phút và đang là doc **sai**
+trong `plume.py` nên nên làm sớm để agent sau không đọc phải.
 
 ## Critical path
 

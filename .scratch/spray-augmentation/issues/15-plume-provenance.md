@@ -22,13 +22,13 @@ Bản đồ nguồn đầy đủ: `docs/plume-model-provenance.md` (đã viết,
    - Ghi rõ hai chiều bị gộp ở v1: lớp xe, độ dày màng nước.
    - Thêm dòng `Xem docs/plume-model-provenance.md` ở đầu docstring.
 2. Không sửa bất kỳ giá trị số nào, không sửa logic, không đổi test.
-3. Chạy `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/` — phải vẫn 29 passed.
+3. Chạy `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/` — phải vẫn 33 passed.
 4. Commit: `docs(plume): correct provenance of cluster count (Linnhoff Fig. 4), link provenance map`.
 
 ## Xong khi
 
 - `git diff` chỉ chạm comment/docstring trong `spray/plume.py`.
-- Test vẫn 29 passed.
+- Test vẫn 33 passed (baseline 2026-11-07).
 - Không có chỗ nào trong repo còn nói cluster count "không có nguồn paper".
 
 ## Không làm

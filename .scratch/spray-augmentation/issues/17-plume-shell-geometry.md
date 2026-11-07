@@ -51,7 +51,7 @@ Ticket 16 đo `r_range / r_extent` trên dữ liệu thật; ticket này dùng c
 
 ## Xong khi
 
-- `pytest -q tests/` xanh, có **≥ 2 test mới**, tổng ≥ 31 passed.
+- `pytest -q tests/` xanh, có **≥ 2 test mới**, tổng ≥ 35 passed (baseline 33 ngày 2026-11-07).
 - **Số điểm/frame không đổi** so với trước (ticket này chỉ đổi hình dạng): chạy `inject_plume` trên
   cùng 1 frame thật, cùng seed, trước và sau; ghi cả hai số vào comment của PR/commit. Lệch quá ±10%
   là có gì sai, dừng và báo PM.
