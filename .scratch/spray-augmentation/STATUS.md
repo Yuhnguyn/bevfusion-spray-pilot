@@ -54,8 +54,13 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 | 1 | **18** đo khả thi | ✅ xong → eval set = val, d≤50 m, 196 frame / 16 scene |
 | 2 | **16** đo hình học | ✅ xong → 17,0 điểm/cụm trung bình, giảm 3,0× theo cự ly, `r_range/r_extent` = 1,28 |
 | 3 | **17** sửa generator theo số | ✅ xong `5d7c478` — count theo cự ly, bẹp ×0,885 |
-| 4 | **08 → 09** | cơ học, không bị lật bởi 16/17 |
+| 4 | **08 → 09** | cơ học, không bị lật bởi 16/17 — 08 ✅ `16517f1`, 09 chờ Kaggle |
 | 5 | **10 → 11 → 13** | chốt eval set + generator final → mới sinh số |
+| 6 | **19** đưa code lên Kaggle | ✅ `feb0a9e` — dataset private v3, kernel `bevfusion-e2e` COMPLETE 516 s, 49 passed |
+| 7 | **21** port cơ chế từ code thật | ✅ `a4fdf24` — kích hoạt 40 km/h, count offset 50, lifetime `T`, σ 1,1 |
+| 8 | **22** sửa lỗi tính hai lần + docs | ✅ `75d210c` — `K = 2,51`, bỏ dropout; 8 cụm @80 km/h (cũ 0,73); 56 test |
+| 9 | **20** viz (ảnh + clip) | ⏭ **làm ngay** — generator đã ổn định sau 21–22 |
+| 10 | **23** tên cột 5 `time_lag` → `ring` + ghi bảng mật độ vào docs | chờ, nhỏ |
 
 `14` (B0) chạy song song được với `10–11`. `15` xong.
 
