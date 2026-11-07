@@ -36,6 +36,11 @@ Trong spray **thật**, ngoài cụm sau xe dẫn đường (x ≈ 19–21 m) c�
 không có self-spray. Không ảnh hưởng eval set A (box phía trước, `x > 0`) nhưng phải ghi vào
 danh sách hạn chế để không bị hỏi khó.
 
+**PM nghiệm thu 2026-11-07 16:00 — ĐẠT.** commit `da996ff`, 3 file (+48/−3), tree sạch; pytest **57 passed**.
+`cluster_radius_bounds_m = (0.10, 1.00)`; `grep -rn time_lag spray/` = rỗng; test mới
+`test_cluster_radius_capped_at_one_meter` assert `max ≤ 1.0` và tỉ lệ chạm trần ∈ [0.05, 0.09].
+Đo thật 20.000 lần rút (seed 0): **1303/20000 = 6,51%** — khớp 6,7% giải tích. Không tham số nào khác bị đổi.
+
 **Nghiệm thu:** `cluster_radius_bounds_m` = `(0.10, 1.00)`, không còn chuỗi `time_lag` trong
 `spray/`, pytest **≥57 passed**, docs có 2 mục (a)(b) + hạn chế self-spray.
 Commit: `fix(plume): cap cluster radius at 1.0 m per dee.cpp:528; rename col5 to ring; document K/T`

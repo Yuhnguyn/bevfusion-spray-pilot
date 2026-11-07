@@ -1,6 +1,6 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-07 15:20 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-07 16:05 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
 **Đọc file này trước khi mở bất kỳ ticket nào.** Ticket là chi tiết; file này là thứ tự và phạm vi.
 
 ## Mục tiêu một câu
@@ -20,8 +20,7 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 
 **Test:** `56 passed` (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`), 8 file test.
 
-**Việc tiếp theo:** `23` (nhỏ) → `09` (e2e trên Kaggle) → `10` → `11` → `13`. `14` (B0) và `24` (kanban)
-chạy song song được.
+**Việc tiếp theo:** `09` (e2e trên Kaggle) → `10` → `11` → `13`. `14` (B0) chạy song song được.
 
 ## Bảng ticket
 
@@ -50,8 +49,8 @@ chạy song song được.
 | 20 | Visualize plume (ảnh + clip) | **done** `6143875` | 3 ảnh + 2 clip + `docs/figs/plume/index.html` |
 | 21 | Port cơ chế từ code thật | **done** `a4fdf24` | 40 km/h, offset 50 km/h, `T`, σ 1,1 |
 | 22 | Sửa lỗi tính hai lần + docs | **done** `75d210c` | `K = 2,51`; 8 cụm @80 km/h; 56 test |
-| 23 | Trần bán kính 1,0 m + tên cột 5 + docs `K`/`T` | ready-for-agent | 4 mục, nhỏ, không đổi hành vi |
-| 24 | `build_kanban.py` sinh board từ nguồn thật | ready-for-agent | DATA hard-code trong script ⇒ board luôn lệch |
+| 23 | Trần bán kính 1,0 m + tên cột 5 + docs `K`/`T` | **done** `da996ff` | chạm trần đo thật 6,51%; 57 test |
+| 24 | `build_kanban.py` sinh board từ nguồn thật | **done** `8da032a` | bỏ hard-code; 25 ticket, 18 done, nguồn STATUS.md |
 
 ## Thứ tự hiện tại
 
@@ -59,10 +58,10 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 
 | Bước | Ticket | Trạng thái |
 |---|---|---|
-| 1 | **23** dọn 3 chỉnh nhỏ | làm ngay, ~10 phút |
+| 1 | **23** dọn 3 chỉnh nhỏ | ✅ `da996ff` — trần 1,0 m, cột 5 = `ring`, docs `K`/`T` + self-spray |
 | 2 | **09** e2e trên Kaggle | deps 07/08/19 đều xong; cần 1 run GPU |
 | 3 | **10 → 11 → 13** | config A/B → mini run → gate review |
-| // | **14** (B0), **24** (kanban) | chạy song song |
+| // | **14** (B0) | chạy song song được |
 
 ## Critical path
 
