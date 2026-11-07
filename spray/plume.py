@@ -84,7 +84,8 @@ class PlumeConfig:
     # nối chuỗi các cụm gần nhau nên 0,755 là CẬN TRÊN; paper Fig. 5 cho đúng 0,30.
     cluster_radius_median_m: float = 0.30
     cluster_radius_sigma: float = 0.8
-    cluster_radius_bounds_m: tuple[float, float] = (0.10, 1.50)
+    # [CODE] dee.cpp:528 — code tham chiếu cắt `std::min(1.0f, ...)`; trần 1,0 m.
+    cluster_radius_bounds_m: tuple[float, float] = (0.10, 1.00)
     # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm).
     # Công thức liên tục cho khối cầu đặc vô hạn điểm: S = 1,28/2 = 0,64.
     # Nhưng cụm chỉ có vài chục điểm rời rạc, nên max |p| hụt so với biên ellipsoid:
@@ -99,7 +100,8 @@ class PlumeConfig:
     box_margin_m: float = 0.2
     max_injected_points: int = 2000
     intensity: float = 0.0
-    time_lag: float = 0.0
+    # Cột 5 là ring index; điểm tổng hợp gán ring 0; không dùng cho occlusion.
+    ring: float = 0.0
 
 
 @dataclass
@@ -260,7 +262,7 @@ def inject_plume(
             cloud[:, 1] = offsets[:, 1] + center[1]
             cloud[:, 2] = offsets[:, 2] + z
             cloud[:, 3] = cfg.intensity
-            cloud[:, 4] = cfg.time_lag
+            cloud[:, 4] = cfg.ring
             chunks.append(cloud)
             stats.clusters += 1
 

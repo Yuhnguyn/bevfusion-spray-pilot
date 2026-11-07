@@ -3,6 +3,7 @@ import pytest
 
 from spray.plume import (
     PlumeConfig,
+    _lognormal_clipped,
     cluster_count_for_speed,
     inject_plume,
     steady_state_cluster_factor,
@@ -276,6 +277,29 @@ def test_radial_thinning_matches_measured_ratio():
 
     assert len(ratios) >= 200
     assert 1.22 <= float(np.median(ratios)) <= 1.34
+
+
+def test_cluster_radius_capped_at_one_meter():
+    """Ticket 23: trần 1,0 m theo dee.cpp:528; ~6,7% lognormal vượt trần bị bóp."""
+    config = PlumeConfig()
+    assert config.cluster_radius_bounds_m == (0.10, 1.00)
+
+    rng = np.random.default_rng(23)
+    radii = np.array(
+        [
+            _lognormal_clipped(
+                rng,
+                config.cluster_radius_median_m,
+                config.cluster_radius_sigma,
+                config.cluster_radius_bounds_m,
+            )
+            for _ in range(20_000)
+        ]
+    )
+
+    assert radii.max() <= 1.0
+    at_cap = float((radii >= 1.0).mean())
+    assert 0.05 <= at_cap <= 0.09, at_cap
 
 
 def test_points_per_cluster_decreases_with_range():

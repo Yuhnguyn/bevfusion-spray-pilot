@@ -65,6 +65,13 @@ vẫn phải **thắng** theo `power = intensity / distance²` so với điểm 
 Xếp lại nguồn lạc quan: **(1) camera branch sạch, (2) số cụm, (3) lifetime, (4) drag, (5) occlusion.**
 Hai chiều vẫn bị gộp: **lớp xe** và **độ dày màng nước** (v1 chạy một regime, wfh = 1 mm).
 
+## Hạn chế: self-spray chưa mô phỏng
+
+Trong spray **thật** (clip A), ngoài cụm sau xe dẫn đường (`x ≈ 19–21 m`) còn có cụm **ngay sau chính
+ego** (`x ≈ −4,5 m`, `y ≈ 0`) — bụi nước do bánh xe ego hất lên. Generator chỉ sinh sau **xe phía trước**,
+không có self-spray. Không ảnh hưởng eval set A (box phía trước, `x > 0`) nhưng phải ghi vào danh sách
+hạn chế để không bị hỏi khó.
+
 ## Vì sao số cụm vẫn lệch 17,06 cụm/frame
 
 Công thức tham chiếu với wfh = 1 mm, `Δt = 0,1 s`. `mean` là số cụm sinh mỗi chu kỳ; số cụm/frame
@@ -81,6 +88,18 @@ generator tạo **8** cụm/frame → thiếu **2,13×**; ở 130 km/h tạo **2
 cùng bậc và **không còn frame rỗng** ở dải ≥60 km/h. Chênh còn lại (nhất là ở 80 km/h) là do `wfh` giả
 định 1 mm cho **một** box, không phải lỗi port. **Không** tự nâng `wfh` hay hệ số nào để khớp đúng 17,06;
 muốn khớp phải tách lớp xe/mức nước hoặc hiệu chỉnh `wfh` theo dữ liệu (việc của ticket khác).
+
+## Sai lệch đã biết: `K` và đơn vị `water_film_height`
+
+**(a) `K = 2,51` là cận dưới nhẹ so với code gốc — [CHỌN].** Code rút `T ~ N(T; 0,2)` (std bằng chính
+mean) ⇒ **15,9%** cụm có `T ≤ 0` (chết ngay chu kỳ đầu), nhưng đuôi `T` lớn sống lâu hơn tuyến tính,
+nên `E[K] = 2,76` so với `K = 2,51` khi `T` cố định (**+10%**). Ta chọn `T` cố định vì tái lập được —
+ghi rõ đây là sai lệch đã biết, không phải lỗi port.
+
+**(b) `water_film_height` tính bằng MÉT — [CODE].** `T = wfh·0,02·(v − 50) + 0,2` với `wfh = 0,001 m`
+⇒ số hạng tốc độ chỉ `0,0004 s` ⇒ `T ≈ 0,20 s` ở mọi tốc độ, `K ≈ 2,51` không đổi. Nếu hiểu `wfh = 1 mm`
+là số `1,0` thì `T(130 km/h) = 0,84 s` và `K ≈ 9` — **sai 3,6×**. Phải ghi đơn vị để người đọc không
+nhân sai.
 
 ## Mật độ 3 box (12 / 22 / 38 m, 80 km/h, seed 0–4)
 
