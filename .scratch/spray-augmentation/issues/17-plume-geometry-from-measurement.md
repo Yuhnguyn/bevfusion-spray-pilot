@@ -47,32 +47,44 @@ Không nội suy đường cong, không bịa giá trị ngoài 30 m — dùng 1
 ### 2. Bẹp cụm theo phương bán kính
 
 Sau khi lấy mẫu đều trong khối cầu như hiện tại, nhân thành phần **dọc theo tia** (hướng từ gốc toạ độ
-LiDAR tới tâm cụm) với **0,64**:
+LiDAR tới tâm cụm) với hệ số `S`:
 
 ```
 u        = hướng đơn vị từ gốc tới tâm cụm
-offset   = offset − (1 − 0,64) · (offset·u) · u
+offset   = offset − (1 − S) · (offset·u) · u
 ```
 
-Kiểm: `r_range/r_extent` của các điểm sinh ra phải ≈ 1,28 (test ở dưới).
+**Chọn S sao cho tái lập đúng thống kê mà ticket 16 đã đo**: median **per-cluster** của
+`r_range/r_extent` = **1,28**.
+
+- Công thức liên tục cho `S = 1,28/2 = 0,64`, nhưng đó là cho khối cầu đặc vô hạn điểm. Với **17 điểm
+  rời rạc**, `S = 0,64` chỉ cho median thực nghiệm **0,98** (đã đo) — quá mỏng.
+- Vì vậy **hiệu chỉnh thực nghiệm**: quét S để median per-cluster (≥200 cụm, nhiều seed) bằng 1,28.
+  Kỳ vọng `S ≈ 0,87`. **Ghi cả hai số vào docstring**: 0,64 là suy ra giải tích, S hiệu dụng là số dùng,
+  kèm lý do lệch (điểm rời rạc làm `r_extent` hụt so với `R`).
+
+## Xong khi
+
+- Test mới trong `tests/test_plume.py` (≥2 test):
+  - **(a)** median **per-cluster** của `r_range/r_extent`, đo trên **≥200 cụm** (nhiều seed, `d` từ 8–30 m),
+    nằm trong **[1,22; 1,34]**. Không dùng trung bình gộp — ticket 16 đo median của tỉ lệ từng cụm.
+  - **(b)** median `n_points` ở **d = 4,0 m / 15 m / 25 m** (bucket `[0,5) / [10,20) / [20,30)` → kỳ vọng
+    30 / 14 / 10) khớp bảng trong **±25%**, mỗi mốc ≥100 cụm. **Không dùng d = 5,0 m** — nó rơi vào
+    bucket `[5,10)` với kỳ vọng 20.
+- `pytest -q tests/` → **≥ 35 passed** (baseline hiện tại 33).
+- **Số điểm/frame KHÔNG có ngưỡng "phải giảm".** Thay đổi này làm count phụ thuộc cự ly, nên cụm rơi vào
+  bucket gần (<5 m) sẽ **tăng** (kỳ vọng 30 > 17), cụm xa **giảm** (10 < 17). Phải báo số theo **một
+  kịch bản cố định**: 3 box ở 12 / 22 / 38 m, 80 km/h, seed 0–4, cùng frame — bảng trước → sau cho từng
+  seed — và giải thích chiều tăng/giảm theo bucket.
+- `docs/plume-model-provenance.md` cập nhật 3 dòng: count theo cự ly `[ĐO]`, hệ số bẹp `S` hiệu dụng +
+  công thức 0,64 `[ĐO/CHỌN]`, radius giữ 0,30 + lý do cận trên.
+- Commit: `feat(plume): range-dependent cluster density and radial thinning per ticket 16`
 
 ### 3. KHÔNG đổi `cluster_radius_median_m`
 
 Giữ **0,30**. Số đo 0,755 m là **cận trên** vì single-linkage nối chuỗi các cụm gần nhau
 (`docs/plume-geometry-vs-real.md` §Caveats), còn paper Fig. 5 cho đúng 0,30. Ghi lý do này vào
 docstring của `PlumeConfig`.
-
-## Xong khi
-
-- Test mới trong `tests/test_plume.py` (≥2 test):
-  - `r_range / r_extent` của điểm sinh ra (một cụm, nhiều seed) nằm trong **[1,15; 1,40]**;
-  - `median n_points` ở cự ly ~5 m, ~15 m, ~25 m khớp bảng trên trong **±20%**.
-- `pytest -q tests/` → **≥ 35 passed** (baseline hiện tại 33).
-- **Số điểm/frame sẽ GIẢM** so với trước. Đây là thay đổi hành vi **có chủ ý** — **không** áp ngưỡng
-  "lệch ≤10%" như bản ticket cũ. Ghi rõ số trước/sau (cùng frame, cùng seed) vào commit message.
-- `docs/plume-model-provenance.md` cập nhật 3 dòng: count theo cự ly `[ĐO]`, squash `[ĐO]`,
-  radius giữ 0,30 + lý do cận trên.
-- Commit: `feat(plume): range-dependent cluster density and radial thinning per ticket 16`
 
 ## Không làm
 
@@ -83,7 +95,13 @@ docstring của `PlumeConfig`.
 
 ## Comments
 
+- **PM chốt phương án B** (2026-11-07). Lý do: ticket 16 đo **median của tỉ lệ từng cụm**, nên generator
+  phải tái lập đúng **thống kê đó**, không phải công thức liên tục. Vì vậy hiệu chỉnh `S` bằng thực nghiệm
+  để median per-cluster = 1,28 (kỳ vọng `S ≈ 0,87`), và ghi **cả** 0,64 (giá trị suy ra giải tích) lẫn `S`
+  hiệu dụng vào docstring, kèm lý do lệch.
+- PM: **bỏ** ngưỡng "số điểm/frame phải giảm" ở bản ticket trước — sai hướng. Thay bằng báo cáo theo
+  kịch bản cố định 12 / 22 / 38 m × seed 0–4.
+- PM: test (b) dùng **d = 4,0 m**, không dùng 5,0 m (5,0 rơi vào bucket `[5,10)` với kỳ vọng 20).
 - PM: bản ticket trước của ticket này đòi "điểm nằm trên vỏ cầu phía cảm biến". **Sai**, đã bỏ. Số đo
-  ticket 16 cho `r_range/r_extent = 1,28 > 1`, tức cụm có bề dày theo tia. Sửa lại thành "bẹp 0,64".
-- PM: nếu bạn thấy hai thay đổi 1 và 2 xung đột nhau (đổi mật độ làm đổi cả `n_points` lẫn hình học),
-  làm đúng thứ tự 2 → 1 và báo lại số đo sau mỗi bước.
+  ticket 16 cho `r_range/r_extent = 1,28 > 1`, tức cụm có bề dày theo tia.
+- PM: thứ tự thi công nếu hai thay đổi 1 và 2 ảnh hưởng nhau: làm **2 trước, 1 sau**, báo số sau mỗi bước.
