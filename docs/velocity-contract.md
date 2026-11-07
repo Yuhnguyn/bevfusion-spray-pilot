@@ -58,9 +58,16 @@ không có plume.
 Velocity thiếu, không hữu hạn, hoặc tốc độ dưới ngưỡng → skip box, tăng counter tương ứng.
 (`plume.py` hiện làm đúng: `skipped_no_velocity`, `skipped_low_speed`.)
 
-## Số đo eligible (2026-11-05)
+## Số đo eligible (2026-11-05) — ĐÃ SỬA NHÃN 2026-11-07
 
-Quét toàn bộ val infos (34,029 frame, 1,160,875 box; 1,468 vehicle box trên 120 frame đầu):
+> **ĐÍNH CHÍNH (2026-11-07, ticket 18):** bảng dưới đây **không phải val split**. Nó quét **toàn bộ
+> trainval**: 850 scene / **34.149** keyframe (`kaggle/eligibility`, `n_samples_total=34149`). val split
+> thật chỉ có **150 scene / 6.019 frame**. Hàng đối chứng tái lập đúng số cũ (957 box / 698 frame so với
+> 952/697, lệch +0,53%), nên phép đo là đúng — chỉ nhãn "val" là sai. Số tương ứng trên **val**:
+> **169 box / 117 frame / 13 scene**. Nguồn: `docs/nuscenes-eligibility.md`,
+> `kaggle/smoke_test/evidence/eligibility.json`.
+
+Quét toàn bộ trainval (34.149 keyframe, 850 scene; bảng cũ ghi nhầm thành "34.029 val frame"):
 
 | Ngưỡng | Box vehicle | Box front ≤30 m | Frame có ≥1 box | Tỷ lệ frame |
 |---|---|---|---|---|
