@@ -18,9 +18,9 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 `mmcv-full 1.4.0` + compile 12 CUDA extension; code repo lên bằng dataset private 2 MB. Kernel
 `bevfusion-e2e` chạy **COMPLETE 516 s / 49 passed** (log tải trực tiếp từ Kaggle). Lớp còn lại: quota GPU T4.
 
-**Test:** `56 passed` (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`), 8 file test.
+**Test:** `60 passed` (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`), 9 file test.
 
-**Việc tiếp theo:** `09` (e2e trên Kaggle) → `10` → `11` → `13`. `14` (B0) chạy song song được.
+**Việc tiếp theo:** `14b` (DROR thích nghi) → `09` (e2e trên Kaggle) → `10` → `11` → `13`.
 
 ## Bảng ticket
 
@@ -40,7 +40,8 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 | 11 | Mini A/B run + report | blocked | chờ 10 |
 | 12 | SemanticSpray statistics | **done** | `docs/semantic-spray-stats.md` |
 | 13 | Gate review sau mini A/B | blocked | chờ 11 |
-| 14 | Arm B0 — lọc spray rồi detect | ready-for-agent | chưa làm; chạy song song được |
+| 14a | B0: module lọc | **done** `ed92cf8` | `spray/denoise.py` · `ror_filter` · 60 passed |
+| 14b | B0: DROR thích nghi theo cự ly | in-progress | ROR cố định `r=0,5` xoá **100%** điểm ở 50 m [ĐO] ⇒ phải đổi sang bán kính tỉ lệ cự ly |
 | 15 | Provenance của `PlumeConfig` | **done** `bc0da86`+`d1bf9bf` | `docs/plume-model-provenance.md` |
 | 16 | Đo hình học plume thật theo cự ly | **done** `08f6715` | 17,06 cụm/frame; 30/20/14/10/10 điểm/cụm |
 | 17 | Sửa generator theo số đo của 16 | **done** `5d7c478` | count theo cự ly; bẹp `S = 0,885` |
