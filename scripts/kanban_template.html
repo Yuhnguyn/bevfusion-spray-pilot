@@ -334,7 +334,7 @@
       <a href="#timeline">Dòng thời gian</a>
       <a href="#glossary">Từ điển</a>
     </nav>
-    <div class="updated">Cập nhật <b id="genTime">—</b></div>
+    <div class="updated">Cập nhật <b id="genTime">—</b> · <span id="srcInfo">nguồn: —</span></div>
   </div>
 </header>
 
@@ -352,8 +352,7 @@
         </p>
         <div class="badges">
           <span class="badge">Spec v<span id="specVer">1.5</span> · <span id="specStatus">needs-triage</span></span>
-          <span class="badge good"><span class="dot"></span> Ticket 02 ALL_PASS</span>
-          <span class="badge warn"><span class="dot pulse"></span> v17 đang chạy</span>
+          <span class="badge good" id="doneBadge"><span class="dot"></span> <span id="doneCount">0</span> ticket xong</span>
           <span class="badge" id="ticketCount">16 ticket</span>
         </div>
       </div>
@@ -431,7 +430,7 @@
     <div class="sec-head">
       <div>
         <h2>Dòng thời gian build</h2>
-        <p>Những gì đã xảy ra trên Kaggle, bằng ngôn ngữ thường.</p>
+        <p>Lịch sử commit gần đây của repo (lấy trực tiếp từ <code>git log</code>).</p>
       </div>
     </div>
     <div class="timeline" id="timelineList"></div>
@@ -448,8 +447,8 @@
   </section>
 
   <footer>
-    <div>Board được tạo tự động từ <code>.scratch/spray-augmentation/issues</code> + <code>spec.md</code>.</div>
-    <div style="margin-top:6px">Cập nhật: chạy <code>python3 scripts/build_kanban.py</code> rồi publish lại. Ghi chú trong thẻ chỉ tồn tại trong phiên xem.</div>
+    <div>Board được sinh từ <code>STATUS.md</code> (bảng ticket) + <code>issues/*.md</code> (checkbox, Blocked by, path).</div>
+    <div style="margin-top:6px">Nguồn: <code>STATUS.md @ <span id="srcCommit">—</span></code> · STATUS.md cập nhật <span id="srcUpdated">—</span>. Chạy <code>python3 scripts/build_kanban.py</code> rồi publish lại.</div>
   </footer>
 </main>
 
@@ -482,6 +481,7 @@ const COLUMNS = [
   { kind: "blocked",  title: "Bị chặn",  hint: "Phải chờ ticket khác xong trước." },
   { kind: "done",     title: "Xong",     hint: "Có bằng chứng, tiêu chí đã tick." }
 ];
+const TRIAGE_COLUMN = { kind: "triage", title: "Cần phân loại", hint: "Nhãn trạng thái trong STATUS.md chưa được nhận diện." };
 
 const notes = {};
 let activeKind = "all";
@@ -491,26 +491,36 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 function pct(t) {
-  if (!t.total) return t.kind === "done" ? 100 : 0;
+  if (!t.total) return null;
   return Math.round(100 * t.done / t.total);
+}
+
+function checksLabel(t) {
+  return t.total ? `${t.done}/${t.total}` : "—";
 }
 
 function byId(id) { return DATA.tickets.find((t) => t.id === id); }
 
 function renderHeader() {
   $("#genTime").textContent = DATA.generated;
+  $("#srcInfo").textContent = `nguồn: ${DATA.source.file} @ ${DATA.source.commit}`;
+  $("#srcCommit").textContent = DATA.source.commit;
+  $("#srcUpdated").textContent = DATA.source.updated;
   $("#specVer").textContent = DATA.spec.version;
   $("#specStatus").textContent = DATA.spec.status;
   $("#ticketCount").textContent = DATA.overall.tickets + " ticket";
-  $("#focusTitle").textContent = DATA.focus.headline;
+  $("#doneCount").textContent = DATA.overall.done_tickets;
+  $("#focusTitle").textContent = DATA.focus.headline || "Không có dòng 'Việc tiếp theo' trong STATUS.md";
   $("#focusDetail").textContent = DATA.focus.detail;
 
   const o = DATA.overall;
-  $("#ringPct").textContent = o.percent + "%";
+  const total = o.boxes_total;
+  const percent = total ? Math.round(100 * o.boxes_done / total) : o.percent;
+  $("#ringPct").textContent = percent + "%";
   const c = 2 * Math.PI * 62;
   const fg = $("#ringFg");
   fg.setAttribute("stroke-dasharray", c.toFixed(2));
-  fg.style.strokeDashoffset = (c * (1 - o.percent / 100)).toFixed(2);
+  fg.style.strokeDashoffset = (c * (1 - percent / 100)).toFixed(2);
 }
 
 function renderStats() {
@@ -528,9 +538,9 @@ function renderStats() {
       <div class="s">${i.s}</div>
     </div>`).join("") + `
     <div class="stat" style="grid-column: span 4; padding:10px 16px; display:flex; align-items:center; gap:10px">
-      <span class="k" style="margin:0">Tiến độ tiêu chí</span>
+      <span class="k" style="margin:0">Tiêu chí đã tick</span>
       <div class="bar" style="flex:1; margin:0"><i style="width:${o.percent}%; background:linear-gradient(90deg,var(--blue),var(--purple))"></i></div>
-      <b style="font-size:13px">${o.boxes_done}/${o.boxes_total}</b>
+      <b style="font-size:13px">${o.boxes_done}/${o.boxes_total} · ${o.done_tickets}/${o.tickets} ticket xong</b>
     </div>`;
 }
 
@@ -541,7 +551,7 @@ function renderPhases() {
       <div class="pname">${esc(p.name)}</div>
       <div class="pdesc">${esc(p.desc)}</div>
       <div class="pbar"><i style="width:${p.percent}%"></i></div>
-      <div class="pnum">${p.done}/${p.total} tiêu chí · ${p.percent}%</div>
+      <div class="pnum">${p.done}/${p.total} ticket · ${p.percent}%</div>
     </div>`).join("");
 }
 
@@ -549,19 +559,19 @@ function card(t) {
   const p = pct(t);
   const waiting = (t.blocked_labels || []).filter(Boolean);
   const foot = t.kind === "blocked"
-    ? `<span class="wait">Chờ: ${esc(waiting.join(", "))}</span>`
+    ? `<span class="wait">Chờ: ${esc(waiting.join(", ") || "—")}</span>`
     : t.kind === "done"
-      ? `<span class="free">Hoàn tất</span>`
+      ? `<span class="free">Hoàn tất${t.sha ? " · " + esc(t.sha) : ""}</span>`
       : t.kind === "ready"
         ? `<span class="free">Có thể bắt đầu</span>`
-        : `<span class="pct">${t.done}/${t.total} tiêu chí</span>`;
+        : `<span class="pct">${checksLabel(t)} tiêu chí</span>`;
   return `
     <button class="card k-${t.kind}" data-id="${t.id}" aria-label="Mở ticket ${t.id}">
       <div class="top"><span class="tid">#${esc(t.id)}</span><span class="pchip">${esc(t.phase)}</span></div>
       <h3>${esc(t.title)}</h3>
-      <div class="brief">${esc(t.short)}</div>
-      <div class="bar"><i style="width:${p}%"></i></div>
-      <div class="foot"><span class="pct">${t.total ? p + "%" : "—"}</span>${foot}</div>
+      <div class="brief">${esc(t.short || t.evidence)}</div>
+      <div class="bar"><i style="width:${p === null ? 0 : p}%"></i></div>
+      <div class="foot"><span class="pct">${checksLabel(t)}</span>${foot}</div>
     </button>`;
 }
 
@@ -573,7 +583,8 @@ function matches(t) {
 
 function renderBoard() {
   const grid = $("#boardGrid");
-  grid.innerHTML = COLUMNS.map((c) => {
+  const columns = DATA.overall.counts.triage ? COLUMNS.concat(TRIAGE_COLUMN) : COLUMNS;
+  grid.innerHTML = columns.map((c) => {
     const items = DATA.tickets.filter((t) => t.kind === c.kind && matches(t)).sort((a, b) => a.id.localeCompare(b.id));
     const body = items.length ? items.map(card).join("") : `<div class="empty">Không có thẻ</div>`;
     return `
@@ -587,15 +598,19 @@ function renderBoard() {
 }
 
 function renderDeps() {
-  $("#depsList").innerHTML = DATA.dep_chains.map((chain) => {
-    const chips = chain.map((id) => {
-      const t = byId(id);
-      const kind = t ? t.kind : "triage";
-      const title = t ? t.title : id;
+  $("#depsList").innerHTML = DATA.dep_rows.map((row) => {
+    const t = byId(row.id);
+    const chip = (id) => {
+      const dep = byId(id);
+      const kind = dep ? dep.kind : "triage";
+      const title = dep ? dep.title : id;
       return `<span class="dep-chip k-${kind}" title="${esc(title)}">${esc(id)}</span>`;
-    }).join('<span class="arrow">→</span>');
-    return `<div class="dep-row"><span class="lbl">Chuỗi</span>${chips}</div>`;
-  }).join("");
+    };
+    const chips = [...row.blockers].map(chip).join('<span class="arrow">→</span>') +
+      '<span class="arrow">→</span>' +
+      `<span class="dep-chip k-${t.kind}">${esc(t.id)}</span>`;
+    return `<div class="dep-row"><span class="lbl">#${esc(t.id)}</span>${chips}</div>`;
+  }).join("") || `<div class="empty">Không có phụ thuộc nào được khai báo.</div>`;
 }
 
 function renderTimeline() {
@@ -617,31 +632,33 @@ function openTicket(id) {
   if (!t) return;
   $("#drawerMeta").textContent = `#${t.id} · ${t.phase} · ${KIND[t.kind].label}`;
   $("#drawerTitle").textContent = t.title;
-  const checks = t.checklist.length
-    ? t.checklist.map((c) => `
-        <li class="${c.done ? "done" : ""}">
-          <span class="box">${c.done ? "✓" : ""}</span><span>${esc(c.text)}</span>
-        </li>`).join("")
-    : `<li><span class="box"></span><span>Chưa có checklist cho ticket này.</span></li>`;
+  const checks = t.total
+    ? `<li class="${t.done === t.total ? "done" : ""}">
+         <span class="box">${t.done === t.total ? "✓" : ""}</span>
+         <span>${t.done}/${t.total} checkbox đã tick${t.checks_heading ? ` (mục “${esc(t.checks_heading)}”)` : ""}</span>
+       </li>`
+    : `<li><span class="box">—</span><span>Ticket này không có checkbox nghiệm thu trong file issue — hiển thị <b>—</b>, không phải 0/0.</span></li>`;
   const blockers = (t.blocked_labels || []).filter(Boolean);
   const blockedText = blockers.length
     ? blockers.map((b) => `#${esc(b)}`).join(", ")
     : "Không chờ ai";
   const files = (t.files || []).map((f) => `<code>${esc(f)}</code>`).join("");
+  const shaPill = t.sha ? `<span class="pill k-done">commit ${esc(t.sha)}</span>` : "";
   $("#drawerBody").innerHTML = `
     <div class="pillrow">
       <span class="pill k-${t.kind}">${KIND[t.kind].label}</span>
-      <span class="pill">${t.done}/${t.total} tiêu chí</span>
+      <span class="pill">${checksLabel(t)} tiêu chí</span>
       <span class="pill">${esc(t.phase)}</span>
       <span class="pill">${blockedText}</span>
+      ${shaPill}
     </div>
 
-    <div class="dsec"><h4>Nói dễ hiểu</h4><p>${esc(t.short)}</p></div>
-    <div class="dsec"><h4>Vì sao phải làm</h4><p>${esc(t.why)}</p></div>
+    <div class="dsec"><h4>Trạng thái trong STATUS.md</h4><p><code>${esc(t.raw_status)}</code></p></div>
+    <div class="dsec"><h4>Nói dễ hiểu</h4><p>${esc(t.short || "—")}</p></div>
+    <div class="dsec"><h4>Vì sao phải làm</h4><p>${esc(t.why || "—")}</p></div>
     <div class="dsec"><h4>Việc phải làm (checkbox = tiêu chí nghiệm thu)</h4>
       <ul class="checks">${checks}</ul></div>
-    <div class="dsec"><h4>Bằng chứng hiện có</h4><p>${esc(t.evidence || "Chưa có.")}</p></div>
-    <div class="dsec"><h4>Bước tiếp theo</h4><p>${esc(t.next || "—")}</p></div>
+    <div class="dsec"><h4>Bằng chứng / next (STATUS.md)</h4><p>${esc(t.evidence || "—")}</p></div>
     <div class="dsec"><h4>File / chỗ cần xem</h4><div class="files">${files || "<span class='pchip'>—</span>"}</div></div>
     <div class="dsec"><h4>Ghi chú phiên của bạn</h4>
       <textarea class="note" id="note-${t.id}" placeholder="Ví dụ: chờ log v17, nhớ kiểm tra dataset_sample.json…">${esc(notes[t.id] || "")}</textarea>

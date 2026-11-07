@@ -2,37 +2,52 @@
 """Build docs/kanban.html from the issue tracker.
 
 Run from the repo root:  python3 scripts/build_kanban.py
+
+Sources of truth (nothing about a ticket's state is written in this file):
+  * .scratch/spray-augmentation/STATUS.md — "## Bảng ticket" table (#, Việc,
+    Trạng thái, Bằng chứng / next) and the "Việc tiếp theo" line.
+  * .scratch/spray-augmentation/issues/NN-*.md — title, checkbox criteria,
+    "Blocked by", and repo paths worth showing.
+
 The HTML is self-contained (no CDN, no storage) so it can be published as an
 artifact. Re-run after any ticket/spec change and publish again.
 """
 
 import json
 import re
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ISSUES = ROOT / ".scratch" / "spray-augmentation" / "issues"
+SCRATCH = ROOT / ".scratch" / "spray-augmentation"
+ISSUES = SCRATCH / "issues"
+STATUS = SCRATCH / "STATUS.md"
+SPEC = SCRATCH / "spec.md"
 OUT = ROOT / "docs" / "kanban.html"
+TEMPLATE = Path(__file__).parent / "kanban_template.html"
 
+# Phase grouping only — progress and every ticket field come from the sources
+# above. Keep the existing P0..P6 cards; do not invent new phases.
 PHASES = [
     {
         "id": "P0",
         "name": "Nền móng & kiểm chứng",
         "desc": "Chốt version, môi trường, checkpoint, dataset, evaluator, velocity.",
-        "tickets": ["01", "02", "02b", "03", "04", "05"],
+        "tickets": ["01", "02", "02b", "03", "04", "05", "19", "24"],
     },
     {
         "id": "P1",
         "name": "Pipeline chèn plume",
         "desc": "Transform, clean points, routing hai nhánh, test end-to-end.",
-        "tickets": ["07", "08", "09", "15"],
+        "tickets": ["07", "08", "09", "15", "21", "22", "23"],
     },
     {
         "id": "P2",
         "name": "Đo lường & đối chứng",
-        "desc": "Adapter evaluator, config A/B, arm lọc spray B0.",
-        "tickets": ["06", "10", "14"],
+        "desc": "Adapter evaluator, config A/B, arm lọc spray B0, eligibility.",
+        "tickets": ["06", "10", "14", "18"],
     },
     {
         "id": "P3",
@@ -55,213 +70,17 @@ PHASES = [
     {
         "id": "P6",
         "name": "Hình học plume",
-        "desc": "Đo dạng cụm thật và đổi cách rải điểm sang vỏ cầu phía cảm biến.",
-        "tickets": ["16", "17"],
+        "desc": "Đo dạng cụm thật, đổi cách rải điểm, và nhìn lại bằng ảnh/clip.",
+        "tickets": ["16", "17", "20"],
     },
 ]
 
-META = {
-    "01": {
-        "short": "Lấy đúng một bản BEVFusion MIT ở commit da93b27, tách khỏi bản gốc để cả nhóm chạy cùng một code.",
-        "why": "Nếu mỗi người chạy một version khác nhau, kết quả không so sánh được với nhau.",
-        "next": "Không còn — đã xong.",
-        "evidence": "4/4 tiêu chí; third_party/ không bị sửa; lệnh version in ra da93b27.",
-        "files": ["mit/PIN.md", "mit/bevfusion/"],
-    },
-    "02": {
-        "short": "Chạy thử đúng 1 frame: nạp checkpoint chính thức, forward model một lần, kiểm tra lỗi shape, NaN/Inf và số kênh depth.",
-        "why": "Đây là đèn báo an toàn: nếu model và checkpoint không khớp thì mọi thí nghiệm sau đều vô nghĩa.",
-        "next": "Đã xong; số liệu nằm trong ticket.",
-        "evidence": "582/582 key khớp; forward 0.6 s, peak 1.98 GB; depth [6,1,256,704] đúng 1 kênh; mọi stage finite.",
-        "files": [".scratch/spray-augmentation/issues/02-smoke-test-checkpoint.md", "kaggle/smoke_test/"],
-    },
-    "02b": {
-        "short": "Sửa môi trường Kaggle (CUDA 11.8, gcc-11, torchvision, numba…) để smoke test chạy được.",
-        "why": "Kaggle mặc định không có toolchain cũ; không sửa thì không build được CUDA ops.",
-        "next": "Đã xong.",
-        "evidence": "v15 ALL_PASS; toàn bộ chẩn đoán và fix nằm trong ticket 02b.",
-        "files": [".scratch/spray-augmentation/issues/02b-numba-fix.md"],
-        "checklist": [
-            ("x", "Numba 0.58.1 + uv index strategy + escape % trong git log"),
-            ("x", "CUDA 11.8 + gcc-11 + đủ cusparse/cublas/curand/cusolver"),
-            ("x", "torchvision 0.11.2+cu113 + shim numba.errors"),
-            ("x", "Ticket 02 đạt ALL_PASS, checkpoint 582/582"),
-        ],
-    },
-    "03": {
-        "short": "Xác định vận tốc box nằm ở hệ tọa độ nào và box dán thêm (ObjectPaste) có vận tốc dùng được không — để đặt plume đúng hướng.",
-        "why": "Plume phải nằm sau xe đang chạy. Dùng sai hệ tọa độ là plume lệch hướng, thí nghiệm mất giá trị.",
-        "next": "Đã xong.",
-        "evidence": "docs/velocity-contract.md: velocity ở LiDAR frame; full val: 50 km/h → 697/34,029 frame (2.0%), 30 km/h → 13.8%.",
-        "files": ["docs/velocity-contract.md", ".scratch/spray-augmentation/issues/03-velocity-frame.md"],
-    },
-    "04": {
-        "short": "Kiểm tra dataset nuScenes trên Kaggle: đủ camera/LiDAR/metadata, tạo được file infos (danh mục frame), và load được một frame qua pipeline.",
-        "why": "Không có infos thì pipeline không biết frame nào, ảnh nào, calibration nào để load.",
-        "next": "Đã xong.",
-        "evidence": "v19 TICKET04_OK: infos 120/120, load 1 sample (6 camera, 0 sweep, không thiếu ảnh); drop LoadBEVSegmentation + gt_masks_bev vì use_map=false.",
-        "files": ["kaggle/dataset_gate/", "kaggle/smoke_test/cells/17-ticket04-infos-and-sample.py"],
-    },
-    "05": {
-        "short": "Viết evaluator proxy mAP bằng Python thuần, có test bằng box giả để chứng minh nó tính đúng.",
-        "why": "Cần một thước đo đáng tin trước khi so sánh A/B; không dùng kết quả cũ của OpenMMLab.",
-        "next": "Đã xong.",
-        "evidence": "5/5 test: perfect match, duplicate, wrong class, range filter.",
-        "files": [".scratch/spray-augmentation/issues/05-evaluator-core.md", "proxy_eval/matcher.py"],
-    },
-    "06": {
-        "short": "Chuyển output thật của BEVFusion (class, box format, score) sang định dạng evaluator hiểu, rồi chấm một frame thật.",
-        "why": "Evaluator core đã có, nhưng output model khác format. Adapter là cầu nối; đây là precondition 5.",
-        "next": "Đã xong.",
-        "evidence": "Frame thật: TP 22 / FP 21 / FN 20, P 0.512, R 0.524, mAP 0.298; threshold 0.05, range 54 m. Test 2 + suite 33 passed.",
-        "files": [".scratch/spray-augmentation/issues/06-evaluator-adapter.md", "proxy_eval/mit_adapter.py", "kaggle/smoke_test/evidence/mit_eval_result.json"],
-    },
-    "07": {
-        "short": "Viết transform chèn plume vào point cloud, giữ lại bản 'sạch' trước khi chèn để camera branch dùng.",
-        "why": "Camera branch cần point sạch làm sparse depth; LiDAR branch cần point đã có plume. Không tách thì hai nhánh nhìn sai dữ liệu.",
-        "next": "Đã xong.",
-        "evidence": "scene-0796: points_clean 255,456 → 255,583 (+127); 2 eligible, 4 cluster; 12/12 checks true.",
-        "files": [".scratch/spray-augmentation/issues/07-pipeline-transform.md", "spray/plume_transform.py"],
-    },
-    "08": {
-        "short": "Sửa model để nhánh camera nhận points_clean, nhánh LiDAR nhận points đã chèn plume.",
-        "why": "Không patch thì camera vẫn nhận point có spray → sai thiết kế thí nghiệm.",
-        "next": "Bắt đầu ngay: ticket 07 đã xong.",
-        "evidence": "0/4.",
-        "files": [".scratch/spray-augmentation/issues/08-model-routing.md"],
-    },
-    "09": {
-        "short": "Test cả pipeline: hai luồng point cùng frame, đúng nhánh; tắt plume thì không có points_clean.",
-        "why": "Chứng minh transform và routing hoạt động cùng nhau, không chỉ từng phần.",
-        "next": "Sau ticket 07 và 08.",
-        "evidence": "0/4.",
-        "files": [".scratch/spray-augmentation/issues/09-pipeline-e2e-test.md"],
-    },
-    "10": {
-        "short": "Tạo hai config A/B chỉ khác nhau ở plume; giữ nguyên checkpoint, split, optimizer, LR, seed, batch, số update; đo RAM/thời gian.",
-        "why": "Nếu khác nhiều thứ, không biết cải thiện là do plume hay do config.",
-        "next": "Sau ticket 09. Nhớ load bằng Config.fromfile(..., _base_), không round-trip qua JSON.",
-        "evidence": "0/4.",
-        "files": [".scratch/spray-augmentation/issues/10-train-eval-config.md"],
-    },
-    "11": {
-        "short": "Train hai arm trên tập nhỏ, eval trên spray held-out, báo chênh lệch paired + bootstrap theo scene, FP, recall, clean retention.",
-        "why": "Đây là kết quả bắt buộc duy nhất của v1: có tín hiệu dương hay không.",
-        "next": "Sau ticket 06 và 10.",
-        "evidence": "0/5.",
-        "files": [".scratch/spray-augmentation/issues/11-mini-ab-run.md"],
-    },
-    "12": {
-        "short": "So sánh plume thật trong SemanticSpray với plume mô phỏng để biết simulator có hợp lý không.",
-        "why": "Không dùng SemanticSpray để train/eval; chỉ dùng thống kê để hiệu chỉnh simulator.",
-        "next": "Đã xong.",
-        "evidence": "4/4; so sánh cluster dense, xét cả extent lẫn khoảng cách tới xe gần nhất.",
-        "files": ["docs/semantic-spray-stats.md", "spray/spray_stats.py"],
-    },
-    "13": {
-        "short": "Dựa trên mini A/B, quyết định mở rộng hay dừng; nếu không có khác biệt thì ghi 'no measurable gap'.",
-        "why": "Tránh đốt compute vào hướng không có tín hiệu.",
-        "next": "Sau ticket 11.",
-        "evidence": "0/3.",
-        "files": [".scratch/spray-augmentation/issues/13-gate-review.md"],
-    },
-    "14": {
-        "short": "Arm đối chứng không train: lọc điểm nghi spray bằng thống kê (ROR) rồi detect, để chứng minh augmentation đáng làm hơn cách rẻ.",
-        "why": "Không có B0, kết quả âm của arm B có thể bị đổ cho 'chưa thử cách rẻ hơn'.",
-        "next": "Có thể bắt đầu ngay (ticket 02 và 05 đã xong).",
-        "evidence": "0/5; paper báo ROR precision ~50%.",
-        "files": [".scratch/spray-augmentation/issues/14-denoise-baseline.md"],
-    },
-    "16": {
-        "short": "Đo trên SemanticSpray: số điểm/cụm, bán kính, độ dày vỏ, số ring theo cự ly — để kiểm tra generator đang rải đều trong khối cầu.",
-        "why": "Nếu cụm thật là vỏ mỏng và mật độ giảm theo cự ly, cách sinh hiện tại dạy model sai cấu trúc.",
-        "next": "Chạy mở rộng scripts/semantic_spray_stats.py; không sửa generator.",
-        "evidence": "Chưa có — cần 3 bảng số theo bucket cự ly.",
-        "files": ["scripts/semantic_spray_stats.py", "docs/semantic-spray-stats.md", ".scratch/spray-augmentation/issues/16-plume-geometry-research.md"],
-    },
-    "17": {
-        "short": "Đặt điểm plume trên vỏ cầu phía cảm biến thay vì trong khối cầu.",
-        "why": "Điểm ở nửa sau/lòng cầu là vị trí LiDAR không thể có return; cấu trúc sai làm augmentation vô nghĩa.",
-        "next": "Chờ ticket 16 có median r_range/r_extent.",
-        "evidence": "Chưa có; cần test hình học mới.",
-        "files": ["spray/plume.py", "tests/test_plume.py", "docs/plume-model-provenance.md", ".scratch/spray-augmentation/issues/17-plume-shell-geometry.md"],
-    },
-    "15": {
-        "short": "Sửa docstring/trích dẫn của PlumeConfig cho đúng paper Linnhoff §III/Fig.4; không đổi code hay tham số.",
-        "why": "Tránh hiểu sai nguồn gốc tham số; PM từng nói sai là paper không có.",
-        "next": "Có thể làm ngay, việc nhỏ.",
-        "evidence": "docs/plume-model-provenance.md đã có; cần sửa docstring.",
-        "files": ["docs/plume-model-provenance.md", "spray/plume.py"],
-        "checklist": [
-            (" ", "Sửa docstring PlumeConfig (dạng tuyến tính theo tốc độ, nguồn Linnhoff §III/Fig.4)"),
-            (" ", "Ghi rõ hai chiều bị gộp ở v1: lớp xe, độ dày màng nước"),
-            (" ", "Chạy pytest: 29 passed"),
-        ],
-    },
+# Top-level roots that make a backticked token look like a repo path.
+PATH_ROOTS = {
+    "docs", "spray", "tests", "scripts", "proxy_eval", "kaggle", "mit",
+    "configs", "data", "results", ".scratch", "interactive", "kernel",
+    "notebook-kernel", "archive", "third_party",
 }
-
-TIMELINE = [
-    {
-        "when": "2026-11-07 · Kaggle",
-        "tone": "good",
-        "title": "Ticket 06 — adapter evaluator",
-        "body": "Model chạy 2 frame thật; evaluator local cho mAP 0.298 (P 0.512 / R 0.524), frame thứ hai chứng minh range filter (2 GT ngoài 54 m).",
-    },
-    {
-        "when": "2026-11-07 · Kaggle",
-        "tone": "good",
-        "title": "Ticket 07 — PlumeTransform",
-        "body": "scene-0796: +127 điểm, points_clean giữ nguyên 255,456; 12/12 check pass, transform đúng vị trí sau range filter.",
-    },
-    {
-        "when": "2026-11-05 · v19",
-        "tone": "good",
-        "title": "Ticket 04 xong — TICKET04_OK",
-        "body": "infos train/val = 120/120 trong 109 s; load 1 sample qua pipeline với đủ 6 camera, 0 sweep, không thiếu ảnh. Phát hiện thêm: chỉ 2% frame val có xe ≥50 km/h.",
-    },
-    {
-        "when": "2026-11-05 · v18",
-        "tone": "bad",
-        "title": "Lệch schema cam_intrinsic",
-        "body": "infos đúng 120/120 nhưng pipeline chết ở KeyError 'cam_intrinsic': converter ghi camera_intrinsics, dataset đọc cam_intrinsic. Thêm alias.",
-    },
-    {
-        "when": "2026-11-05 · v17",
-        "tone": "bad",
-        "title": "Index token sau khi lọc scene",
-        "body": "Lọc nusc.sample làm lệch _token2ind nên get_boxes IndexError. Rebuild index; infos 120/120 trong 117 s.",
-    },
-    {
-        "when": "2026-11-05 · v16",
-        "tone": "bad",
-        "title": "Thêm bước tạo infos — lộ 2 lỗi",
-        "body": "Tạo được infos nhưng val thành 34.029 vì converter gán mọi non-train sample vào val. Load sample fail vì mirror thiếu maps/expansion/*.json.",
-    },
-    {
-        "when": "2026-11-05 · v15 (tay)",
-        "tone": "good",
-        "title": "Ticket 02 ALL_PASS",
-        "body": "Checkpoint 582/582, forward 0.6 s, peak 1.98 GB, depth 1 kênh đúng dtransform, mọi output finite.",
-    },
-    {
-        "when": "2026-11-05 · v14",
-        "tone": "warn",
-        "title": "Checkpoint load OK, model crash",
-        "body": "ConfigDict đã sửa lỗi train_cfg, nhưng harness đọc DepthLSSTransform.out_channels — attr không tồn tại ở pin da93b27.",
-    },
-    {
-        "when": "2026-11-05 · v13",
-        "tone": "warn",
-        "title": "Ops OK, thiếu torchvision",
-        "body": "CUDA ops build và GPU smoke pass; mmcv runner cần torchvision nên ops smoke fail toàn bộ.",
-    },
-    {
-        "when": "2026-11-05 · v12",
-        "tone": "warn",
-        "title": "CUDA 11.8 + gcc-11 hoạt động",
-        "body": "Hết lỗi _Float32 và thiếu header; ops compile thành công. Blocker còn lại: torchvision.",
-    },
-]
 
 GLOSSARY = [
     ("Checkpoint", "File chứa trọng số đã train. Nạp vào model để model có 'kiến thức'."),
@@ -277,138 +96,339 @@ GLOSSARY = [
     ("Checkbox", "Tiêu chí nghiệm thu. Chỉ tick khi có bằng chứng thật."),
 ]
 
-DEP_CHAINS = [
-    ["01", "02", "06", "10", "11", "13"],
-    ["01", "04", "07", "08", "09", "10"],
-    ["02", "05", "14"],
-    ["07", "08", "09"],
-]
+
+def warn(message):
+    print(f"warning: {message}", file=sys.stderr)
 
 
-def parse_checkboxes(text):
-    return re.findall(r"^- \[([ x])\]\s*(.+)$", text, re.M)
+def git(*args):
+    try:
+        return subprocess.run(
+            ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        warn(f"git {' '.join(args)} failed: {exc}")
+        return ""
 
 
-def parse_ticket(path):
-    text = path.read_text()
-    tid = re.match(r"(\d+[a-z]?)", path.name).group(1)
-    title = re.search(r"^#\s+(.+)$", text, re.M)
-    title = title.group(1).strip() if title else path.stem
-    status = re.search(r"\*\*(?:Status|Trạng thái):\*\*\s*(.+)", text)
-    status = status.group(1).strip() if status else ""
-    blocked = re.search(r"\*\*(?:Blocked by|Phụ thuộc):\*\*\s*(.+)", text)
-    blocked = blocked.group(1).strip() if blocked else ""
-    boxes = parse_checkboxes(text)
-    meta = META.get(tid, {})
-    if "checklist" in meta:
-        boxes = meta["checklist"]
-    done = sum(1 for mark, _ in boxes if mark == "x")
-    blockers = re.findall(r"\b\d+[a-z]?\b", blocked)
-    return {
-        "id": tid,
-        "title": re.sub(r"^\d+[a-z]?:\s*", "", title),
-        "raw_status": status,
-        "blockers": [b for b in blockers if b != tid],
-        "done": done,
-        "total": len(boxes),
-        "checklist": [{"done": mark == "x", "text": label} for mark, label in boxes],
-        "meta": meta,
-    }
+def sort_key(tid):
+    match = re.match(r"(\d+)([a-z]?)", tid)
+    return (int(match.group(1)), match.group(2)) if match else (10**9, tid)
 
 
-def choose_kind(ticket, by_id):
-    tid = ticket["id"]
-    status = ticket["raw_status"].lower()
-    if tid == "02b":
+def strip_markdown(text):
+    text = text.replace("**", "").replace("`", "")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def status_kind(raw):
+    low = raw.lower()
+    if "done" in low:
         return "done"
-    if tid in ("03", "04") and ticket["done"] < ticket["total"]:
+    if "blocked" in low:
+        return "blocked"
+    if "ready" in low:
+        return "ready"
+    if "progress" in low or "doing" in low or "đang" in low:
         return "progress"
-    if status.startswith("done"):
-        return "done"
-    if "ready-for-agent" in status:
-        unresolved = [
-            b
-            for b in ticket["blockers"]
-            if b in by_id and by_id[b]["kind"] != "done"
-        ]
-        return "blocked" if unresolved else "ready"
     return "triage"
 
 
-def main():
-    tickets = [parse_ticket(p) for p in sorted(ISSUES.glob("*.md"))]
-    by_id = {t["id"]: t for t in tickets}
+def status_sha(raw):
+    return "+".join(re.findall(r"`([0-9a-f]{7,40})`", raw))
 
-    for t in tickets:
-        t["kind"] = "triage"
-    changed = True
-    while changed:
-        changed = False
-        for t in tickets:
-            kind = choose_kind(t, by_id)
-            if kind != t["kind"]:
-                t["kind"] = kind
-                changed = True
+
+def parse_status_table(text):
+    """Parse the '## Bảng ticket' markdown table into ordered rows."""
+    section = re.search(r"^##\s+Bảng ticket\s*$(.*?)(?=^##\s)", text, re.M | re.S)
+    if not section:
+        raise SystemExit(f"error: no '## Bảng ticket' table in {STATUS}")
+    rows = []
+    for line in section.group(1).splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 4 or set(cells[0]) <= {"-", ":", " "}:
+            continue
+        tid = cells[0]
+        if not re.fullmatch(r"\d+[a-z]?", tid):
+            continue
+        rows.append({
+            "id": tid,
+            "job": strip_markdown(cells[1]),
+            "status_raw": cells[2],
+            "evidence": strip_markdown(cells[3]),
+        })
+    if not rows:
+        raise SystemExit(f"error: empty ticket table in {STATUS}")
+    return rows
+
+
+def parse_next_line(text):
+    match = re.search(r"\*\*Việc tiếp theo:\*\*\s*(.+)$", text, re.M)
+    if not match:
+        return {"headline": "", "detail": "", "ticket": None}
+    raw = strip_markdown(match.group(1))
+    ids = re.findall(r"`(\d+[a-z]?)`", match.group(1))
+    headline = re.split(r"(?<=[a-z0-9)])\s*\.\s+", raw)[0].rstrip(".")
+    return {"headline": headline, "detail": raw, "ticket": ids[0] if ids else None}
+
+
+def parse_checkboxes(text):
+    """Count acceptance checkboxes only.
+
+    Criterion prose is deliberately not rendered: it quotes commands and paths
+    (e.g. the `git rm`-ed ticket 17 path) that would leak dead references into
+    the published artifact.
+    """
+    return [mark.lower() == "x" for mark in re.findall(r"^\s*-\s*\[([ xX])\]", text, re.M)]
+
+
+def checkbox_heading(text):
+    """The acceptance section whose checklist was counted, if it has one."""
+    current = ""
+    for line in text.splitlines():
+        heading = re.match(r"^##+\s+(.+)$", line)
+        if heading:
+            current = strip_markdown(heading.group(1))
+        elif re.match(r"^\s*-\s*\[[ xX]\]", line):
+            if re.match(r"(?i)xong khi|nghiệm thu|done when|acceptance", current):
+                return current
+            return ""
+    return ""
+
+
+def parse_field(text, label):
+    match = re.search(rf"^\*\*(?:{label}):\*\*\s*(.+)$", text, re.M)
+    return match.group(1).strip() if match else ""
+
+
+def parse_blockers(text):
+    raw = parse_field(text, "Blocked by|Phụ thuộc")
+    if not raw:
+        return []
+    return [tid for tid in re.findall(r"\b\d+[a-z]?\b", raw) if tid]
+
+
+def first_paragraph(text):
+    lines = text.splitlines()
+    i = 1 if lines and lines[0].startswith("# ") else 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line or line.startswith(("#", "|", "```", ">", "- ", "* ", "1.")):
+            i += 1
+            continue
+        if re.match(r"^\*\*(Type|Status|Trạng thái|Blocked by|Phụ thuộc|Chủ|Loại):\*\*", line):
+            i += 1
+            continue
+        line = re.sub(r"^\*\*[^*]+:\*\*\s*", "", line)
+        return strip_markdown(line)
+    return ""
+
+
+def section_paragraph(text, heading_pattern):
+    match = re.search(
+        rf"^##+\s+(?:{heading_pattern})\s*$(.*?)(?=^##+\s|\Z)",
+        text,
+        re.M | re.S,
+    )
+    if not match:
+        return ""
+    return first_paragraph(match.group(1))
+
+
+def extract_files(text, issue_rel):
+    """Repo paths quoted in the ticket; missing ones warn and are dropped."""
+    candidates = [issue_rel]
+    for token in re.findall(r"`([^`\n]+)`", text):
+        token = token.strip()
+        if not token or " " in token:
+            continue
+        token = re.split(r"::", token)[0]
+        token = re.sub(r":\d+(?:-\d+)?$", "", token).rstrip(".,;:)")
+        if any(ch in token for ch in "*<>{}=") or "..." in token:
+            continue
+        if token.startswith(("/", "~", "http", "git@")):
+            continue
+        root = token.lstrip("./").split("/")[0]
+        if root not in PATH_ROOTS:
+            continue
+        candidates.append(token)
+
+    files, seen, warned = [], set(), set()
+    for candidate in candidates:
+        rel = candidate.rstrip("/") or candidate
+        if rel in seen:
+            continue
+        if (ROOT / rel).exists():
+            seen.add(rel)
+            files.append(rel)
+        elif rel not in warned:
+            warned.add(rel)
+            warn(f"missing path in {issue_rel}: {rel} (not rendered)")
+    return files[:8]
+
+
+def issue_path(tid):
+    matches = sorted(ISSUES.glob(f"{tid}-*.md"))
+    return matches[0] if matches else None
+
+
+def build_ticket(row):
+    tid = row["id"]
+    path = issue_path(tid)
+    text = path.read_text() if path else ""
+    issue_rel = str(path.relative_to(ROOT)) if path else ""
+
+    if path is None:
+        warn(f"no issue file for ticket {tid}")
+
+    title = ""
+    heading = re.search(r"^#\s+(.+)$", text, re.M)
+    if heading:
+        title = re.sub(r"^\d+[a-z]?:\s*", "", heading.group(1).strip())
+    if not title:
+        title = row["job"]
+
+    checkboxes = parse_checkboxes(text)
+    blockers = parse_blockers(text) if text else []
+    kind = status_kind(row["status_raw"])
+    if kind == "triage":
+        warn(f"ticket {tid}: unrecognized status {row['status_raw']!r} in STATUS.md")
+
+    return {
+        "id": tid,
+        "title": title,
+        "short": first_paragraph(text) if text else "",
+        "why": section_paragraph(text, "Vì sao|Bối cảnh|Mục đích|Vấn đề") if text else "",
+        "raw_status": row["status_raw"],
+        "kind": kind,
+        "sha": status_sha(row["status_raw"]) if kind == "done" else "",
+        "evidence": row["evidence"],
+        "done": sum(1 for done in checkboxes if done),
+        "total": len(checkboxes),
+        "checks_heading": checkbox_heading(text) if text else "",
+        "blockers": [b for b in blockers if b != tid],
+        "blocked_labels": [],
+        "files": extract_files(text, issue_rel) if text else [],
+    }
+
+
+def parse_spec():
+    if not SPEC.exists():
+        warn(f"{SPEC.relative_to(ROOT)} not found")
+        return {"version": "—", "status": "—"}
+    text = SPEC.read_text()
+    version = re.search(r"^Version:\s*(\S+)", text, re.M)
+    status = re.search(r"^Status:\s*([^—\n]+)", text, re.M)
+    return {
+        "version": version.group(1) if version else "—",
+        "status": strip_markdown(status.group(1)) if status else "—",
+    }
+
+
+def git_timeline(count=12):
+    raw = git("log", f"-n{count}", "--pretty=format:%h%x1f%ad%x1f%s", "--date=short")
+    entries = []
+    for line in raw.splitlines():
+        parts = line.split("\x1f")
+        if len(parts) != 3:
+            continue
+        sha, date, subject = parts
+        tone = "good" if subject.startswith(("feat", "pm(")) else "warn" if subject.startswith("fix") else ""
+        entries.append({
+            "when": date,
+            "tone": tone,
+            "title": subject,
+            "body": f"commit {sha}",
+        })
+    return entries
+
+
+def main():
+    status_text = STATUS.read_text()
+    rows = parse_status_table(status_text)
+    spec = parse_spec()
+    status_updated = re.search(r"\*\*Cập nhật:\*\*\s*([^·\n]+)", status_text)
+    commit = git("rev-parse", "--short", "HEAD") or "unknown"
+
+    by_id = {}
+    for row in rows:
+        by_id[row["id"]] = build_ticket(row)
 
     phase_of = {}
     for phase in PHASES:
         for tid in phase["tickets"]:
-            phase_of[tid] = phase["id"]
+            if tid in by_id:
+                phase_of[tid] = phase["id"]
+    for tid in by_id:
+        if tid not in phase_of:
+            warn(f"ticket {tid} is not assigned to a phase; showing '—'")
+    for phase in PHASES:
+        for tid in phase["tickets"]:
+            if tid not in by_id:
+                warn(f"phase {phase['id']} lists ticket {tid} missing from STATUS.md")
 
-    for t in tickets:
-        meta = t["meta"]
-        t["short"] = meta.get("short", "")
-        t["why"] = meta.get("why", "")
-        t["next"] = meta.get("next", "")
-        t["evidence"] = meta.get("evidence", "")
-        t["files"] = meta.get("files", [])
-        t["phase"] = phase_of.get(t["id"], "P0")
-        t["blocked_labels"] = [
-            b for b in t["blockers"] if b in by_id and by_id[b]["kind"] != "done"
+    for tid in sorted(ISSUES.glob("*.md"), key=lambda p: p.name):
+        name = re.match(r"(\d+[a-z]?)", tid.name)
+        if name and name.group(1) not in by_id:
+            warn(f"issue file {tid.name} has no row in STATUS.md; not rendered")
+
+    tickets = sorted(by_id.values(), key=lambda t: sort_key(t["id"]))
+    for ticket in tickets:
+        ticket["phase"] = phase_of.get(ticket["id"], "—")
+        ticket["blocked_labels"] = [
+            b for b in ticket["blockers"] if b in by_id and by_id[b]["kind"] != "done"
         ]
 
-    total_boxes = sum(t["total"] for t in tickets)
-    done_boxes = sum(t["done"] for t in tickets)
-    counts = {k: sum(1 for t in tickets if t["kind"] == k) for k in ("done", "progress", "ready", "blocked", "triage")}
+    counts = {kind: sum(1 for t in tickets if t["kind"] == kind)
+              for kind in ("done", "progress", "ready", "blocked", "triage")}
+    boxes_done = sum(t["done"] for t in tickets)
+    boxes_total = sum(t["total"] for t in tickets)
 
     for phase in PHASES:
-        boxes_total = sum(by_id[i]["total"] for i in phase["tickets"] if i in by_id)
-        boxes_done = sum(by_id[i]["done"] for i in phase["tickets"] if i in by_id)
-        phase["done"] = boxes_done
-        phase["total"] = boxes_total
-        phase["percent"] = round(100 * boxes_done / boxes_total) if boxes_total else 0
+        members = [by_id[t] for t in phase["tickets"] if t in by_id]
+        phase["done"] = sum(1 for t in members if t["kind"] == "done")
+        phase["total"] = len(members)
+        phase["percent"] = round(100 * phase["done"] / phase["total"]) if members else 0
+
+    dep_rows = [
+        {"id": t["id"], "blockers": [b for b in t["blockers"] if b in by_id]}
+        for t in tickets
+        if any(b in by_id for b in t["blockers"])
+    ]
 
     data = {
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "spec": {
-            "version": "1.5",
-            "status": "ready-for-agent",
-            "note": "Preconditions 1–6 pass. Ticket 06/07 done; ticket 08 là việc tiếp theo.",
+        "source": {
+            "file": "STATUS.md",
+            "commit": commit,
+            "updated": strip_markdown(status_updated.group(1)) if status_updated else "—",
         },
-        "focus": {
-            "ticket": "08",
-            "headline": "Ticket 06 + 07 xong — chuyển sang model routing (08)",
-            "detail": "Adapter cho mAP 0.298 trên frame thật; PlumeTransform pass 12/12 check. Ticket 08 nối points_clean vào camera branch và points vào LiDAR branch.",
-        },
+        "spec": spec,
+        "focus": parse_next_line(status_text),
         "overall": {
             "tickets": len(tickets),
-            "boxes_done": done_boxes,
-            "boxes_total": total_boxes,
-            "percent": round(100 * done_boxes / total_boxes) if total_boxes else 0,
+            "done_tickets": counts["done"],
+            "percent": round(100 * counts["done"] / len(tickets)) if tickets else 0,
+            "boxes_done": boxes_done,
+            "boxes_total": boxes_total,
             "counts": counts,
         },
         "phases": PHASES,
         "tickets": tickets,
-        "timeline": TIMELINE,
-        "glossary": [{"term": a, "def": b} for a, b in GLOSSARY],
-        "dep_chains": DEP_CHAINS,
+        "timeline": git_timeline(),
+        "glossary": [{"term": term, "def": definition} for term, definition in GLOSSARY],
+        "dep_rows": dep_rows,
     }
 
-    template = (Path(__file__).parent / "kanban_template.html").read_text()
+    template = TEMPLATE.read_text()
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(template.replace("__DATA__", payload))
-    print(f"wrote {OUT} ({OUT.stat().st_size} bytes)")
+    print(f"wrote {OUT} ({OUT.stat().st_size} bytes): {len(tickets)} tickets, "
+          f"{counts['done']} done, source STATUS.md @ {commit}")
 
 
 if __name__ == "__main__":
