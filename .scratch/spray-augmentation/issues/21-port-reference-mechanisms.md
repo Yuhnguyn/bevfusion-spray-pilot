@@ -77,8 +77,12 @@ spray thật 17,06 — thiếu Y×"). **KHÔNG tự nâng số cụm để khớ
 
 ## Xong khi
 
-- [ ] pytest pass (baseline hiện tại **49 passed**, không được giảm)
-- [ ] bảng 6 tốc độ trước/sau + dòng so sánh với 17,06 cụm/frame
-- [ ] 4 test mới xanh
-- [ ] docs sửa xong, không còn câu "chưa publish"
-- [ ] `git status` sạch
+- [x] pytest pass (baseline hiện tại **49 passed**, không được giảm) → **53 passed** tại `a4fdf24`
+- [x] bảng 6 tốc độ trước/sau + dòng so sánh với 17,06 cụm/frame → có, **nhưng bảng đó bị ticket 22
+      thay** (đã bỏ dropout, dùng `K = 2,51`). Bảng đúng hiện tại: 40→0, 50→0, 60→3, 80→8, 100→13, 130→20
+- [x] 4 test mới xanh
+- [x] docs sửa xong, không còn câu "chưa publish" (grep = 0 lần)
+- [x] `git status` sạch
+
+**PM nghiệm thu 2026-11-07 15:20** (tick bù — checklist bị bỏ sót lúc commit, nội dung đã kiểm lại từng mục).
+Lưu ý: mục "dropout survival ∈ [0,20; 0,30]" ở dòng 75 **không còn hiệu lực** sau ticket 22 (bỏ dropout).

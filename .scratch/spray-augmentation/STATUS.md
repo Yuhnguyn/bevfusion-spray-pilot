@@ -1,6 +1,6 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-07 09:10 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-07 15:20 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
 **Đọc file này trước khi mở bất kỳ ticket nào.** Ticket là chi tiết; file này là thứ tự và phạm vi.
 
 ## Mục tiêu một câu
@@ -10,83 +10,86 @@ khoảng cách giữa mAP trên frame sạch và frame có spray — đo trên n
 
 ## Trạng thái hiện tại
 
-**02b đã xong; preconditions 1–6 PASS.** Ticket 02 ALL_PASS (582/582, forward finite), dataset gate 04 xong
-(infos 120/120 + load sample), ticket 06 adapter evaluator xong (mAP 0.298 trên frame thật), ticket 07
-`PlumeTransform` pass 12/12 check. Spec đã flip `ready-for-agent`.
+**Generator đã khớp code tham chiếu Linnhoff** (ticket 21–22): kích hoạt `v > 40 km/h` + `wfh > 0`,
+số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, σ = 1,1, trần bán kính sắp sửa 1,0 m
+(ticket 23). Ở 80 km/h sinh **8 cụm/frame** (trước ticket 22: 0,73; đo thật SemanticSpray: 17,06).
 
-Việc tiếp theo: **08 (model routing)** → 09 → 10 → 11 → 13; 14 chạy song song; 16 → 17 độc lập với
-pipeline (chỉ chạm `scripts/`, `spray/`, `tests/`, `docs/`).
+**Môi trường Kaggle đã giải xong 2/3 lớp** (ticket 02b + 19): venv Python 3.8.20 + torch 1.10.1+cu113 +
+`mmcv-full 1.4.0` + compile 12 CUDA extension; code repo lên bằng dataset private 2 MB. Kernel
+`bevfusion-e2e` chạy **COMPLETE 516 s / 49 passed** (log tải trực tiếp từ Kaggle). Lớp còn lại: quota GPU T4.
 
-Lịch sử fix môi trường: thiếu `numba` → uv không resolve được torch → escape `%` trong `git log --format`
-→ thiếu CUDA dev headers → `gcc-13` không hợp CUDA 11.8 → tên package apt sai. Chi tiết trong
-`02b-numba-fix.md`.
+**Test:** `56 passed` (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`), 8 file test.
+
+**Việc tiếp theo:** `23` (nhỏ) → `09` (e2e trên Kaggle) → `10` → `11` → `13`. `14` (B0) và `24` (kanban)
+chạy song song được.
 
 ## Bảng ticket
 
-| # | Việc | Trạng thái | Phụ thuộc | Next action |
-|---|---|---|---|---|
-| 01 | Working copy MIT + pin `da93b27` | **done** | — | — |
-| 02 | Smoke test checkpoint + 1 sample | **done** | 02b | — |
-| 02b | Sửa môi trường Kaggle, chạy lại smoke test | **done** | 01 | — |
-| 03 | Velocity frame + ObjectPaste | **done** | 01 | — |
-| 04 | Dataset gate trên Kaggle (infos pkl, mini split) | **done** | 02b | — |
-| 05 | Evaluator core + synthetic tests | **done** | — | — |
-| 06 | Adapter evaluator cho output MIT | **done** | 02, 05 | mAP 0.298 trên frame thật |
-| 07 | Pipeline transform + `points_clean` | **done** | 03, 05 | 12/12 check |
-| 08 | Model forward routing | **done** `16517f1` | 07 | subclass + plumbing, 49 test, vendor giữ `da93b27` |
-| 19 | Kaggle code sync (dataset + kernel) | **ready-for-agent** | — | repo private ⇒ dataset private 2 MB |
-| 09 | End-to-end pipeline test | blocked | 07, 08, **19** | cần `mmdet3d` ⇒ phải chạy trên Kaggle |
-| 10 | Train/eval config A/B | blocked | 04, 09 | config theo arm A/B/B0 |
-| 11 | Mini A/B run + report | blocked | 06, 10 | chạy 1 seed T4, ghi report |
-| 12 | SemanticSpray statistics | **done** | — | — |
-| 13 | Gate review sau mini A/B | blocked | 11 | quyết định đi tiếp hay dừng |
-| 14 | Arm B0 — lọc spray rồi detect | ready-for-agent | 02, 05 | filter + frame list chốt với PM |
-| 16 | Đo hình học plume thật theo cự ly (SemanticSpray) | **done** `08f6715` | — | số: `docs/plume-geometry-vs-real.md` |
-| 17 | Sửa generator theo số đo của 16 (count theo cự ly + bẹp 0,64) | **done** `5d7c478` | — (16 xong) | S hiệu dụng **0,885**; 35 test |
-| 18 | Quét lại eligibility nuScenes (ego speed, scene count, bảng 2 chiều) | **done** — 3 lần push | — | số: `docs/nuscenes-eligibility.md` |
+| # | Việc | Trạng thái | Bằng chứng / next |
+|---|---|---|---|
+| 01 | Working copy MIT + pin `da93b27` | **done** | `mit/PIN.md` |
+| 02 | Smoke test checkpoint + 1 sample | **done** | 582/582, forward 0,6 s, mọi stage finite |
+| 02b | Sửa môi trường Kaggle, chạy lại smoke test | **done** | v15 ALL_PASS |
+| 03 | Velocity frame + ObjectPaste | **done** | `docs/velocity-contract.md` |
+| 04 | Dataset gate trên Kaggle | **done** | infos 120/120, load 1 sample |
+| 05 | Evaluator core + synthetic tests | **done** | `proxy_eval/matcher.py`, 8 test |
+| 06 | Adapter evaluator cho output MIT | **done** | mAP 0,298 (P 0,512 / R 0,524) |
+| 07 | Pipeline transform + `points_clean` | **done** | 12/12 check; scene-0796 +127 điểm |
+| 08 | Model forward routing | **done** `16517f1` | subclass `spray/`; param 16 → 16 |
+| 09 | End-to-end pipeline test | **ready-for-agent** | chặn cũ (19) đã gỡ; cần Kaggle GPU |
+| 10 | Train/eval config A/B | blocked | chờ 09 |
+| 11 | Mini A/B run + report | blocked | chờ 10 |
+| 12 | SemanticSpray statistics | **done** | `docs/semantic-spray-stats.md` |
+| 13 | Gate review sau mini A/B | blocked | chờ 11 |
+| 14 | Arm B0 — lọc spray rồi detect | ready-for-agent | chưa làm; chạy song song được |
+| 15 | Provenance của `PlumeConfig` | **done** `bc0da86`+`d1bf9bf` | `docs/plume-model-provenance.md` |
+| 16 | Đo hình học plume thật theo cự ly | **done** `08f6715` | 17,06 cụm/frame; 30/20/14/10/10 điểm/cụm |
+| 17 | Sửa generator theo số đo của 16 | **done** `5d7c478` | count theo cự ly; bẹp `S = 0,885` |
+| 18 | Quét lại eligibility nuScenes | **done** | eval set: 196 frame / 16 scene |
+| 19 | Kaggle code sync (dataset + kernel) | **done** `feb0a9e` | dataset private v3; kernel COMPLETE 516 s |
+| 20 | Visualize plume (ảnh + clip) | **done** `6143875` | 3 ảnh + 2 clip + `docs/figs/plume/index.html` |
+| 21 | Port cơ chế từ code thật | **done** `a4fdf24` | 40 km/h, offset 50 km/h, `T`, σ 1,1 |
+| 22 | Sửa lỗi tính hai lần + docs | **done** `75d210c` | `K = 2,51`; 8 cụm @80 km/h; 56 test |
+| 23 | Trần bán kính 1,0 m + tên cột 5 + docs `K`/`T` | ready-for-agent | 4 mục, nhỏ, không đổi hành vi |
+| 24 | `build_kanban.py` sinh board từ nguồn thật | ready-for-agent | DATA hard-code trong script ⇒ board luôn lệch |
 
-## Thứ tự hiện tại (2026-11-07, sau khi 16/18 xong)
+## Thứ tự hiện tại
 
 Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ học làm sau.**
 
 | Bước | Ticket | Trạng thái |
 |---|---|---|
-| 1 | **18** đo khả thi | ✅ xong → eval set = val, d≤50 m, 196 frame / 16 scene |
-| 2 | **16** đo hình học | ✅ xong → 17,0 điểm/cụm trung bình, giảm 3,0× theo cự ly, `r_range/r_extent` = 1,28 |
-| 3 | **17** sửa generator theo số | ✅ xong `5d7c478` — count theo cự ly, bẹp ×0,885 |
-| 4 | **08 → 09** | cơ học, không bị lật bởi 16/17 — 08 ✅ `16517f1`, 09 chờ Kaggle |
-| 5 | **10 → 11 → 13** | chốt eval set + generator final → mới sinh số |
-| 6 | **19** đưa code lên Kaggle | ✅ `feb0a9e` — dataset private v3, kernel `bevfusion-e2e` COMPLETE 516 s, 49 passed |
-| 7 | **21** port cơ chế từ code thật | ✅ `a4fdf24` — kích hoạt 40 km/h, count offset 50, lifetime `T`, σ 1,1 |
-| 8 | **22** sửa lỗi tính hai lần + docs | ✅ `75d210c` — `K = 2,51`, bỏ dropout; 8 cụm @80 km/h (cũ 0,73); 56 test |
-| 9 | **20** viz (ảnh + clip) | ⏭ **làm ngay** — generator đã ổn định sau 21–22 |
-| 10 | **23** tên cột 5 `time_lag` → `ring` + ghi bảng mật độ vào docs | chờ, nhỏ |
-
-`14` (B0) chạy song song được với `10–11`. `15` xong.
+| 1 | **23** dọn 3 chỉnh nhỏ | làm ngay, ~10 phút |
+| 2 | **09** e2e trên Kaggle | deps 07/08/19 đều xong; cần 1 run GPU |
+| 3 | **10 → 11 → 13** | config A/B → mini run → gate review |
+| // | **14** (B0), **24** (kanban) | chạy song song |
 
 ## Critical path
 
 `07` → `08` → `09` → `10` → `11` → `13`
 
 `14` (B0) chạy song song được với `10–11`; chỉ cần evaluator + model.
-
-`16 → 17` **độc lập với pipeline**: chỉ chạm `scripts/`, `spray/`, `tests/`, `docs/` — không cần GPU,
-không cần checkpoint. Có thể làm song song với `08`.
+`16 → 17` **đã xong** — độc lập với pipeline, chỉ chạm `scripts/`, `spray/`, `tests/`, `docs/`.
 
 ## Quyết định đã chốt — không mở lại
 
-- Pin MIT BEVFusion `da93b27`; không dùng HEAD. (`docs/adr/0001`)
-- v1 chỉ plume, không mô phỏng wet-ground/attenuation. (`docs/adr/0002`)
+- Pin MIT BEVFusion `da93b27`; không dùng HEAD. (`docs/adr/0001-mit-bevfusion-pin.md`)
+- v1 chỉ plume, không mô phỏng wet-ground/attenuation. (`docs/adr/0002-plume-only-first.md`)
 - Lý do **định lượng** để bỏ attenuation ở v1: hệ số tắt hiệu dụng **0,04 m⁻¹** = `exp(−2×0,02×d)`
-  [PAPER §III] × quãng xuyên thực tế 0,5–0,8 m (1–2 cụm r = 0,3 m) → intensity còn **98,0–96,9%** →
-  dưới ngưỡng lượng tử hoá intensity của nuScenes. Chỉ đáng làm nếu chuyển sang regime fully-watered
-  của paper (500–1.500 điểm/frame).
-- v1 đặt điểm plume trên **vỏ cầu phía cảm biến**, không trong khối cầu; không dựng beam grid/OSI
-  (ticket 16–17). Mật độ vẫn neo SemanticSpray, **không** phụ thuộc cự ly — nếu ticket 16 chứng minh
-  điều đó sai thì PM mở ticket 18.
-- Không train/eval detection trên SemanticSpray; chỉ dùng để calibrate + point-wise sanity check. (`docs/adr/0003`)
+  [PAPER §III] × quãng xuyên thực tế 0,5–0,8 m (1–2 cụm r = 0,3 m) → intensity còn **98,0–96,9%** → dưới
+  ngưỡng lượng tử hoá intensity của nuScenes. Chỉ đáng làm nếu chuyển sang regime fully-watered của paper
+  (500–1.500 điểm/frame).
+- ~~v1 đặt điểm plume trên **vỏ cầu phía cảm biến**~~ — **SAI, đã bác bỏ ở ticket 16–17.** Đo thật:
+  `r_range/r_extent` median **1,266** (n=690, p25 1,07 / p75 1,41) ⇒ cụm có bề dày theo tia, không phải vỏ
+  mỏng. v1 rải điểm **trong khối cầu** rồi bẹp theo phương tia `S = 0,885` để tái lập
+  `r_range/r_extent ≈ 1,28`. **Mật độ phụ thuộc cự ly** — bảng `30/20/14/10/10` điểm/cụm ở
+  0–5/5–10/10–20/20–30/30–50 m [ĐO ticket 16]; giả thuyết "mật độ không phụ thuộc cự ly" đã bị bác bỏ.
+  Không dựng beam grid/OSI.
+- Không train/eval detection trên SemanticSpray; chỉ dùng để calibrate + point-wise sanity check.
+  (`docs/adr/0003-semantic-spray-eval-only.md`)
 - Velocity của box đã ở LiDAR frame của keyframe hiện tại; plume phải chèn **sau** `GlobalRotScaleTrans`
-  và `RandomFlip3D`, **trước** `PointShuffle`; box do `ObjectPaste` set velocity = 0. (`docs/velocity-contract.md`)
+  và `RandomFlip3D`, **trước** `PointShuffle`; box do `ObjectPaste` set velocity = 0.
+  (`docs/velocity-contract.md`)
 - Ba arm: A = clean baseline, B = có plume, B0 = lọc spray rồi detect.
 - **Eval set (chốt 2026-11-07, ticket 18):** val split, box vehicle ≥50 km/h **phía trước** (`x>0`),
   `d ≤ 50 m`, **không lọc vận tốc ego** → **196 frame / 16 scene**; báo per-range 0–30 m (117 frame) và
@@ -94,26 +97,34 @@ không cần checkpoint. Có thể làm song song với `08`.
   - **Bỏ lọc ego** vì paper §III-A có kịch bản ego **đứng yên** (xe khác chạy ngang vẫn sinh plume);
     lọc ego ≥50 km/h làm val còn **0 frame**.
   - **Không dùng scene highway**: 0 scene highway trong val, chỉ 2 scene trên toàn bộ nuScenes.
-  - **Không tự chia lại trainval** để lấy thêm frame: checkpoint pretrained đã thấy 700 scene train →
-    eval trên đó là rò rỉ, kể cả khi không train thêm.
+  - **Không tự chia lại trainval** để lấy thêm frame: checkpoint pretrained đã thấy 700 scene train → eval
+    trên đó là rò rỉ, kể cả khi không train thêm.
   - Rủi ro đã biết: 16 scene → CI rộng; nếu G3#1 fail thì kết luận là "không đo được gap với n=16 scene",
     **không** phải "augment vô dụng".
 - **Số cũ 34.029 frame / 697 frame / 2,0% là toàn bộ trainval** (850 scene / 34.149 keyframe), không phải
   val split (150 / 6.019). Hàng đối chứng tái lập đúng (957 box / 698 frame, +0,53%) nên phép đo cũ đúng,
   chỉ nhãn sai. Đã đính chính `docs/velocity-contract.md`.
-- Kết quả dương trên plume tổng hợp là **cận trên lạc quan**, không chứng minh giúp spray thật. Camera branch
-  nhận `points_clean` nên lợi ích nếu có chỉ đến từ LiDAR.
+- Kết quả dương trên plume tổng hợp là **cận trên lạc quan**, không chứng minh giúp spray thật. Camera
+  branch nhận `points_clean` nên lợi ích nếu có chỉ đến từ LiDAR.
+- **`water_film_height` tính bằng MÉT.** `T = wfh·0,02·(v−50) + 0,2` với `wfh = 0,001 m` ⇒ số hạng tốc
+  độ chỉ `0,0004 s` ⇒ `T ≈ 0,20 s` và `K ≈ 2,51` ở mọi tốc độ. Nếu đọc `wfh = 1 mm` thành số `1,0` thì
+  `T(130 km/h) = 0,84 s`, `K ≈ 9` — **sai 3,6×**.
 
 ## Non-goals (không làm trong dự án này)
 
 - Không port model C++ ray-based của Linnhoff (occlusion, drag, beam/ray-sphere); không dựng OSI/beam angles.
-- Code tham chiếu của Linnhoff 2022 **đã publish** trên GitHub `openMSL/sl-1-2-reflection-based-lidar-object-model`
-  (MPL-2.0). v1 port 3 cơ chế: kích hoạt 40 km/h, số cụm theo 50 km/h (nhân hệ số trạng thái dừng `K`),
-  lifetime `T = wfh·0,02·(v−50) + 0,2` (không phải hằng 0,2 s) — chi tiết giá trị và số dòng ở
-  `docs/plume-model-provenance.md` §Code tham chiếu. Phần **không** port: occlusion, drag, ray-sphere/beam.
-  Occlusion trong model thật chỉ **thay thế các return yếu** (mặt đường, vật tối ở xa); xe thật intensity
-  4–40 gần như không bị che, nên v1 chỉ **thêm** điểm. Xếp lại nguồn lạc quan:
-  **(1) camera branch sạch, (2) số cụm, (3) lifetime, (4) drag, (5) occlusion.**
+- Code tham chiếu của Linnhoff 2022 **đã publish** trên GitHub
+  `openMSL/sl-1-2-reflection-based-lidar-object-model` (MPL-2.0), file
+  `src/model/strategies/lidar-environmental-effects-strategy/src/DetectionEnvironmentalEffects.cpp` (833 dòng).
+  v1 port 3 cơ chế: kích hoạt 40 km/h, số cụm theo offset 50 km/h (nhân hệ số trạng thái dừng `K`),
+  lifetime `T = wfh·0,02·(v−50) + 0,2`. Phần **không** port: occlusion, drag, ray-sphere/beam.
+  Occlusion trong model thật chỉ **thay thế các return yếu** (`power = intensity/d²`; xe nuScenes intensity
+  4–40 thắng 8–80× so với spray ở 25 m) nên ảnh hưởng lên điểm của xe **<3%**; v1 chỉ **thêm** điểm.
+  Xếp lại nguồn lạc quan: **(1) camera branch sạch, (2) số cụm, (3) lifetime, (4) drag, (5) occlusion.**
+- Không mô phỏng wet pavement: cloud nuScenes là **đo thật**; code tham chiếu chỉ **gán lại intensity**
+  điểm mặt đường trong dải ngang 2–7 m (`dee.cpp:345–377`), không xoá điểm.
+- Không mô phỏng **self-spray** (bụi nước sau chính ego) — có thấy trong clip A ở x ≈ −4,5 m nhưng nằm
+  ngoài eval set A (`x > 0`).
 - Không tune hyperparameter, không multi-seed ở v1 (1 seed T4, kết quả chỉ mang tính hướng).
 - Không hứa hẹn cải thiện trên spray thật.
 

@@ -34,7 +34,7 @@ augmentation plume có làm giảm mức mất đó không?
 | `mit/bevfusion` | working copy MIT pinned `da93b27` (**gitignored**) | — |
 | `kaggle/smoke_test/` | kernel build env + checkpoint + ticket 04/06/07 | xong |
 | `kaggle/eligibility/` | kernel đo eligibility nuScenes (CPU, không checkpoint) | xong (ticket 18) |
-| `tests/` | 35 test, chạy được trên laptop không cần GPU | 35 passed |
+| `tests/` | 56 test, chạy được trên laptop không cần GPU | 56 passed |
 | `.scratch/spray-augmentation/` | spec, STATUS, 18 ticket | nguồn sự thật của tiến độ |
 
 ---
@@ -200,6 +200,6 @@ Năm điều kiện để được nói "thành công" — chốt trước, khô
 
 ## 10. Trạng thái ngắn
 
-Xong: 01, 02, 02b, 03, 04, 05, 06, 07, 12, 15, 16, 17, 18. Test: **35 passed**.
-Tiếp theo: **16 → 17** (làm generator cho đúng hình dạng) → **08 → 09** (routing + e2e) → **10 → 11**
-(chạy 3 arm) → **13** (cổng kết luận). Chi tiết thứ tự và lý do: `STATUS.md`.
+Xong: 01, 02, 02b, 03, 04, 05, 06, 07, 08, 12, 15, 16, 17, 18, 19, 20, 21, 22. Test: **56 passed**.
+Tiếp theo: **23** (3 chỉnh nhỏ) → **09** (e2e trên Kaggle) → **10 → 11** (chạy 3 arm) → **13** (cổng kết luận).
+Chi tiết thứ tự và lý do: `STATUS.md`.

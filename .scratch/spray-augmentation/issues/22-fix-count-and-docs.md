@@ -57,10 +57,17 @@ Bảng cũ trong docs (`1.330 → 1.057`, `−21%`) sinh bằng công thức tr�
 
 ## Nghiệm thu
 
-- `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/` → **≥55 passed**
-- in bảng mật độ mới + bảng cũ cạnh nhau
-- grep `"lạc quan nhất"` phải về **0**; grep `0,02 m⁻¹` phải về 0 (còn 0,04)
-- không đụng `mit/`, `third_party/`, không đổi `PlumeConfig` ngoài `lifetime_*`
-- commit: `fix(plume): remove double lifetime penalty (steady-state cluster count); correct occlusion/attenuation docs`
+- [x] `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/` → **≥55 passed** → thực tế
+      **56 passed** (PM tự chạy tại `75d210c`, 2026-11-07)
+- [x] in bảng mật độ mới + bảng cũ cạnh nhau → `scripts/plume_density_table.py`: cũ `1.330 → 1.057 (−21%)`,
+      mới `5.000 → 7.335 (+47%)`, 120 cụm. **Caveat**: bảng mới chạy trên nền **1.000 điểm tổng hợp**
+      (nuScenes không có local) ⇒ không trích `+47%` vào docs như số của frame thật
+- [x] grep `"lạc quan nhất"` phải về **0**; grep `0,02 m⁻¹` phải về 0 (còn 0,04) → cả hai đều **0**
+- [x] không đụng `mit/`, `third_party/`; `mit/bevfusion` vẫn `da93b27`; không đổi `PlumeConfig` ngoài `lifetime_*`
+- [x] commit: `fix(plume): remove double lifetime penalty (steady-state cluster count); correct occlusion/attenuation docs`
+      → `75d210c`, tree sạch
+
+**PM nghiệm thu 2026-11-07 15:20.** Đo lại sau ticket: 60→3, 80→**8**, 100→13, 130→20 cụm/frame; còn thiếu
+**2,1×** so với 17,06 đo thật (phần còn lại do `wfh` chưa biết — agent **không** tự nâng tham số, đúng yêu cầu).
 
 <!-- END -->
