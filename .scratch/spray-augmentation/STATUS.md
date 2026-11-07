@@ -1,6 +1,6 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-05 16:05 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-07 09:10 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
 **Đọc file này trước khi mở bất kỳ ticket nào.** Ticket là chi tiết; file này là thứ tự và phạm vi.
 
 ## Mục tiêu một câu
@@ -8,49 +8,60 @@
 Chứng minh bằng thí nghiệm paired A/B rằng augment spray plume vào nhánh LiDAR của BEVFusion làm giảm
 khoảng cách giữa mAP trên frame sạch và frame có spray — đo trên nuScenes, không train trên SemanticSpray.
 
-## Blocker duy nhất đang chặn toàn bộ dự án
+## Trạng thái hiện tại
 
-**Ticket 02b — môi trường Kaggle.** Lần chạy mới nhất: `ops_built_and_gpu_smoke=true`, checkpoint load sạch
-(0 missing / 0 unexpected), pin đúng — nhưng `model_built=false` vì harness đọc `vtransform.out_channels`
-(không tồn tại trên `DepthLSSTransform`). Kết quả thật là **3/6 tiêu chí**, không phải all-pass. Fix đã
-commit (`e3b4c08`, `71a7ab1`) nhưng **chưa push** — lần chạy cuối xảy ra trước commit đó.
-Mọi ticket từ 04 trở đi đều cần một forward thật, nên **không mở song song việc khác** cho tới khi 02b xanh.
+**02b đã xong; preconditions 1–6 PASS.** Ticket 02 ALL_PASS (582/582, forward finite), dataset gate 04 xong
+(infos 120/120 + load sample), ticket 06 adapter evaluator xong (mAP 0.298 trên frame thật), ticket 07
+`PlumeTransform` pass 12/12 check. Spec đã flip `ready-for-agent`.
 
-Chuỗi nguyên nhân đã chốt (đừng điều tra lại): thiếu `numba` → uv không resolve được torch → escape `%`
-trong `git log --format` → thiếu CUDA dev headers (`cusparse.h`, `cusolverDn.h`) → host compiler
-`gcc-13` không hợp CUDA 11.8 → tên package apt sai (`cuda-cusparse-dev-11-8` không tồn tại).
-Trạng thái từng version và bảng mapping header→package nằm trong `02b-numba-fix.md`.
+Việc tiếp theo: **08 (model routing)** → 09 → 10 → 11 → 13; 14 chạy song song; 16 → 17 độc lập với
+pipeline (chỉ chạm `scripts/`, `spray/`, `tests/`, `docs/`).
+
+Lịch sử fix môi trường: thiếu `numba` → uv không resolve được torch → escape `%` trong `git log --format`
+→ thiếu CUDA dev headers → `gcc-13` không hợp CUDA 11.8 → tên package apt sai. Chi tiết trong
+`02b-numba-fix.md`.
 
 ## Bảng ticket
 
 | # | Việc | Trạng thái | Phụ thuộc | Next action |
 |---|---|---|---|---|
 | 01 | Working copy MIT + pin `da93b27` | **done** | — | — |
-| 02 | Smoke test checkpoint + 1 sample | ready-for-agent | 02b | chờ 02b xanh rồi điền số |
-| 02b | Sửa môi trường Kaggle, chạy lại smoke test | **ready-for-agent → đang chặn** | 01 | CommandCode xử lý (v12 đang chạy) |
-| 03 | Velocity frame + ObjectPaste | **done 3/4** | 01 | số đếm box eligible chuyển sang 04 |
-| 04 | Dataset gate trên Kaggle (infos pkl, mini split) | ready-for-agent | 02b | tạo `nuscenes_infos_{train,val}.pkl` |
+| 02 | Smoke test checkpoint + 1 sample | **done** | 02b | — |
+| 02b | Sửa môi trường Kaggle, chạy lại smoke test | **done** | 01 | — |
+| 03 | Velocity frame + ObjectPaste | **done** | 01 | — |
+| 04 | Dataset gate trên Kaggle (infos pkl, mini split) | **done** | 02b | — |
 | 05 | Evaluator core + synthetic tests | **done** | — | — |
-| 06 | Adapter evaluator cho output MIT | ready-for-agent | 02 | map output → format evaluator |
-| 07 | Pipeline transform + `points_clean` | ready-for-agent | 03, 05 | transform sau flip, đăng ký `PIPELINES` |
-| 08 | Model forward routing | ready-for-agent | 06, 07 | route `points_clean` vào camera branch |
-| 09 | End-to-end pipeline test | ready-for-agent | 07, 08 | test tích hợp, không cần GPU |
-| 10 | Train/eval config A/B | ready-for-agent | 04, 09 | config theo arm A/B/B0 |
-| 11 | Mini A/B run + report | ready-for-agent | 10 | chạy 1 seed T4, ghi report |
+| 06 | Adapter evaluator cho output MIT | **done** | 02, 05 | mAP 0.298 trên frame thật |
+| 07 | Pipeline transform + `points_clean` | **done** | 03, 05 | 12/12 check |
+| 08 | Model forward routing | ready-for-agent | 07 | route `points_clean` vào camera branch |
+| 09 | End-to-end pipeline test | blocked | 07, 08 | test tích hợp, không cần GPU |
+| 10 | Train/eval config A/B | blocked | 04, 09 | config theo arm A/B/B0 |
+| 11 | Mini A/B run + report | blocked | 06, 10 | chạy 1 seed T4, ghi report |
 | 12 | SemanticSpray statistics | **done** | — | — |
-| 13 | Gate review sau mini A/B | ready-for-agent | 11 | quyết định đi tiếp hay dừng |
-| 14 | Arm B0 — lọc spray rồi detect | ready-for-agent | 09 | vị trí + tham số filter cần PM chốt |
+| 13 | Gate review sau mini A/B | blocked | 11 | quyết định đi tiếp hay dừng |
+| 14 | Arm B0 — lọc spray rồi detect | ready-for-agent | 02, 05 | filter + frame list chốt với PM |
+| 16 | Đo hình học plume thật theo cự ly (SemanticSpray) | **ready-for-agent** | — | CommandCode chạy ngay được, không cần Kaggle |
+| 17 | Đặt điểm trên vỏ cầu phía cảm biến | blocked | 16 | chờ số `r_range/r_extent` của 16 |
 
 ## Critical path
 
-`02b` → `04` → `06` → `07` → `08` → `09` → `10` → `11` → `13`
+`07` → `08` → `09` → `10` → `11` → `13`
 
-`14` (B0) chạy song song được với `10–11` vì chỉ cần pipeline của `09`.
+`14` (B0) chạy song song được với `10–11`; chỉ cần evaluator + model.
+
+`16 → 17` **độc lập với pipeline**: chỉ chạm `scripts/`, `spray/`, `tests/`, `docs/` — không cần GPU,
+không cần checkpoint. Có thể làm song song với `08`.
 
 ## Quyết định đã chốt — không mở lại
 
 - Pin MIT BEVFusion `da93b27`; không dùng HEAD. (`docs/adr/0001`)
 - v1 chỉ plume, không mô phỏng wet-ground/attenuation. (`docs/adr/0002`)
+- Lý do **định lượng** để bỏ attenuation ở v1: hệ số tắt 0,02 m⁻¹ [PAPER §III] × quãng xuyên thực tế
+  0,5–0,8 m (1–2 cụm r = 0,3 m) → intensity còn 98,4–99% → dưới ngưỡng lượng tử hoá intensity của
+  nuScenes. Chỉ đáng làm nếu chuyển sang regime fully-watered của paper (500–1.500 điểm/frame).
+- v1 đặt điểm plume trên **vỏ cầu phía cảm biến**, không trong khối cầu; không dựng beam grid/OSI
+  (ticket 16–17). Mật độ vẫn neo SemanticSpray, **không** phụ thuộc cự ly — nếu ticket 16 chứng minh
+  điều đó sai thì PM mở ticket 18.
 - Không train/eval detection trên SemanticSpray; chỉ dùng để calibrate + point-wise sanity check. (`docs/adr/0003`)
 - Velocity của box đã ở LiDAR frame của keyframe hiện tại; plume phải chèn **sau** `GlobalRotScaleTrans`
   và `RandomFlip3D`, **trước** `PointShuffle`; box do `ObjectPaste` set velocity = 0. (`docs/velocity-contract.md`)

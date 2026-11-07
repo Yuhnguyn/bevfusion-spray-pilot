@@ -1,0 +1,43 @@
+{
+ "_provenance": {
+  "source": "kaggle kernel nguynhuy9669/bevfusion-smoke-test",
+  "pin": "da93b27",
+  "checkpoint_sha256": "ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122",
+  "selection": "val infos record used for this frame"
+ },
+ "token": "88a090c54cc844cc878f00d08274a683",
+ "timestamp": 1531885320049418,
+ "lidar_path": "/kaggle/working/data/nuscenes/samples/LIDAR_TOP/n015-2018-07-18-11-41-49+0800__LIDAR_TOP__1531885320049418.pcd.bin",
+ "gt_boxes": [
+  [
+   -24.203807423376674,
+   52.72056927705781,
+   2.7493426826963696,
+   0.481,
+   0.5,
+   1.496,
+   -0.45948402205115646
+  ],
+  [
+   -17.015962908807982,
+   65.52787415389014,
+   3.267685258849898,
+   1.697,
+   4.124,
+   1.647,
+   1.0361933337384888
+  ]
+ ],
+ "gt_names": [
+  "pedestrian",
+  "car"
+ ],
+ "valid_flag": [
+  true,
+  true
+ ],
+ "num_lidar_pts": [
+  1,
+  1
+ ]
+}

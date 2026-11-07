@@ -1,0 +1,94 @@
+{
+ "status": "ok",
+ "primary": {
+  "index": 84,
+  "token": "f56a544064a548a39a81f18cc8f633c5",
+  "num_gt_raw": 42,
+  "num_sweeps": 0,
+  "num_points": 252942,
+  "img_shape": [
+   6,
+   3,
+   256,
+   704
+  ],
+  "predictions": 200,
+  "score_max": 0.7825040817260742,
+  "predictions_ge_0_05": 43,
+  "label_histogram": {
+   "car": 43,
+   "truck": 15,
+   "trailer": 1,
+   "construction_vehicle": 4,
+   "bicycle": 7,
+   "motorcycle": 2,
+   "pedestrian": 5,
+   "traffic_cone": 84,
+   "barrier": 39
+  }
+ },
+ "secondary": {
+  "index": 0,
+  "token": "88a090c54cc844cc878f00d08274a683",
+  "num_gt_raw": 2,
+  "num_sweeps": 0,
+  "num_points": 249853,
+  "img_shape": [
+   6,
+   3,
+   256,
+   704
+  ],
+  "predictions": 200,
+  "score_max": 0.015354976989328861,
+  "predictions_ge_0_05": 0,
+  "label_histogram": {
+   "car": 2,
+   "truck": 3,
+   "trailer": 3,
+   "bus": 2,
+   "construction_vehicle": 6,
+   "bicycle": 12,
+   "motorcycle": 2,
+   "pedestrian": 20,
+   "traffic_cone": 113,
+   "barrier": 37
+  }
+ },
+ "class_names": [
+  "car",
+  "truck",
+  "trailer",
+  "bus",
+  "construction_vehicle",
+  "bicycle",
+  "motorcycle",
+  "pedestrian",
+  "traffic_cone",
+  "barrier"
+ ],
+ "num_infos": 120,
+ "use_valid_flag": false,
+ "dropped_transforms": [
+  "LoadBEVSegmentation",
+  "Collect3D.gt_masks_bev"
+ ],
+ "config_files": [
+  "/root/bevfusion_smoke/bevfusion/configs/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml"
+ ],
+ "checkpoint": {
+  "ok": true,
+  "sha256": "ee0a389213922343508db40dff0ec04767b36d8f512da34b093939c37aaf2122"
+ },
+ "build": {
+  "init_cfg_disabled": true
+ },
+ "torch": "1.10.1+cu113"
+}

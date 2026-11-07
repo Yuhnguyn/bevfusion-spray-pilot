@@ -52,6 +52,12 @@ PHASES = [
         "desc": "Thống kê spray thật để kiểm tra simulator (không dùng để train/eval).",
         "tickets": ["12"],
     },
+    {
+        "id": "P6",
+        "name": "Hình học plume",
+        "desc": "Đo dạng cụm thật và đổi cách rải điểm sang vỏ cầu phía cảm biến.",
+        "tickets": ["16", "17"],
+    },
 ]
 
 META = {
@@ -106,21 +112,21 @@ META = {
     "06": {
         "short": "Chuyển output thật của BEVFusion (class, box format, score) sang định dạng evaluator hiểu, rồi chấm một frame thật.",
         "why": "Evaluator core đã có, nhưng output model khác format. Adapter là cầu nối; đây là precondition 5.",
-        "next": "Bắt đầu ngay — đây là precondition 5 cuối cùng trước khi flip spec.",
-        "evidence": "Chưa có — 0/4. Có thể dùng frame vừa load ở ticket 04.",
-        "files": [".scratch/spray-augmentation/issues/06-evaluator-adapter.md"],
+        "next": "Đã xong.",
+        "evidence": "Frame thật: TP 22 / FP 21 / FN 20, P 0.512, R 0.524, mAP 0.298; threshold 0.05, range 54 m. Test 2 + suite 33 passed.",
+        "files": [".scratch/spray-augmentation/issues/06-evaluator-adapter.md", "proxy_eval/mit_adapter.py", "kaggle/smoke_test/evidence/mit_eval_result.json"],
     },
     "07": {
         "short": "Viết transform chèn plume vào point cloud, giữ lại bản 'sạch' trước khi chèn để camera branch dùng.",
         "why": "Camera branch cần point sạch làm sparse depth; LiDAR branch cần point đã có plume. Không tách thì hai nhánh nhìn sai dữ liệu.",
-        "next": "Có thể bắt đầu: ticket 04 đã xong.",
-        "evidence": "0/4.",
-        "files": [".scratch/spray-augmentation/issues/07-pipeline-transform.md", "spray/plume.py"],
+        "next": "Đã xong.",
+        "evidence": "scene-0796: points_clean 255,456 → 255,583 (+127); 2 eligible, 4 cluster; 12/12 checks true.",
+        "files": [".scratch/spray-augmentation/issues/07-pipeline-transform.md", "spray/plume_transform.py"],
     },
     "08": {
         "short": "Sửa model để nhánh camera nhận points_clean, nhánh LiDAR nhận points đã chèn plume.",
         "why": "Không patch thì camera vẫn nhận point có spray → sai thiết kế thí nghiệm.",
-        "next": "Sau ticket 07.",
+        "next": "Bắt đầu ngay: ticket 07 đã xong.",
         "evidence": "0/4.",
         "files": [".scratch/spray-augmentation/issues/08-model-routing.md"],
     },
@@ -166,6 +172,20 @@ META = {
         "evidence": "0/5; paper báo ROR precision ~50%.",
         "files": [".scratch/spray-augmentation/issues/14-denoise-baseline.md"],
     },
+    "16": {
+        "short": "Đo trên SemanticSpray: số điểm/cụm, bán kính, độ dày vỏ, số ring theo cự ly — để kiểm tra generator đang rải đều trong khối cầu.",
+        "why": "Nếu cụm thật là vỏ mỏng và mật độ giảm theo cự ly, cách sinh hiện tại dạy model sai cấu trúc.",
+        "next": "Chạy mở rộng scripts/semantic_spray_stats.py; không sửa generator.",
+        "evidence": "Chưa có — cần 3 bảng số theo bucket cự ly.",
+        "files": ["scripts/semantic_spray_stats.py", "docs/semantic-spray-stats.md", ".scratch/spray-augmentation/issues/16-plume-geometry-research.md"],
+    },
+    "17": {
+        "short": "Đặt điểm plume trên vỏ cầu phía cảm biến thay vì trong khối cầu.",
+        "why": "Điểm ở nửa sau/lòng cầu là vị trí LiDAR không thể có return; cấu trúc sai làm augmentation vô nghĩa.",
+        "next": "Chờ ticket 16 có median r_range/r_extent.",
+        "evidence": "Chưa có; cần test hình học mới.",
+        "files": ["spray/plume.py", "tests/test_plume.py", "docs/plume-model-provenance.md", ".scratch/spray-augmentation/issues/17-plume-shell-geometry.md"],
+    },
     "15": {
         "short": "Sửa docstring/trích dẫn của PlumeConfig cho đúng paper Linnhoff §III/Fig.4; không đổi code hay tham số.",
         "why": "Tránh hiểu sai nguồn gốc tham số; PM từng nói sai là paper không có.",
@@ -181,6 +201,18 @@ META = {
 }
 
 TIMELINE = [
+    {
+        "when": "2026-11-07 · Kaggle",
+        "tone": "good",
+        "title": "Ticket 06 — adapter evaluator",
+        "body": "Model chạy 2 frame thật; evaluator local cho mAP 0.298 (P 0.512 / R 0.524), frame thứ hai chứng minh range filter (2 GT ngoài 54 m).",
+    },
+    {
+        "when": "2026-11-07 · Kaggle",
+        "tone": "good",
+        "title": "Ticket 07 — PlumeTransform",
+        "body": "scene-0796: +127 điểm, points_clean giữ nguyên 255,456; 12/12 check pass, transform đúng vị trí sau range filter.",
+    },
     {
         "when": "2026-11-05 · v19",
         "tone": "good",
@@ -333,7 +365,7 @@ def main():
         t["phase"] = phase_of.get(t["id"], "P0")
         t["blocked_labels"] = [
             b for b in t["blockers"] if b in by_id and by_id[b]["kind"] != "done"
-        ] or t["blockers"]
+        ]
 
     total_boxes = sum(t["total"] for t in tickets)
     done_boxes = sum(t["done"] for t in tickets)
@@ -350,13 +382,13 @@ def main():
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "spec": {
             "version": "1.5",
-            "status": "needs-triage",
-            "note": "Preconditions 1, 2, 3, 4, 6 pass. Chỉ còn 5 (evaluator adapter) trước khi flip ready-for-agent.",
+            "status": "ready-for-agent",
+            "note": "Preconditions 1–6 pass. Ticket 06/07 done; ticket 08 là việc tiếp theo.",
         },
         "focus": {
-            "ticket": "06",
-            "headline": "Ticket 04 đã xong — chuyển sang evaluator adapter (06)",
-            "detail": "v19 đã load được 1 sample thật. Ticket 06 nối output model vào evaluator; đây là precondition 5 cuối cùng, xong thì flip spec sang ready-for-agent.",
+            "ticket": "08",
+            "headline": "Ticket 06 + 07 xong — chuyển sang model routing (08)",
+            "detail": "Adapter cho mAP 0.298 trên frame thật; PlumeTransform pass 12/12 check. Ticket 08 nối points_clean vào camera branch và points vào LiDAR branch.",
         },
         "overall": {
             "tickets": len(tickets),

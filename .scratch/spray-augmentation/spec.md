@@ -1,7 +1,7 @@
 # Spec — Spray plume augmentation cho BEVFusion (MIT)
 
 Version: 1.5
-Status: needs-triage — preconditions 1, 2, 3, 4, 6 **PASS** 2026-11-05; 5 blocked on ticket 06 (evaluator adapter)
+Status: ready-for-agent — preconditions 1–6 **PASS** 2026-11-05/07 (ticket 06 adapter + ticket 07 transform done)
 
 > Status flips to `ready-for-agent` only after the preconditions below pass.
 > Changes this round: model forward patch made explicit; plume placement uses velocity direction; velocity frame marked for verification; plume generator reduced to a v1-minimal form; evidence-ladder stages gated behind a positive mini signal; tensor-hash test replaced.

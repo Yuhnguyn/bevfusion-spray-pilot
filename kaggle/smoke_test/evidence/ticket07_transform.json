@@ -1,0 +1,70 @@
+{
+ "frame_index": 0,
+ "token": "c1676a2feac74eee8aa38ca3901787d6",
+ "pipeline": [
+  "LoadMultiViewImageFromFiles",
+  "LoadPointsFromFile",
+  "LoadPointsFromMultiSweeps",
+  "LoadAnnotations3D",
+  "ImageAug3D",
+  "GlobalRotScaleTrans",
+  "PointsRangeFilter",
+  "PlumeTransform",
+  "ImageNormalize",
+  "DefaultFormatBundle3D",
+  "Collect3D"
+ ],
+ "dropped_transforms": [
+  "LoadBEVSegmentation",
+  "Collect3D.gt_masks_bev"
+ ],
+ "config_files": [
+  "/root/bevfusion_smoke/bevfusion/configs/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/default.yaml",
+  "/root/bevfusion_smoke/bevfusion/configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml"
+ ],
+ "points_clean": 255456,
+ "points_augmented": 255583,
+ "stats": {
+  "eligible_boxes": 2,
+  "skipped_no_velocity": 5,
+  "skipped_low_speed": 11,
+  "clusters": 4,
+  "injected": 127,
+  "rejected_range": 0,
+  "rejected_box": 0,
+  "capped": 0
+ },
+ "gt_boxes": 19,
+ "batch_shapes": {
+  "points_clean": [
+   255456,
+   5
+  ],
+  "points": [
+   255583,
+   5
+  ]
+ },
+ "collate_error": null,
+ "checks": {
+  "points_clean_equals_off_points": true,
+  "spray_off_clean_equals_points": true,
+  "injected_count_matches_stats": true,
+  "injected_positive": true,
+  "clean_count_matches_frame": true,
+  "no_injected_point_inside_gt_box": true,
+  "deterministic_same_seed": true,
+  "plume_after_range_filter": true,
+  "plume_before_format": true,
+  "points_clean_collected": true,
+  "spray_stats_collected": true,
+  "collate_points_clean": true
+ },
+ "pass": true
+}

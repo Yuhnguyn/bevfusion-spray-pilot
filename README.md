@@ -6,11 +6,11 @@ Cách làm: một pilot nhỏ, train hai arm A/B trên cùng frame. Arm A train 
 
 ## Trạng thái
 
-- Spec: `.scratch/spray-augmentation/spec.md` (v1.3, `needs-triage`).
+- Spec: `.scratch/spray-augmentation/spec.md` (v1.5, **`ready-for-agent`**; preconditions 1–6 pass).
 - ADR: `docs/adr/0001` pin MIT commit `da93b27`, `0002` plume-only-first, `0003` SemanticSpray chỉ để hiệu chỉnh thống kê.
-- Đã có code: `spray/plume.py` (sinh plume), `spray/spray_stats.py` (thống kê spray thật), `proxy_eval/matcher.py` (proxy mAP/FP/recall). Test: 26 passed (laptop CPU).
-- Ticket xong: 01 (pin), 05 (evaluator), 12 (stats). Ticket 03/04 xong phần chính.
-- **Blocker: ticket 02** — smoke test checkpoint + 1 sample trên Kaggle. Notebook viết xong (`kaggle/smoke_test/`), chưa push/run. Ticket 06–11 chờ ticket 02.
+- Đã có code: `spray/plume.py` (sinh plume), `spray/plume_transform.py` (pipeline transform + `points_clean`), `spray/spray_stats.py` (thống kê spray thật), `proxy_eval/matcher.py` (proxy mAP/FP/recall), `proxy_eval/mit_adapter.py` (output MIT → evaluator). Test: **33 passed** (laptop CPU).
+- Ticket xong: 01, 02, 02b, 03, 04, 05, 06, 07, 12. Ticket tiếp theo: 08 (model routing), rồi 09 → 10 → 11 → 13.
+- Bằng chứng Kaggle: `kaggle/smoke_test/evidence/` (ticket 02/04/06/07).
 
 ## Cấu trúc
 

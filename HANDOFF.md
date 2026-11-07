@@ -5,10 +5,11 @@ Repo: https://github.com/Yuhnguyn/bevfusion-spray-pilot
 
 ## TL;DR
 
-- Preconditions **1, 2, 3, 4, 6 đã PASS**. Chỉ còn **precondition 5 = ticket 06 (evaluator adapter)**.
-- Ticket 04 vừa xong trên Kaggle **v19** (`TICKET04_OK`): infos train/val **120/120**, load được 1 sample qua pipeline.
-- Việc tiếp theo: **implement ticket 06** → flip spec `ready-for-agent` → 07 → 08 → 09 → 10 → 11.
-- **Quyết định đang chờ:** ngưỡng plume 50 km/h chỉ phủ **2.0%** frame val (697/34,029); 30 km/h phủ **13.8%** (4,690). Chốt trước ticket 07/10/11.
+- **Preconditions 1–6 PASS**; spec đã flip **`ready-for-agent`**.
+- Ticket 06 (adapter evaluator) xong: frame thật **mAP 0.298**, P 0.512 / R 0.524; threshold 0.05, range 54 m.
+- Ticket 07 (`PlumeTransform`) xong: scene-0796, +127 điểm, 12/12 check pass.
+- Việc tiếp theo: **ticket 08 (model routing)** → 09 → 10 → 11 → 13; 14/15/16 chạy song song được.
+- **Quyết định đang chờ:** ngưỡng plume 50 km/h chỉ phủ **2.0%** frame val (697/34,029); 30 km/h phủ **13.8%** (4,690). Chốt trước ticket 10/11.
 
 ## Trạng thái ticket
 
@@ -20,16 +21,18 @@ Repo: https://github.com/Yuhnguyn/bevfusion-spray-pilot
 | 03 Velocity contract | done | `docs/velocity-contract.md` + số đo 34k frame |
 | 04 Dataset gate | done | infos 120/120, load 1 sample (v19) |
 | 05 Evaluator core | done | pytest synthetic |
-| **06 Evaluator adapter** | **ready — làm tiếp** | precondition 5 |
-| 07 Pipeline transform | ready | ticket 04 đã xong |
-| 08 Model routing | blocked | chờ 07 |
-| 09 Pipeline e2e | blocked | chờ 07, 08 |
-| 10 Train/eval config | blocked | chờ 02, 04, 09 |
-| 11 Mini A/B | blocked | chờ 06, 10 |
+| 06 Evaluator adapter | done | mAP 0.298 trên frame thật; `proxy_eval/mit_adapter.py` |
+| 07 Pipeline transform | done | scene-0796, 12/12 check; `spray/plume_transform.py` |
+| **08 Model routing** | **ready — làm tiếp** | nối `points_clean` vào camera, `points` vào LiDAR |
+| 09 Pipeline e2e | blocked | chờ 08 |
+| 10 Train/eval config | blocked | chờ 09 |
+| 11 Mini A/B | blocked | chờ 10 |
 | 12 SemanticSpray stats | done | so sánh cluster |
 | 13 Gate review | blocked | chờ 11 |
-| 14 Denoise B0 | ready | chờ không còn — 02,05 xong |
+| 14 Denoise B0 | ready | 02,05 xong |
 | 15 Plume provenance | ready | việc nhỏ, docstring |
+| 16 Plume geometry research | ready | đo hình học thật theo cự ly |
+| 17 Plume shell geometry | blocked | chờ số đo của 16 |
 
 Chi tiết từng ticket: `.scratch/spray-augmentation/issues/`.
 
@@ -39,25 +42,31 @@ Chi tiết từng ticket: `.scratch/spray-augmentation/issues/`.
 2. Smoke test checkpoint + forward — PASS
 3. Checkpoint fused + hash — PASS (`ee0a3892…2122`)
 4. Dataset gate (infos + load sample) — PASS (v19)
-5. Evaluator trên frame MIT thật — **PENDING = ticket 06**
+5. Evaluator trên frame MIT thật — PASS (mAP 0.298; ticket 06)
 6. Velocity contract — PASS
 
-Spec: `.scratch/spray-augmentation/spec.md` (Status: `needs-triage`; chỉ flip khi 5 pass).
+Spec: `.scratch/spray-augmentation/spec.md` (Status: **`ready-for-agent`**; preconditions 1–6 pass).
 
 ## Kaggle
 
 - Kernel: https://www.kaggle.com/code/nguynhuy9669/bevfusion-smoke-test
-- Version mới nhất: **v19 COMPLETE**, log có `TICKET04_OK`.
+- Version mới nhất: **COMPLETE** (pull ngày 2026-11-07); log có `TICKET04_OK`,
+  `TICKET06_OK`, `TICKET07_OK`.
 - Lấy output:
   ```bash
-  kaggle kernels output nguynhuy9669/bevfusion-smoke-test -p /tmp/k7
+  kaggle kernels output nguynhuy9669/bevfusion-smoke-test -p /tmp/k8out
   ```
-- Artifacts quan trọng trong `/tmp/k7/smoke_test/artifacts/`:
+- Artifacts trong `/tmp/k8out/smoke_test/artifacts/`:
   - `report.json` — 6/6 tiêu chí ticket 02
-  - `infos.json` — train 120 / val 120, 109 s
-  - `dataset_sample.json` — load index 0, 6 camera, 0 sweep, không thiếu ảnh
+  - `infos.json` — train 120 / val 120
+  - `dataset_sample.json` — load 1 sample, 6 camera, 0 sweep
   - `checkpoint.json` — 582/582, sha `ee0a3892…2122`
-- Notebook: `kaggle/smoke_test/bevfusion-smoke-test.ipynb` (cell 17 = ticket 04b); bản tách từng bước ở `kaggle/smoke_test/cells/`.
+  - `eval_frame.json`, `real_frame_*` — model chạy 2 frame thật (ticket 06)
+  - `ticket07_infos.json`, `ticket07_transform.json` — PlumeTransform scene-0796
+- Bản sao JSON nhỏ đã commit ở `kaggle/smoke_test/evidence/`; `mit_eval_result.json`
+  là kết quả evaluator local.
+- Notebook: `kaggle/smoke_test/bevfusion-smoke-test.ipynb` (cell 17–21 = ticket 04/06/07);
+  bản tách từng bước ở `kaggle/smoke_test/cells/`.
 - Push lại kernel: `kaggle kernels push -p kaggle/smoke_test` (~13 phút). Không đổi pin.
 
 ## Phát hiện quan trọng (2026-11-05)
@@ -128,26 +137,24 @@ lớn, và mọi thứ tái tạo được từ repo + `HANDOFF.md`.
 
 ```text
 Bạn tiếp quản repo bevfusion-spray-pilot. Đọc HANDOFF.md ở root, spec
-.scratch/spray-augmentation/spec.md, và ticket 06
-.scratch/spray-augmentation/issues/06-evaluator-adapter.md (cùng ticket 05 và
-mục Interface contract trong spec).
+.scratch/spray-augmentation/spec.md (đã ready-for-agent), và ticket 08
+.scratch/spray-augmentation/issues/08-model-routing.md (xem thêm ticket 07
+và mục Interface contract trong spec).
 
-Nhiệm vụ: implement ticket 06 — adapter đưa output thật của BEVFusion MIT vào
-evaluator core, chấm một frame thật, có test kiểm tra tay được. Đây là
-precondition 5 cuối cùng. Dùng frame thật đã load được ở ticket 04 (v19) và
-evaluator core đã có ở ticket 05.
+Nhiệm vụ: implement ticket 08 — model forward routing. Camera branch nhận
+points_clean, LiDAR branch nhận points đã chèn plume. Test bằng stub model với
+shape + marker value; không đổi kiến trúc hay số tham số.
 
 Ràng buộc:
 - Không đổi pin: da93b27, torch 1.10.1+cu113, mmcv-full 1.4.0, mmdet 2.20.0,
   numpy 1.22.4. Không sửa third_party/.
 - Chỉ tick checkbox khi có bằng chứng thật; ghi số liệu vào ticket.
-- Không push Kaggle nếu chưa cần; ưu tiên test local.
+- Không push Kaggle nếu chưa cần; ưu tiên test local (`pytest` hiện 33 passed).
 
-Sau khi ticket 06 pass: flip Status của spec sang ready-for-agent, cập nhật
-README nếu cần, chạy python3 scripts/build_kanban.py và publish lại artifact,
-rồi mới sang ticket 07.
+Sau ticket 08: ticket 09 (e2e test) → 10 (config A/B) → 11 (mini A/B) → 13.
+Ticket 14/15/16 có thể làm song song; 17 chờ số đo của 16.
 
-Trước ticket 07/10/11: hỏi user chốt ngưỡng plume — 50 km/h (2.0% frame val)
+Trước ticket 10/11: hỏi user chốt ngưỡng plume — 50 km/h (2.0% frame val)
 hay 30 km/h (13.8%), hoặc chọn scene highway.
 
 Báo cáo ngắn: đã làm gì, test nào pass, blocker, commit.
@@ -156,7 +163,7 @@ Báo cáo ngắn: đã làm gì, test nào pass, blocker, commit.
 ## Tham chiếu (không lặp nội dung)
 
 - `.scratch/spray-augmentation/spec.md` — spec v1.5, preconditions, interface contract
-- `.scratch/spray-augmentation/issues/` — 16 ticket
+- `.scratch/spray-augmentation/issues/` — 18 ticket
 - `docs/velocity-contract.md` — velocity frame + số đo eligible
 - `docs/kanban.html` + `scripts/build_kanban.py` — board tự sinh
 - `kaggle/smoke_test/` — notebook, kernel metadata, per-step cells
