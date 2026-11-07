@@ -55,7 +55,7 @@ Board này từng được publish thành artifact công khai ⇒ người ngoà
   STATUS.md thật**, không hard-code (`grep 'TICKETS = \['` = 0).
 - Board: 25 ticket, 18 done, 72%, P6 100%, 09 = `ready`, ref chết = 0; ticket không có checkbox hiện `—`
   (template dòng 499) đúng yêu cầu 2.
-- Cảnh báo path thiếu hoạt động: `mit/bevfusion/build` (ticket 19) bị bỏ, không render.
+- Cảnh báo path thiếu hoạt động: đường dẫn mit/bevfusion/build (ticket 19) bị bỏ, không render.
 - **Lưu ý chưa sửa**: `PHASES` vẫn khai báo cứng danh sách ticket; agent nhét 19 và 24 vào **P0 "Nền móng"**
   cho khỏi cảnh báo. 19 (Kaggle sync) tạm chấp nhận được, **24 (script kanban) thì sai chủ đề**. Không mở
   ticket riêng — sửa 1 dòng trong `PHASES` khi có ai chạm file này lần nữa.
