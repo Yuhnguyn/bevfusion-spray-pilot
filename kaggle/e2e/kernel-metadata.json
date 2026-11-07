@@ -1,0 +1,18 @@
+{
+  "id": "nguynhuy9669/bevfusion-e2e",
+  "title": "BEVFusion e2e",
+  "code_file": "main.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "keywords": [],
+  "dataset_sources": [
+    "nguynhuy9669/bevfusion-spray-pilot-code"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": []
+}
