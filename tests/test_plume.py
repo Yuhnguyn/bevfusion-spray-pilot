@@ -163,3 +163,55 @@ def test_points_per_cluster_matches_measured_median():
     ]
 
     assert 14 <= float(np.mean(per_cluster)) <= 30
+
+
+def _single_clusters(distance, *, seeds, tag):
+    """Mỗi (cự ly, seed) sinh đúng một cụm, token riêng để các mẫu độc lập."""
+    box = np.array(
+        [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 20.0, 0.0]], dtype=np.float32
+    )
+    empty = np.empty((0, 5), dtype=np.float32)
+    clusters = []
+    for seed in seeds:
+        config = PlumeConfig(
+            clusters_at_speed_bounds=(1, 1),
+            distance_range_m=(distance, distance),
+            lateral_sigma_m=0.0,
+            height_range_m=(1.0, 1.0),
+            max_injected_points=100000,
+        )
+        result = inject_plume(
+            empty,
+            box,
+            seed=seed,
+            token=f"{tag}:{distance:.1f}:{seed}",
+            config=config,
+        )
+        clusters.append(result.injected[:, :3].astype(np.float64))
+    return clusters
+
+
+def test_radial_thinning_matches_measured_ratio():
+    """Median per-cluster r_range/r_extent = 1,28 như ticket 16 đo trên dữ liệu thật."""
+    ratios = []
+    for distance in np.arange(8.0, 30.5, 1.0):
+        for xyz in _single_clusters(float(distance), seeds=range(40), tag="ratio"):
+            centroid = xyz.mean(axis=0)
+            r_extent = np.linalg.norm(xyz - centroid, axis=1).max()
+            radii = np.linalg.norm(xyz, axis=1)
+            ratios.append((radii.max() - radii.min()) / r_extent)
+
+    assert len(ratios) >= 200
+    assert 1.22 <= float(np.median(ratios)) <= 1.34
+
+
+def test_points_per_cluster_decreases_with_range():
+    """Median điểm/cụm bám bảng đo: 30 ở 0–5 m, 14 ở 10–20 m, 10 ở 20–30 m."""
+    for distance, expected in ((4.0, 30), (15.0, 14), (25.0, 10)):
+        counts = [
+            len(xyz)
+            for xyz in _single_clusters(distance, seeds=range(120), tag="count")
+        ]
+        assert len(counts) >= 100
+        median = float(np.median(counts))
+        assert abs(median - expected) <= 0.25 * expected, (distance, median, expected)

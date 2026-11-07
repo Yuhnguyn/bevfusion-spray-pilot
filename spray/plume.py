@@ -5,6 +5,16 @@ from dataclasses import dataclass
 
 import numpy as np
 
+# Số điểm/cụm median theo cự ly 3D của tâm cụm trong LiDAR frame [ĐO, ticket 16].
+# Ngoại xuy phẳng: mọi cự ly > 30 m dùng 10 (không bịa đường cong mới).
+_POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
+    (0.0, 5.0, 30),
+    (5.0, 10.0, 20),
+    (10.0, 20.0, 14),
+    (20.0, 30.0, 10),
+    (30.0, float("inf"), 10),
+)
+
 
 @dataclass(frozen=True)
 class PlumeConfig:
@@ -19,8 +29,14 @@ class PlumeConfig:
       50 km/h; dạng hàm tuyến tính của số cụm theo tốc độ (§III Cluster
       Generation + Fig. 4); phân bố lognormal của bán kính cụm (Fig. 5).
     - Đo trên SemanticSpray (bản release local): hằng số neo cho số cụm
-      (median 5 dense clusters/frame) và số điểm/cụm (median 17).
+      (median 5 dense clusters/frame), số điểm/cụm median **theo cự ly**
+      (`_POINTS_MEDIAN_BY_RANGE`, ticket 16) và bề dày theo tia
+      `r_range/r_extent = 1,28` (ticket 16, hiệu chỉnh bằng `radial_squash`).
     - Lựa chọn của repo, không có nguồn ngoài: bù hình học, biên an toàn.
+
+    `cluster_radius_median_m` giữ 0,30 dù ticket 16 đo median `r_extent` = 0,755 m:
+    con số 0,755 là **cận trên** vì single-linkage trên `(x, y)` nối chuỗi các cụm
+    gần nhau (`docs/plume-geometry-vs-real.md` §Caveats), còn paper Fig. 5 cho 0,30.
 
     v1 gộp hai chiều mà paper tham số hoá: lớp xe và độ dày màng nước.
     """
@@ -43,14 +59,27 @@ class PlumeConfig:
     # + Fig. 4; hằng số 2→8 neo theo SemanticSpray median 5 dense clusters/frame
     # ở dải giữa. v1 gộp hai chiều lớp xe và độ dày màng nước.
     clusters_at_speed_bounds: tuple[int, int] = (2, 8)
-    # Số điểm mỗi cụm: lognormal, median 17 (đo được), sigma chọn để p90 ~ 40.
+    # Số điểm mỗi cụm: lognormal quanh median theo cự ly, sigma chọn để p90 ~ 40.
+    # Trường `points_per_cluster_median` giữ lại cho tương thích constructor; generator
+    # không đọc nữa vì median giờ phụ thuộc cự ly (ticket 16), xem
+    # `_POINTS_MEDIAN_BY_RANGE`. 17 vẫn là median gộp của mọi cụm [ĐO].
     points_per_cluster_median: float = 17.0
     points_per_cluster_sigma: float = 0.67
     points_per_cluster_bounds: tuple[int, int] = (3, 200)
     # Bán kính cụm: lognormal median 0,30 m (Linnhoff Fig. 5, μ=-1,2 sigma=0,8).
+    # Giữ 0,30 dù ticket 16 đo median r_extent = 0,755 m: single-linkage trên (x, y)
+    # nối chuỗi các cụm gần nhau nên 0,755 là CẬN TRÊN; paper Fig. 5 cho đúng 0,30.
     cluster_radius_median_m: float = 0.30
     cluster_radius_sigma: float = 0.8
     cluster_radius_bounds_m: tuple[float, float] = (0.10, 1.50)
+    # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm).
+    # Công thức liên tục cho khối cầu đặc vô hạn điểm: S = 1,28/2 = 0,64.
+    # Nhưng cụm chỉ có vài chục điểm rời rạc, nên max |p| hụt so với biên ellipsoid:
+    # S = 0,64 chỉ cho median per-cluster r_range/r_extent ~0,98 (quá mỏng).
+    # Vì vậy S được hiệu chỉnh thực nghiệm: quét S trên ≥900 cụm, nhiều seed,
+    # d = 8–30 m, chọn giá trị cho median per-cluster r_range/r_extent = 1,28
+    # đúng như ticket 16 đo. S hiệu dụng = 0,885 (khác 0,64 vì lý do rời rạc trên).
+    radial_squash: float = 0.885
     distance_range_m: tuple[float, float] = (1.0, 10.0)
     height_range_m: tuple[float, float] = (0.2, 2.0)
     lateral_sigma_m: float = 0.5
@@ -145,26 +174,18 @@ def inject_plume(
                 + direction * distance
                 + perp * lateral
             )
+            center3 = np.array([center[0], center[1], z], dtype=np.float64)
+            d = float(np.linalg.norm(center3))
             radius = _lognormal_clipped(
                 rng,
                 cfg.cluster_radius_median_m,
                 cfg.cluster_radius_sigma,
                 cfg.cluster_radius_bounds_m,
             )
-            count = int(
-                round(
-                    _lognormal_clipped(
-                        rng,
-                        cfg.points_per_cluster_median,
-                        cfg.points_per_cluster_sigma,
-                        (
-                            float(cfg.points_per_cluster_bounds[0]),
-                            float(cfg.points_per_cluster_bounds[1]),
-                        ),
-                    )
-                )
-            )
+            count = _count_for_distance(rng, d, cfg)
             offsets = _ball(rng, count, radius)
+            if d > 0.0:
+                offsets = _thin_radial(offsets, center3 / d, cfg.radial_squash)
             cloud = np.empty((count, 5), dtype=np.float32)
             cloud[:, 0] = offsets[:, 0] + center[0]
             cloud[:, 1] = offsets[:, 1] + center[1]
@@ -258,6 +279,22 @@ def _in_range(
     )
 
 
+def _points_median_for_distance(distance: float) -> int:
+    for lo, hi, median in _POINTS_MEDIAN_BY_RANGE:
+        if lo <= distance < hi:
+            return median
+    return _POINTS_MEDIAN_BY_RANGE[-1][2]
+
+
+def _count_for_distance(
+    rng: np.random.Generator, distance: float, cfg: PlumeConfig
+) -> int:
+    median = _points_median_for_distance(distance)
+    value = round(median * float(np.exp(cfg.points_per_cluster_sigma * rng.normal())))
+    lo, hi = cfg.points_per_cluster_bounds
+    return int(min(max(value, lo), hi))
+
+
 def _lognormal_clipped(
     rng: np.random.Generator,
     median: float,
@@ -278,6 +315,12 @@ def _ball(
     vec = np.divide(vec, norms, out=np.zeros_like(vec), where=norms > 0)
     scale = radius * rng.random((count, 1)) ** (1.0 / 3.0)
     return (vec * scale).astype(np.float32)
+
+
+def _thin_radial(offsets: np.ndarray, u: np.ndarray, squash: float) -> np.ndarray:
+    """Ép offset dọc theo tia ``u`` với hệ số ``squash`` (bỏ thành phần dọc tia)."""
+    along = offsets @ u
+    return offsets - (1.0 - squash) * along[:, None] * u[None, :]
 
 
 def _inside_box(points: np.ndarray, box: np.ndarray, margin: float) -> np.ndarray:

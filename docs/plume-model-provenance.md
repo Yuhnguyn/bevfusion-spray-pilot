@@ -12,8 +12,9 @@ Models*, arXiv 2212.08558 (§ và hình ghi kèm). **[ĐO]** = đo trên Semanti
 |---|---|---|---|---|
 | `min_speed_kmh` | 50 | [PAPER] | §III-A: spray bắt đầu ~50 km/h, khảo sát 50–130 km/h | **khớp** |
 | `clusters_at_speed_bounds` | (2, 8) tuyến tính theo tốc độ | **[PAPER] về cấu trúc**, [ĐO] về hằng số | §III *Cluster Generation*: "the number of clusters that are generated in each simulation time step are calculated as a function of the object speed, class, and water film height"; Fig. 4 vẽ mean clusters/timestep + **đường tuyến tính xấp xỉ** làm expected value, đo cho VW Crafter, DBSCAN eps 0,7°, minPts 3, chuẩn hoá theo quãng đường đi được trong 1 scan | **xấp xỉ có chủ ý** — xem dưới |
-| `points_per_cluster_median` | 17 (sigma 0,67; bounds 3–200) | [ĐO] | SemanticSpray: dense cluster size median 17 điểm | **thay thế** cơ chế khác (xem dưới) |
-| `cluster_radius_median_m` | 0,30 (sigma 0,8) | [PAPER] | Fig. 5: lognormal μ=−1,2 σ=0,8 → median 0,30 m | **khớp** |
+| `_POINTS_MEDIAN_BY_RANGE` (thay cho hằng số 17) | 30 / 20 / 14 / 10 / 10 cho cự ly **0–5 / 5–10 / 10–20 / 20–30 / >30 m** (sigma 0,67; bounds 3–200) | [ĐO] | ticket 16, `docs/plume-geometry-vs-real.md`: median `n_points` theo cự ly, n=11.607 cụm (base) và 23.989 (expanded). Median **gộp = 17,0** — đúng bằng hằng số cũ — nhưng giảm **3,0×** từ 0–5 m xuống 20–30 m | **thay thế** hằng số 17; `>30 m` là **ngoại xuy phẳng**, không có cụm dày nào đo được ngoài 50 m |
+| `radial_squash` | 0,885 | [ĐO] để calibrate, [CHỌN] dạng ellipsoid | ticket 16: median **per-cluster** `r_range/r_extent` = **1,28**. Công thức liên tục cho khối cầu đặc: S = 1,28/2 = 0,64; nhưng với ~17 điểm rời rạc, S = 0,64 chỉ ra **0,98** → hiệu chỉnh thực nghiệm (quét S trên ≥900 cụm) chọn **0,885** để khớp đúng thống kê đo | **mới** (ticket 17) |
+| `cluster_radius_median_m` | 0,30 (sigma 0,8) | [PAPER] | Fig. 5: lognormal μ=−1,2 σ=0,8 → median 0,30 m | **giữ nguyên** — ticket 16 đo median `r_extent` = **0,755 m**, nhưng đó là **cận trên**: single-linkage trên `(x,y)` nối chuỗi các cụm gần nhau, và 0,755 m ≈ 2,5× giá trị paper. Đổi theo số đo sẽ phóng to cụm mà không có căn cứ |
 | vị trí cụm | sau xe dẫn đường, cách 1–10 m | [PAPER] định tính | §III: cụm đặt **uniform trong vùng sau mỗi vật thể đang di chuyển**, không spawn ngẫu nhiên trong scene | **đơn giản hoá** |
 | tuổi cụm / decay | không có | [PAPER] | §III: mỗi cụm có *time since generation*, cụm tan dần; Fig. 4 có *time constant* 0,5–1,5 s | **thiếu** |
 | attenuation | không có | [PAPER] | §III: 0,02 m⁻¹ | **thiếu** (ADR-0002) |
@@ -39,6 +40,11 @@ Paper không có khái niệm "số điểm mỗi cụm": nó mô phỏng **từ
 detection. Số điểm/cụm là hệ quả của `P_det` × số tia cắt khối cầu. Repo sinh cụm trực tiếp nên phải
 neo vào đại lượng đo được (dense cluster size median 17). Hai cách khác bản chất, không thay thế nhau
 bằng một con số.
+
+Hệ quả là số điểm/cụm **phải giảm theo cự ly**: `P_det` giữ nguyên nhưng số tia cắt khối cầu giảm theo
+góc khối. Ticket 16 đo được đúng như vậy (30 → 10 điểm, **3,0×**), nên ticket 17 thay hằng số 17 bằng
+bảng `_POINTS_MEDIAN_BY_RANGE`. Hằng số 17 chỉ đúng ở mức **trung bình gộp** — dùng nó cho mọi cự ly là
+sai hình học, dù con số trung bình khớp.
 
 ## Hệ quả cho claim
 
