@@ -1,163 +1,115 @@
 # HANDOFF — Spray plume pilot (BEVFusion MIT)
 
-Cập nhật: **2026-11-07 15:20** · nhánh `main` · Repo: https://github.com/Yuhnguyn/bevfusion-spray-pilot
-**Nguồn sự thật về tiến độ: `.scratch/spray-augmentation/STATUS.md`.** File này chỉ nói cách dựng lại máy.
+Cập nhật: **2026-11-09 00:30** · nhánh `main` · HEAD `2bb93ea` · https://github.com/Yuhnguyn/bevfusion-spray-pilot
+**Nguồn sự thật về tiến độ: `.scratch/spray-augmentation/STATUS.md`.** File này chỉ nói cách dựng lại máy
+và bắt đầu lại công việc.
 
-## TL;DR
+## Đọc gì khi mở session mới (theo thứ tự, đừng đọc thêm)
 
-- Generator plume **đã khớp code tham chiếu Linnhoff** (ticket 21–22): kích hoạt 40 km/h + `wfh > 0`,
-  số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, σ = 1,1. 80 km/h → **8 cụm/frame**
-  (đo thật SemanticSpray: 17,06; trước ticket 22: 0,73).
-- **Test: 56 passed** (`python3 -m pytest -q tests/`), 8 file.
-- Môi trường Kaggle đã giải xong: venv Python 3.8.20 + torch 1.10.1+cu113 + `mmcv-full 1.4.0` + 12 CUDA
-  extension; kernel `bevfusion-e2e` **COMPLETE 516 s / 49 passed**.
-- Việc tiếp theo: **23** (3 chỉnh nhỏ) → **09** (e2e trên Kaggle) → **10 → 11 → 13**; **14** (B0) và
-  **24** (kanban sinh từ nguồn thật) chạy song song.
+1. `HANDOFF.md` (file này) — 2 phút.
+2. `.scratch/spray-augmentation/STATUS.md` — board + trạng thái thật, phần **"Dừng shift"** ở đầu.
+3. Ticket đang làm trong `.scratch/spray-augmentation/issues/` — **chỉ file của ticket đó**.
+4. `docs/PROJECT.md` §5 nếu cần khác biệt so với paper + căn cứ.
 
-## Trạng thái ticket
+Không đọc lại toàn repo. Không đọc log cũ trong `/tmp` trừ khi ticket yêu cầu.
 
-| Ticket | Trạng thái | Ghi chú |
-|---|---|---|
-| 01 Working copy + pin | done | `da93b27`, 4/4 |
-| 02 Smoke test | done | ALL_PASS: 582/582 key, forward finite, depth [6,1,256,704] |
-| 02b Fix môi trường | done | numba/torchvision/CUDA/gcc/numba.errors |
-| 03 Velocity contract | done | `docs/velocity-contract.md` |
-| 04 Dataset gate | done | infos 120/120, load 1 sample |
-| 05 Evaluator core | done | `proxy_eval/matcher.py`, 8 test |
-| 06 Evaluator adapter | done | mAP 0.298 trên frame thật |
-| 07 Pipeline transform | done | scene-0796, 12/12 check |
-| 08 Model routing | **done** `16517f1` | subclass trong `spray/`, param 16 → 16 |
-| 09 Pipeline e2e | **ready** | chặn cũ (19) đã gỡ; cần 1 run Kaggle GPU |
-| 10 Train/eval config | blocked | chờ 09 |
-| 11 Mini A/B | blocked | chờ 10 |
-| 12 SemanticSpray stats | done | `docs/semantic-spray-stats.md` |
-| 13 Gate review | blocked | chờ 11 |
-| 14 Denoise B0 | ready | chạy song song được |
-| 15 Plume provenance | done `bc0da86`+`d1bf9bf` | `docs/plume-model-provenance.md` |
-| 16 Plume geometry | done `08f6715` | 17,06 cụm/frame; 30/20/14/10/10 điểm/cụm |
-| 17 Sửa generator theo số | done `5d7c478` | count theo cự ly; bẹp `S = 0,885` |
-| 18 Eligibility nuScenes | done | eval set 196 frame / 16 scene |
-| 19 Kaggle code sync | done `feb0a9e` | dataset private v3, kernel `bevfusion-e2e` |
-| 20 Visualize plume | done `6143875` | `docs/figs/plume/index.html` |
-| 21 Port cơ chế tham chiếu | done `a4fdf24` | 40 km/h, offset 50, `T`, σ 1,1 |
-| 22 Sửa lỗi tính hai lần | done `75d210c` | `K = 2,51`, bỏ dropout |
-| 23 Trần bán kính + tên cột 5 | ready | nhỏ, không đổi hành vi |
-| 24 Kanban từ nguồn thật | ready | script đang hard-code ⇒ board lệch |
+## Đang treo ở đâu
 
-## Preconditions (spec v1.5) — 1–6 PASS
+**Kernel `nguynhuy9669/bevfusion-spray-train` v1 — `QUEUED` lúc 00:22 ngày 2026-11-09.**
+Dataset code **v10** (158 file) đã có `kaggle/train/smoke.py`. Đây là smoke run của ticket **11-b**:
+cài `nuscenes-devkit==1.1.11` vào venv → dựng 4.000 sample → dataloader → 5 bước arm A + 15 bước arm B.
 
-1. Version `da93b27` — PASS
-2. Smoke test checkpoint + forward — PASS
-3. Checkpoint fused + hash — PASS (`ee0a3892…2122`)
-4. Dataset gate (infos + load sample) — PASS
-5. Evaluator trên frame MIT thật — PASS (mAP 0.298; ticket 06)
-6. Velocity contract — PASS
+```bash
+kaggle kernels status nguynhuy9669/bevfusion-spray-train
+rm -rf /tmp/ksmoke && mkdir -p /tmp/ksmoke
+kaggle kernels output nguynhuy9669/bevfusion-spray-train -p /tmp/ksmoke
+grep -E "SMOKE_DEVKIT_OK|MINI_SPLIT_OK|SMOKE_STEP|SMOKE_OK|SMOKE_FAILED|MINI_SPLIT_FAILED" \
+  /tmp/ksmoke/bevfusion-spray-train.log
+```
 
-Spec: `.scratch/spray-augmentation/spec.md`.
+Cần 2 số: `s_per_step` và `peak_gb`. Có 2 số đó mới chốt được thời gian train thật (ticket 11-c).
+
+## Tiến độ
+
+**Board: 26 ticket, 24 done.** Còn `11` (mini A/B run) và `13` (gate review).
+
+| mốc | trạng thái |
+|---|---|
+| Generator plume khớp code Linnhoff (21–23) | xong — `K = 2,51`, 8 cụm @80 km/h, trần bán kính 1,0 m |
+| Visualize (20) | xong — `docs/figs/plume/` |
+| E2E trên Kaggle (09) | xong — `68 passed, 0 skipped`, `E2E_OK` |
+| Config A/B + freeze (10) | xong — `fcaa4f9`; probe `PROBE_OK` `2ed78b3` |
+| Mini split 4.000 sample (11-a) | xong — `0125e13`, `105 passed, 4 skipped` |
+| Smoke kernel đo s/step (11-b) | code xong `fb214ff`, kernel **QUEUED** |
+
+## Test
+
+```bash
+CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/    # 105 passed, 4 skipped
+```
+
+4 skip = 4 test e2e trong `tests/test_pipeline_e2e.py` (cần `mmcv`/`mmdet3d`); chạy thật trên kernel.
+Chạy script trong repo phải có `PYTHONPATH=.`.
+
+## Máy này thiếu gì
+
+- **Không có** `mmcv`/`mmdet`/`mmdet3d`, **không có** `nuscenes-devkit` ⇒ không train/eval local.
+- **Không có** nuScenes local (chỉ Kaggle: `sahangunasekara92/nuscenes-v1-0-full-keyframes`).
+- `mit/bevfusion` là tree pin `da93b27`, **gitignored** — có local, không lên GitHub.
+- Có `data/SemanticSprayDataset` 16 GB (108 sequence) — chỉ dùng đo thống kê.
 
 ## Kaggle
 
-Hai kernel, đừng lẫn:
-
-| Kernel | Dùng cho | Trạng thái |
-|---|---|---|
-| `nguynhuy9669/bevfusion-smoke-test` | ticket 02–07 (env + dataset + transform), ~13 phút/run | v19 COMPLETE |
-| `nguynhuy9669/bevfusion-e2e` | ticket 09+ (code repo qua dataset private), **516 s/run** | COMPLETE, 49 passed |
-
-- Code lên Kaggle bằng **dataset private** `nguynhuy9669/bevfusion-spray-pilot-code` (2.092 KB tracked,
-  v3 ready) — không push GitHub vì repo private 404 và `data/` 16 GB.
-- Đồng bộ + kiểm tra: `python3 scripts/kaggle_code_sync.py --dry-run` → in `KAGGLE_CODE_SYNC_OK`.
-- Lấy log: `kaggle kernels output nguynhuy9669/bevfusion-e2e -p /tmp/k19log --file-pattern ".*\.log$"`.
-  Log tốt phải có `MIT_PIN_OK da93b27`, `PINNED_WHEELS_OK`, `OPS_OK`, `49 passed`, `E2E_OK`.
-  `ModuleNotFoundError: mmdet3d` ở ~129 s là **probe cố ý**, không phải lỗi.
-- Evidence JSON nhỏ đã commit ở `kaggle/smoke_test/evidence/`.
-
-## Phát hiện quan trọng
-
-**Eligibility (ticket 18, `docs/nuscenes-eligibility.md`):** val split có **196 frame / 16 scene** với box
-vehicle ≥50 km/h phía trước trong 50 m. Trên toàn trainval (850 scene / 34.149 keyframe) tỷ lệ frame có
-≥50 km/h chỉ **2,0%** (697 frame) — con số 34.029 frame từng bị dán nhãn sai là "val", thực ra là toàn bộ
-trainval. Val có **0** scene highway ⇒ không dùng highway.
-
-**Hình học plume thật (ticket 16):** 873.457 điểm noise / 35.305 cụm ⇒ **17,06 cụm/frame**; điểm/cụm
-**30/20/14/10/10** theo bucket 0–5/5–10/10–20/20–30/30–50 m ⇒ mật độ **giảm theo cự ly**; `r_range/r_extent`
-median **1,266** ⇒ không phải vỏ cầu mỏng. Đã sửa generator ở ticket 17.
-
-## Môi trường & bẫy đã gặp
-
-- Pin: `da93b27`, `torch==1.10.1+cu113`, `torchvision==0.11.2+cu113`, `mmcv-full==1.4.0`, `mmdet==2.20.0`,
-  `numpy==1.22.4`, `numba==0.58.1`.
-- Kaggle system Python 3.13 không cài được stack; venv Python 3.8 tại `/root/bevfusion_smoke/env`.
-- Build ops: CUDA 11.8 + `gcc-11` + đủ `libcusparse/libcublas/libcurand/libcusolver-dev-11-8`.
-- `numba 0.58` bỏ `numba.errors`; dataset import `NumbaPerformanceWarning` → cần shim.
-- Converter `da93b27` ghi `camera_intrinsics`, dataset đọc `cam_intrinsic` → thêm alias.
-- Mirror thiếu `maps/expansion/*.json` → drop `LoadBEVSegmentation` + `Collect3D.gt_masks_bev` khi `use_map=false`.
-- **`points_clean` không đi qua `DefaultFormatBundle3D`** (chỉ wrap `points`/`radar`) → ticket 08 phải thêm
-  plumbing collect/format, đã làm trong `spray/pipeline.py`.
-- Runtime thật là `mit/bevfusion` @ `da93b27` (**gitignored**); `third_party/bevfusion/` là **bản chết**.
-- **`water_film_height` tính bằng MÉT** ⇒ `T ≈ 0,20 s`, `K ≈ 2,51` ở mọi tốc độ. Đọc `1 mm` thành `1,0`
-  sẽ sai 3,6×.
-- macOS không `timeout`; matplotlib base env hỏng (numpy 2.4.3) → viz dùng `~/.venvs/viz`.
-- Shell nào cũng in crash report của conda plugin — **không phải lỗi agent**, lọc khi đọc log.
-
-## Chạy tiếp ở máy khác
-
 ```bash
-git pull
-python3 -m pip install numpy pytest              # test local chỉ cần hai gói này
-CONDA_NO_PLUGINS=true python3 -m pytest -q tests/ # phải ra 56 passed
+CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python scripts/kaggle_code_sync.py   # đẩy code lên dataset
+kaggle kernels push -p kaggle/train                                          # TASK trong main.py
+kaggle kernels status nguynhuy9669/bevfusion-spray-train
 ```
 
-Cần `kaggle` CLI đã đăng nhập nếu muốn chạy kernel. Artifact knowledge base (private, cùng account):
-`https://artifacts.commandcode.ai/hk7d56v2pqp5q76x` (v2, publish 2026-11-07, hết hạn 14-11).
+- Dataset code: `nguynhuy9669/bevfusion-spray-pilot-code` **private**.
+- Kernel: `nguynhuy9669/bevfusion-spray-train` (GPU T4 **1 con**, `enable_gpu: true`, không `machine_shape`).
+- Queue 20–60 phút là bình thường. `QUEUED` lâu **không phải** hết quota (hết quota sẽ ra `ERROR` ngay).
+- Đổi code xong phải **sync rồi mới push**, nếu không kernel chạy bản cũ.
 
-### Dựng lại working copy MIT (không nằm trong git)
+## Ngân sách train đã chốt
 
-`mit/bevfusion/`, `third_party/` và `data/` bị `.gitignore`:
+`max_iters = 2000`, `batch_size = 2`, `lr = 1e-4`, `weight_decay = 0.01`, AdamW, `warmup 100`,
+`grad_clip 5.0`, `seed = 0`. Freeze: chỉ camera; mở `encoders.lidar`, `fuser`, `decoder`, `heads`.
 
-```bash
-git clone https://github.com/mit-han-lab/bevfusion.git mit/bevfusion
-git -C mit/bevfusion checkout da93b27d0fe4563eecd46604e6cc5ddf1c5bd1ea
-git -C mit/bevfusion rev-parse --short HEAD   # phải in da93b27
-```
+VRAM không phải rủi ro (param state 0,254 GB / 16 GB). Nếu vẫn thiếu, thứ tự xử lý:
+**gradient accumulation → batch 1 + tăng số bước → DDP**.
 
-### Cái gì ở ngoài git (và lấy lại thế nào)
+## Cách làm việc (giữ nguyên, đừng đổi)
 
-| Thứ | Ở đâu | Cần làm gì |
-|---|---|---|
-| Kaggle credentials | `~/.kaggle/kaggle.json` | Đăng nhập lại; **không commit** |
-| Dataset code | `nguynhuy9669/bevfusion-spray-pilot-code` (private v3) | `python3 scripts/kaggle_code_sync.py` |
-| Kernel e2e | `nguynhuy9669/bevfusion-e2e` | `kaggle kernels push -p kaggle/e2e` |
-| Dataset nuScenes | Kaggle dataset public | Tự attach khi push |
-| Dataset SemanticSpray | `data/SemanticSprayDataset` ~16 GB local | Không cần cho test; chỉ cho ticket 16/20 |
-| Checkpoint fused | Dropbox mirror | URL + sha256 trong `mit/PIN.md`; kernel tự tải |
-| Knowledge base artifact | artifacts.commandcode.ai | Link private; bản local `docs/knowledge-base.html` |
+- **PM không tự code.** Việc thi công giao CommandCode: brief trong `~/.hermes/drafts/spray-pilot/`,
+  chạy `commandcode -t -p "$(cat dispatch-XX.md)" --yolo --max-turns N`, log `/tmp/tXX.log`.
+- **Một agent tại một thời điểm** — cùng worktree, `git add -A` của agent này nuốt file agent kia.
+- Mỗi ticket: brief → chạy → **PM tự verify** (commit, `git status`, pytest, grep log) → ghi nghiệm thu
+  vào ticket + `STATUS.md` → commit. Không tin báo cáo của agent.
+- `EXIT=8` = cạn `--max-turns`, **không** có nghĩa là fail: kiểm `git log`/`git status` trước khi kết luận.
+- Điều kiện đạt của việc chạy trên kernel: phải thấy **số test kỳ vọng** và **không có `skipped`**, không
+  chỉ nhìn `E2E_OK`.
 
-## Prompt dán vào CommandCode (máy mới)
+## Bẫy đã gặp (đừng lặp lại)
 
-```text
-Bạn tiếp quản repo bevfusion-spray-pilot. Đọc STATUS.md ở
-.scratch/spray-augmentation/STATUS.md (nguồn sự thật về thứ tự), rồi ticket
-được giao trong .scratch/spray-augmentation/issues/.
+1. **Đọc tên file config rồi suy ra nội dung** — sai 2 lần: `point_cloud_range` ±54 (thật ±51.2), và
+   `swint_v0p075/default.yaml` có `fuser = None` (file đúng: `convfuser.yaml`). Luôn mở file.
+2. **Hardcode `±54`** — đó là model config; dataset dùng `±51.2`.
+3. **Tin `E2E_OK` một mình** — đã có lần xanh giả vì 4 test bị skip.
+4. **`timeout` không tồn tại** trên shell macOS.
+5. **CommandCode stream đứt** (`TransportError`) ở việc dài ⇒ chia việc ngắn, đừng resume `-r`.
+6. **`wfh` đơn vị mét** (`0,001`), không phải mm.
+7. **Resume `-r`** khi CLI báo `No session ... found` ⇒ chia việc khác, đừng cố.
 
-Ràng buộc:
-- Không đổi pin: da93b27, torch 1.10.1+cu113, mmcv-full 1.4.0, mmdet 2.20.0,
-  numpy 1.22.4. Không sửa mit/bevfusion hay third_party/.
-- Chỉ tick checkbox khi có bằng chứng thật; ghi số liệu vào ticket.
-- Test local: CONDA_NO_PLUGINS=true python3 -m pytest -q tests/ (hiện 56 passed).
-- Không tự đổi tham số plume (PlumeConfig) để khớp số kỳ vọng; muốn đổi thì
-  dừng, báo PM kèm số.
+## Nơi chứa
 
-Báo cáo ngắn: đã làm gì, test nào pass, blocker, commit.
-```
-
-## Tham chiếu
-
-- `.scratch/spray-augmentation/STATUS.md` — board + quyết định đã chốt
-- `.scratch/spray-augmentation/issues/` — 24 ticket
-- `docs/PROJECT.md` — sổ tay kỹ thuật; `docs/knowledge-base.html` — bản đọc
-- `docs/plume-model-provenance.md` — nguồn từng tham số `[ĐO]/[PAPER]/[CODE]/[CHỌN]`
-- `docs/plume-geometry-vs-real.md`, `docs/nuscenes-eligibility.md`, `docs/velocity-contract.md`
-- `docs/figs/plume/index.html` — ảnh + clip plume
-- `mit/PIN.md` — commit pin + checkpoint mirror/sha256
-- `docs/adr/0001-mit-bevfusion-pin.md`, `0002-plume-only-first.md`, `0003-semantic-spray-eval-only.md`
+| thứ | đường dẫn |
+|---|---|
+| Board + trạng thái | `.scratch/spray-augmentation/STATUS.md` |
+| Ticket | `.scratch/spray-augmentation/issues/*.md` |
+| Brief giao việc | `~/.hermes/drafts/spray-pilot/dispatch-*.md` |
+| Quyết định + khác biệt paper | `docs/PROJECT.md` §5, `docs/adr/` |
+| Kanban HTML | `docs/kanban.html` (sinh bằng `scripts/build_kanban.py`) |
+| Ảnh/clip | `docs/figs/plume/` |
+| Provenance plume | `docs/plume-model-provenance.md` |
+| Log kernel | `/tmp/ksmoke/`, `/tmp/kprobe/`, `/tmp/k9run*/` |
