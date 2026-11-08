@@ -9,18 +9,68 @@ import os
 import numpy as np
 import pytest
 
+
+def _register_mmdet3d_pipelines():
+    """Register mmdet3d transforms without importing mmdet3d.datasets.__init__.
+
+    The package __init__ pulls ``.nuscenes_dataset`` which needs nuscenes-devkit;
+    that dependency is absent in the pinned kernel, but the pipeline modules only
+    need mmcv + mmdet + mmdet3d.core.  ``mmdet3d.datasets.pipelines.__init__`` is
+    bypassed too: it imports ``.loading``, which also needs nuscenes.
+    """
+    import importlib
+    import os as _os
+    import sys
+    import types
+
+    import mmdet3d
+
+    root = _os.path.dirname(mmdet3d.__file__)
+    packages = (
+        ("mmdet3d.datasets", ("datasets",)),
+        ("mmdet3d.datasets.pipelines", ("datasets", "pipelines")),
+    )
+    for name, parts in packages:
+        if name not in sys.modules:
+            pkg = types.ModuleType(name)
+            pkg.__path__ = [_os.path.join(root, *parts)]
+            sys.modules[name] = pkg
+
+    datasets = sys.modules["mmdet3d.datasets"]
+    if not hasattr(datasets, "pipelines"):
+        datasets.pipelines = sys.modules["mmdet3d.datasets.pipelines"]
+    if not hasattr(mmdet3d, "datasets"):
+        mmdet3d.datasets = datasets
+
+    # numba 0.58 (pinned in the kernel) dropped ``numba.errors`` while the
+    # vendored ``pipelines.utils`` still imports it; alias the modern module.
+    if "numba.errors" not in sys.modules:
+        import numba.core.errors
+
+        sys.modules["numba.errors"] = numba.core.errors
+
+    importlib.import_module("mmdet3d.datasets.pipelines.formating")
+    importlib.import_module("mmdet3d.datasets.pipelines.transforms_3d")
+
+
 try:  # pragma: no cover - only importable inside the pinned MIT kernel
     import mmcv
     from mmdet.datasets.builder import PIPELINES
-    import mmdet3d.datasets  # noqa: F401  (registers mmdet3d transforms into PIPELINES)
     from mmdet3d.core import LiDARInstance3DBoxes
     from mmdet3d.core.points import LiDARPoints
 except ImportError:  # laptop: no mmcv/mmdet3d, every test skips
     mmcv = PIPELINES = LiDARInstance3DBoxes = LiDARPoints = None
 
+REGISTRATION_ERROR = None
+if mmcv is not None:
+    try:
+        _register_mmdet3d_pipelines()
+    except Exception as exc:  # noqa: BLE001 - surface it, never swallow
+        REGISTRATION_ERROR = exc
+
 pytestmark = pytest.mark.skipif(
     mmcv is None,
-    reason="mmcv/mmdet3d not installed; this test runs in the pinned MIT kernel",
+    reason="mmcv/mmdet3d core not installed (laptop); the e2e test runs in the pinned kernel",
 )
 
 from spray.denoise import dror_filter  # noqa: E402
@@ -139,6 +189,9 @@ def _run(cfg, plume_enabled=True, denoise=False):
 
 
 def test_three_arms_run_end_to_end():
+    if REGISTRATION_ERROR is not None:
+        pytest.fail(f"mmdet3d pipeline registration failed: {REGISTRATION_ERROR!r}")
+    assert "GlobalRotScaleTrans" in PIPELINES, "mmdet3d transforms were not registered"
     cfg = _load_config()
     batches = {
         "A": _run(cfg, plume_enabled=False),
@@ -164,6 +217,9 @@ def test_three_arms_run_end_to_end():
 
 
 def test_disabled_spray_leaves_points_unchanged():
+    if REGISTRATION_ERROR is not None:
+        pytest.fail(f"mmdet3d pipeline registration failed: {REGISTRATION_ERROR!r}")
+    assert "GlobalRotScaleTrans" in PIPELINES, "mmdet3d transforms were not registered"
     cfg = _load_config()
     batch = _run(cfg, plume_enabled=False)
 
@@ -174,6 +230,9 @@ def test_disabled_spray_leaves_points_unchanged():
 
 
 def test_streams_share_frame_and_aug_matrix():
+    if REGISTRATION_ERROR is not None:
+        pytest.fail(f"mmdet3d pipeline registration failed: {REGISTRATION_ERROR!r}")
+    assert "GlobalRotScaleTrans" in PIPELINES, "mmdet3d transforms were not registered"
     cfg = _load_config()
     results = _sample()
     expected_idx = results["sample_idx"]
@@ -197,6 +256,9 @@ def test_streams_share_frame_and_aug_matrix():
 
 
 def test_inverse_aug_matrix_roundtrip():
+    if REGISTRATION_ERROR is not None:
+        pytest.fail(f"mmdet3d pipeline registration failed: {REGISTRATION_ERROR!r}")
+    assert "GlobalRotScaleTrans" in PIPELINES, "mmdet3d transforms were not registered"
     cfg = _load_config()
     results = _sample()
     transform = PIPELINES.build(
