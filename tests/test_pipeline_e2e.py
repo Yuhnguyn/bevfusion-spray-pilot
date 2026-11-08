@@ -12,6 +12,7 @@ import pytest
 try:  # pragma: no cover - only importable inside the pinned MIT kernel
     import mmcv
     from mmdet.datasets.builder import PIPELINES
+    import mmdet3d.datasets  # noqa: F401  (registers mmdet3d transforms into PIPELINES)
     from mmdet3d.core import LiDARInstance3DBoxes
     from mmdet3d.core.points import LiDARPoints
 except ImportError:  # laptop: no mmcv/mmdet3d, every test skips
