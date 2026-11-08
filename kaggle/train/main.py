@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-"""Script kernel: run the ticket 10-ii probe on the pinned vendor stack.
+"""Script kernel: run the ticket 11-b smoke run on the pinned vendor stack.
 
 The boot steps are not re-implemented here. ``kaggle/e2e/main.py`` already
 extracts the code dataset, clones ``mit/bevfusion`` at the pin, builds the
 Python 3.8 venv, compiles the mmdet3d CUDA extensions and verifies the stack;
-this kernel imports that module and calls its functions, then runs
-``kaggle/train/probe.py`` inside the venv it built.
+this kernel imports that module and calls its functions, installs
+``nuscenes-devkit`` into the venv (the mini split builder needs the real
+devkit), then runs ``kaggle/train/smoke.py`` inside that venv.
 
-Everything printed by the probe is prefixed ``PROBE_STEP`` / ``PROBE_OK`` /
-``PROBE_FAILED`` so the evidence can be grepped out of the kernel log.
+``TASK`` names the script under ``kaggle/train`` that is executed; the smoke
+run prints ``SMOKE_DEVKIT_OK`` / ``MINI_SPLIT_OK`` / ``SMOKE_STEP`` /
+``SMOKE_OK`` so the evidence can be grepped out of the kernel log.
 """
 
 import importlib.util
 import pathlib
 import sys
+
+TASK = "smoke"
+TASK_SCRIPT = "kaggle/train/%s.py" % TASK
+DEVKIT_PINS = ("1.1.11", "1.1.10")
 
 # The dataset mount layout has been both /kaggle/input/<slug> and
 # /kaggle/input/datasets/<owner>/<slug>; rglob finds the boot module in either.
@@ -29,6 +35,68 @@ def load_e2e(path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def install_devkit(e2e):
+    """Install ``nuscenes-devkit`` into the pinned venv and prove it imports.
+
+    numpy is re-pinned in the same command: the devkit has a loose
+    ``numpy`` requirement and letting pip upgrade it would break the pinned
+    torch 1.10 / numba stack.
+    """
+    installed = None
+    for version in DEVKIT_PINS:
+        rc, _ = e2e.stream(
+            [
+                str(e2e.PY),
+                "-m",
+                "pip",
+                "install",
+                "nuscenes-devkit==%s" % version,
+                "numpy==1.22.4",
+                "opencv-python==4.8.1.78",
+            ],
+            timeout=3600,
+            log_name="devkit.log",
+        )
+        if rc != 0:
+            log("SMOKE_DEVKIT_INSTALL_FAILED version=%s" % version)
+            continue
+        probe = e2e.capture(
+            [
+                str(e2e.PY),
+                "-c",
+                "from importlib import metadata as md;"
+                "from nuscenes.utils import splits;"
+                "from nuscenes.nuscenes import NuScenes;"
+                "print('SMOKE_DEVKIT_OK version=%s val=%d'"
+                " % (md.version('nuscenes-devkit'), len(splits.val)))",
+            ]
+        )
+        log(probe[-2000:])
+        if "SMOKE_DEVKIT_OK" in probe and "val=150" in probe:
+            installed = version
+            break
+        log("SMOKE_DEVKIT_VERIFY_FAILED version=%s" % version)
+
+    if installed is None:
+        log("SMOKE_FAILED devkit")
+        return None
+
+    stack = e2e.capture(
+        [
+            str(e2e.PY),
+            "-c",
+            "import numpy, torch, mmcv, mmdet;"
+            "print(numpy.__version__, torch.__version__,"
+            " mmcv.__version__, mmdet.__version__)",
+        ]
+    )
+    log("post-devkit stack: %s" % stack)
+    if "1.22.4" not in stack or e2e.PINNED_PROBE not in stack:
+        log("SMOKE_FAILED pinned_stack_drift")
+        return None
+    return installed
 
 
 def main():
@@ -50,32 +118,37 @@ def main():
         log(stack_probe[-4000:])
         return 1
 
+    version = install_devkit(e2e)
+    if version is None:
+        return 1
+
     rc, text = e2e.stream(
-        [str(e2e.PY), "kaggle/train/probe.py"],
+        [str(e2e.PY), TASK_SCRIPT],
         cwd=e2e.REPO,
-        timeout=3600,
-        log_name="probe.log",
+        timeout=10800,
+        log_name="%s.log" % TASK,
     )
 
-    passed = rc == 0 and "PROBE_OK" in text
+    passed = rc == 0 and "SMOKE_OK" in text
     log("")
     log("=" * 72)
-    log("chosen config : %s" % _field(text, "cfg_leaf"))
-    log("probe rc      : %d" % rc)
-    log("probe verdict : %s" % ("PROBE_OK" if passed else "PROBE_FAILED"))
+    log("task          : %s (%s)" % (TASK, TASK_SCRIPT))
+    log("devkit        : %s" % version)
+    log("mini split    : %s" % _field(text, "MINI_SPLIT_OK"))
+    log("smoke rc      : %d" % rc)
+    log("smoke verdict : %s" % ("SMOKE_OK" if passed else "SMOKE_FAILED"))
     if not passed:
-        log("last 30 lines of the probe run:")
+        log("last 30 lines of the smoke run:")
         log("\n".join(text.splitlines()[-30:]))
     return 0 if passed else 1
 
 
-def _field(text, name):
-    """Return the payload of the last ``PROBE_STEP <name> ...`` line, if any."""
+def _field(text, prefix):
+    """Return the last line starting with ``prefix``, if any."""
     found = None
-    prefix = "PROBE_STEP %s " % name
     for line in text.splitlines():
         if line.startswith(prefix):
-            found = line[len(prefix):]
+            found = line
     return found
 
 

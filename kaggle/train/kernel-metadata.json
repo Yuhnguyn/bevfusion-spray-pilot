@@ -1,6 +1,6 @@
 {
-  "id": "nguynhuy9669/bevfusion-spray-probe",
-  "title": "BEVFusion spray probe",
+  "id": "nguynhuy9669/bevfusion-spray-train",
+  "title": "BEVFusion spray train",
   "code_file": "main.py",
   "language": "python",
   "kernel_type": "script",
@@ -10,7 +10,8 @@
   "enable_internet": true,
   "keywords": [],
   "dataset_sources": [
-    "nguynhuy9669/bevfusion-spray-pilot-code"
+    "nguynhuy9669/bevfusion-spray-pilot-code",
+    "sahangunasekara92/nuscenes-v1-0-full-keyframes"
   ],
   "kernel_sources": [],
   "competition_sources": [],
