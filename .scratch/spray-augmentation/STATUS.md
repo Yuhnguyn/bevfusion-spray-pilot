@@ -1,6 +1,6 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-08 23:40 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-09 00:25 (dừng shift) · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
 **Đọc file này trước khi mở bất kỳ ticket nào.** Ticket là chi tiết; file này là thứ tự và phạm vi.
 
 ## Mục tiêu một câu
@@ -18,10 +18,30 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 `mmcv-full 1.4.0` + compile 12 CUDA extension; code repo lên bằng dataset private 2 MB. Kernel
 `bevfusion-e2e` chạy **COMPLETE 516 s / 49 passed** (log tải trực tiếp từ Kaggle). Lớp còn lại: quota GPU T4.
 
-**Test:** `94 passed, 4 skipped` local (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`);
+## Dừng shift 2026-11-09 00:25 — bắt đầu lại từ đây
+
+**Đang treo:** kernel `nguynhuy9669/bevfusion-spray-train` v1 (dataset code **v10**) — lúc dừng vẫn `QUEUED`
+sau ~17 phút. Đây là **smoke run** của ticket 11-b: cài `nuscenes-devkit==1.1.11` vào venv → chạy
+`scripts/make_mini_split.py` dựng 4.000 sample → dựng dataloader → 5 bước arm A + 15 bước arm B.
+Không train thật.
+
+**Việc đầu tiên của shift sau:**
+```bash
+kaggle kernels status nguynhuy9669/bevfusion-spray-train
+kaggle kernels output nguynhuy9669/bevfusion-spray-train -p /tmp/ksmoke
+grep -E "SMOKE_DEVKIT_OK|MINI_SPLIT_OK|SMOKE_STEP|SMOKE_OK|SMOKE_FAILED|MINI_SPLIT_FAILED" /tmp/ksmoke/bevfusion-spray-train.log
+```
+Cần đọc được 2 số: **`s_per_step`** và **`peak_gb`**. Nếu kernel fail: đọc 30 dòng cuối, sửa, push lại
+(không hủy lượt chờ của kernel đang có).
+
+**Ngân sách đã chốt:** 2000 bước × batch 2 × 2 arm, lr 1e-4, AdamW, freeze chỉ camera. VRAM đã loại khỏi
+rủi ro (param state 0,254 GB / 16 GB). Cách xử lý nếu thiếu VRAM, theo thứ tự: gradient accumulation →
+batch 1 + tăng bước → DDP.
+
+**Test:** `105 passed, 4 skipped` local (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`);
 trong kernel Kaggle: **68 passed, 0 skipped**. 12 file test.
 
-**Việc tiếp theo:** `10` (config A/B) → `11` (mini run) → `13` (gate review).
+**Việc tiếp theo:** `11-b` (chờ smoke kernel) → `11-c` (train A/B thật) → `13` (gate review). Ticket `10` đã xong.
 
 ## Bảng ticket
 
