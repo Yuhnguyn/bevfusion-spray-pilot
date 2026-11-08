@@ -177,13 +177,20 @@ def test_streams_share_frame_and_aug_matrix():
     results = _sample()
     expected_idx = results["sample_idx"]
     aug_matrix = None
+    snapshot = None
 
     for transform in _build(cfg, plume_enabled=True):
         if isinstance(transform, PlumeTransform):
             aug_matrix = np.array(_array(results["lidar_aug_matrix"]), copy=True)
+            snapshot = np.array(_array(results["points"]), copy=True)
         results = transform(results)
 
     assert aug_matrix is not None
+    assert snapshot is not None
+    assert _array(results["points_clean"]).tobytes() == snapshot.tobytes()
+    assert len(_array(results["points"])) == len(snapshot) + int(
+        results["spray_stats"]["injected"]
+    )
     assert np.array_equal(_array(results["lidar_aug_matrix"]), aug_matrix)
     assert results["sample_idx"] == expected_idx
 
