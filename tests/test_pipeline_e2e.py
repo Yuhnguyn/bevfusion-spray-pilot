@@ -5,9 +5,13 @@ Skipped on a laptop (no mmcv/mmdet3d); runs inside the pinned MIT kernel clone.
 
 import copy
 import os
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import yaml
+
+from test_e2e_config_resolve import _resolve
 
 
 def _register_mmdet3d_pipelines():
@@ -85,7 +89,6 @@ AUGMENT_STEPS = (
     "ObjectRangeFilter",
     "PointShuffle",
 )
-POINT_CLOUD_RANGE = (-54.0, -54.0, -5.0, 54.0, 54.0, 3.0)
 COLLECT_KEYS = [
     "points",
     "points_clean",
@@ -121,15 +124,45 @@ def _array(value):
     return np.asarray(value)
 
 
-def _load_config():
+def _load_raw_config():
     if not os.path.exists(CONFIG_PATH):
         pytest.skip(f"kernel clone not present: {CONFIG_PATH}")
-    return mmcv.Config.fromfile(CONFIG_PATH)
+    with open(CONFIG_PATH) as handle:
+        return yaml.safe_load(handle)
+
+
+def _point_cloud_range():
+    return tuple(_load_raw_config()["point_cloud_range"])
+
+
+def _has_placeholder(node):
+    if isinstance(node, dict):
+        return any(_has_placeholder(value) for value in node.values())
+    if isinstance(node, list):
+        return any(_has_placeholder(value) for value in node)
+    return isinstance(node, str) and "${" in node
+
+
+def _load_config():
+    raw = _load_raw_config()
+    steps = [
+        _resolve(step, raw)
+        for step in raw["train_pipeline"]
+        if step["type"] in AUGMENT_STEPS
+    ]
+    unresolved = [step for step in steps if _has_placeholder(step)]
+    assert not unresolved, f"unresolved placeholders in pipeline steps: {unresolved}"
+    return SimpleNamespace(
+        train_pipeline=steps, object_classes=raw["object_classes"]
+    )
 
 
 def _sample():
+    point_cloud_range = _point_cloud_range()
     rng = np.random.default_rng(0)
-    xyz = rng.uniform(POINT_CLOUD_RANGE[:3], POINT_CLOUD_RANGE[3:], size=(40000, 3))
+    xyz = rng.uniform(
+        point_cloud_range[:3], point_cloud_range[3:], size=(40000, 3)
+    )
     extra = rng.uniform(0.0, 1.0, size=(40000, 2))
     points = np.concatenate([xyz, extra], axis=1).astype(np.float32)
     box = np.array(
@@ -276,8 +309,9 @@ def test_inverse_aug_matrix_roundtrip():
     assert matrix.shape == (4, 4)
     assert not np.allclose(matrix, np.eye(4))
 
+    point_cloud_range = _point_cloud_range()
     points = np.random.default_rng(0).uniform(
-        POINT_CLOUD_RANGE[:3], POINT_CLOUD_RANGE[3:], size=(100, 3)
+        point_cloud_range[:3], point_cloud_range[3:], size=(100, 3)
     )
     homogeneous = np.concatenate([points, np.ones((len(points), 1))], axis=1)
     augmented = homogeneous @ matrix.T
