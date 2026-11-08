@@ -99,7 +99,7 @@ def _sample():
     )
     return {
         "points": LiDARPoints(points, points_dim=5),
-        "gt_bboxes_3d": LiDARInstance3DBoxes(box),
+        "gt_bboxes_3d": LiDARInstance3DBoxes(box, box_dim=9),
         "gt_labels_3d": np.array([0], dtype=np.int64),
         "sample_idx": 0,
         "metadata": {"token": "e2e", "seed": 0},
