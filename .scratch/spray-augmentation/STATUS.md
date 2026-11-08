@@ -18,9 +18,10 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 `mmcv-full 1.4.0` + compile 12 CUDA extension; code repo lên bằng dataset private 2 MB. Kernel
 `bevfusion-e2e` chạy **COMPLETE 516 s / 49 passed** (log tải trực tiếp từ Kaggle). Lớp còn lại: quota GPU T4.
 
-**Test:** `60 passed` (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`), 9 file test.
+**Test:** `64 passed, 4 skipped` local (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`);
+trong kernel Kaggle: **68 passed, 0 skipped**. 12 file test.
 
-**Việc tiếp theo:** `14b` (DROR thích nghi) → `09` (e2e trên Kaggle) → `10` → `11` → `13`.
+**Việc tiếp theo:** `10` (config A/B) → `11` (mini run) → `13` (gate review).
 
 ## Bảng ticket
 
@@ -35,13 +36,13 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 | 06 | Adapter evaluator cho output MIT | **done** | mAP 0,298 (P 0,512 / R 0,524) |
 | 07 | Pipeline transform + `points_clean` | **done** | 12/12 check; scene-0796 +127 điểm |
 | 08 | Model forward routing | **done** `16517f1` | subclass `spray/`; param 16 → 16 |
-| 09 | End-to-end pipeline test | **ready-for-agent** | chặn cũ (19) đã gỡ; cần Kaggle GPU |
-| 10 | Train/eval config A/B | blocked | chờ 09 |
+| 09 | End-to-end pipeline test | **done** `c66e867` | kernel `68 passed, 0 skipped`, `E2E_OK`; 2 stream + matrix roundtrip |
+| 10 | Train/eval config A/B | ready-for-agent | 09 đã xong; cần Kaggle GPU |
 | 11 | Mini A/B run + report | blocked | chờ 10 |
 | 12 | SemanticSpray statistics | **done** | `docs/semantic-spray-stats.md` |
 | 13 | Gate review sau mini A/B | blocked | chờ 11 |
 | 14a | B0: module lọc | **done** `ed92cf8` | `spray/denoise.py` · `ror_filter` · 60 passed |
-| 14b | B0: DROR thích nghi theo cự ly | in-progress | ROR cố định `r=0,5` xoá **100%** điểm ở 50 m [ĐO] ⇒ phải đổi sang bán kính tỉ lệ cự ly |
+| 14b | B0: DROR thích nghi theo cự ly | **done** `60092a1` | `dror_filter(alpha=0,03)` giữ 100% điểm ở 10/20/40/50 m; 23 ms/2.272 điểm |
 | 15 | Provenance của `PlumeConfig` | **done** `bc0da86`+`d1bf9bf` | `docs/plume-model-provenance.md` |
 | 16 | Đo hình học plume thật theo cự ly | **done** `08f6715` | 17,06 cụm/frame; 30/20/14/10/10 điểm/cụm |
 | 17 | Sửa generator theo số đo của 16 | **done** `5d7c478` | count theo cự ly; bẹp `S = 0,885` |
@@ -60,13 +61,13 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 | Bước | Ticket | Trạng thái |
 |---|---|---|
 | 1 | **23** dọn 3 chỉnh nhỏ | ✅ `da996ff` — trần 1,0 m, cột 5 = `ring`, docs `K`/`T` + self-spray |
-| 2 | **09** e2e trên Kaggle | deps 07/08/19 đều xong; cần 1 run GPU |
+| 2 | **09** e2e trên Kaggle | ✅ `c66e867` — `68 passed`, 0 skipped, 5 lần push |
 | 3 | **10 → 11 → 13** | config A/B → mini run → gate review |
 | // | **14** (B0) | chạy song song được |
 
 ## Critical path
 
-`07` → `08` → `09` → `10` → `11` → `13`
+`07` → `08` → `09` ✅ → `10` → `11` → `13`
 
 `14` (B0) chạy song song được với `10–11`; chỉ cần evaluator + model.
 `16 → 17` **đã xong** — độc lập với pipeline, chỉ chạm `scripts/`, `spray/`, `tests/`, `docs/`.
