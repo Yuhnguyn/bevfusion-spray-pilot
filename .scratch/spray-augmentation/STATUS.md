@@ -1,6 +1,6 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-07 16:05 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-08 23:40 · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
 **Đọc file này trước khi mở bất kỳ ticket nào.** Ticket là chi tiết; file này là thứ tự và phạm vi.
 
 ## Mục tiêu một câu
@@ -18,7 +18,7 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 `mmcv-full 1.4.0` + compile 12 CUDA extension; code repo lên bằng dataset private 2 MB. Kernel
 `bevfusion-e2e` chạy **COMPLETE 516 s / 49 passed** (log tải trực tiếp từ Kaggle). Lớp còn lại: quota GPU T4.
 
-**Test:** `64 passed, 4 skipped` local (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`);
+**Test:** `94 passed, 4 skipped` local (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`);
 trong kernel Kaggle: **68 passed, 0 skipped**. 12 file test.
 
 **Việc tiếp theo:** `10` (config A/B) → `11` (mini run) → `13` (gate review).
@@ -37,8 +37,8 @@ trong kernel Kaggle: **68 passed, 0 skipped**. 12 file test.
 | 07 | Pipeline transform + `points_clean` | **done** | 12/12 check; scene-0796 +127 điểm |
 | 08 | Model forward routing | **done** `16517f1` | subclass `spray/`; param 16 → 16 |
 | 09 | End-to-end pipeline test | **done** `c66e867` | kernel `68 passed, 0 skipped`, `E2E_OK`; 2 stream + matrix roundtrip |
-| 10 | Train/eval config A/B | ready-for-agent | 09 đã xong; cần Kaggle GPU |
-| 11 | Mini A/B run + report | blocked | chờ 10 |
+| 10 | Train/eval config A/B | **done** `fcaa4f9` + `2ed78b3` | probe `PROBE_OK`: ckpt 0 missing, trainable 9,08M/40,80M, chỉ camera frozen, 0,25 GB param state |
+| 11 | Mini A/B run + report | **ready-for-agent** | cần: mini split + infos, s/step, VRAM đỉnh |
 | 12 | SemanticSpray statistics | **done** | `docs/semantic-spray-stats.md` |
 | 13 | Gate review sau mini A/B | blocked | chờ 11 |
 | 14a | B0: module lọc | **done** `ed92cf8` | `spray/denoise.py` · `ror_filter` · 60 passed |
