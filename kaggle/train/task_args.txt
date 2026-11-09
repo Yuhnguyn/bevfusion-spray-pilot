@@ -1,1 +1,1 @@
-# mỗi lần push đặt đúng một chế độ chạy; để trống = luồng A/B mặc định
+--task=ab-run --steps=2000 --batch=2 --lr=1e-4 --sweeps-num=0 --log-every=200
