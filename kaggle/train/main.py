@@ -22,7 +22,7 @@ import sys
 DEFAULT_TASK = "smoke"
 DEVKIT_PINS = ("1.1.11", "1.1.10")
 ARGS_FILE = pathlib.Path(__file__).resolve().parent / "task_args.txt"
-TASK_MARKERS = ("SMOKE_OK", "SWEEPS_OK", "AB_TRAIN_OK")
+TASK_MARKERS = ("SMOKE_OK", "SWEEPS_OK", "AB_TRAIN_OK", "EVAL_OK")
 
 
 def task_script(task):
@@ -312,6 +312,14 @@ def main():
         log("AB_ARM_A      : %s" % _field(text, "AB_ARM_OK arm=A"))
         log("AB_ARM_B      : %s" % _field(text, "AB_ARM_OK arm=B"))
         log("AB_FAILED     : %s" % _field(text, "AB_FAILED"))
+    if "EVAL_OK" in text or "EVAL_FAILED" in text:
+        log("EVAL_SPLIT_OK : %s" % _field(text, "EVAL_SPLIT_OK"))
+        log("EVAL_CELL_A_C : %s" % _field(text, "EVAL_CELL arm=A cond=clean"))
+        log("EVAL_CELL_A_S : %s" % _field(text, "EVAL_CELL arm=A cond=spray"))
+        log("EVAL_CELL_B_C : %s" % _field(text, "EVAL_CELL arm=B cond=clean"))
+        log("EVAL_CELL_B_S : %s" % _field(text, "EVAL_CELL arm=B cond=spray"))
+        log("EVAL_OK       : %s" % _field(text, "EVAL_OK"))
+        log("EVAL_FAILED   : %s" % _field(text, "EVAL_FAILED"))
     if not passed:
         log("last 30 lines of the %s run:" % task)
         log("\n".join(text.splitlines()[-30:]))
