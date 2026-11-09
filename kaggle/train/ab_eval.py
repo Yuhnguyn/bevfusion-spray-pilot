@@ -179,25 +179,35 @@ def _batch_token(batch):
     return str(metas["token"])
 
 
+def _to_numpy(value):
+    """Normalize boxes/labels (possibly CUDA, box objects or containers) to ndarray."""
+    import numpy as np
+
+    if isinstance(value, (list, tuple)):
+        return _to_numpy(value[0])
+    if isinstance(value, np.ndarray):
+        return value
+    tensor = getattr(value, "tensor", None)
+    if tensor is not None:
+        return _to_numpy(tensor)
+    if hasattr(value, "detach"):
+        return value.detach().cpu().numpy()
+    data = getattr(value, "data", None)
+    if data is not None:
+        return _to_numpy(data)
+    return np.asarray(value)
+
+
 def _batch_gt(batch):
     import numpy as np
 
-    boxes = batch["gt_bboxes_3d"]
-    if isinstance(boxes, (list, tuple)):
-        boxes = boxes[0]
-    tensor = getattr(boxes, "tensor", boxes)
-    if hasattr(tensor, "detach"):
-        tensor = tensor.detach().cpu().numpy()
-    tensor = np.asarray(tensor)
+    tensor = _to_numpy(batch["gt_bboxes_3d"])
     if tensor.size:
         tensor = tensor.reshape(-1, tensor.shape[-1])[:, :7]
     else:
         tensor = np.empty((0, 7), dtype=np.float64)
 
-    labels = batch["gt_labels_3d"]
-    if hasattr(labels, "detach"):
-        labels = labels.detach().cpu().numpy()
-    labels = np.asarray(labels).reshape(-1).astype(int)
+    labels = _to_numpy(batch["gt_labels_3d"]).reshape(-1).astype(int)
     return tensor, labels
 
 

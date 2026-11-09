@@ -10,6 +10,7 @@ import json
 import pathlib
 import types
 
+import numpy as np
 import pytest
 
 from proxy_eval.mit_adapter import MIT_CLASSES
@@ -167,3 +168,105 @@ def test_main_routes_ab_eval_task_to_script():
 
 def test_verdict_accepts_eval_ok():
     assert _load_main().verdict(0, "EVAL_OK delta_A=0.1") == (True, "EVAL_OK")
+
+
+# ---------------------------------------------------------------- _batch_gt
+class FakeCudaTensor:
+    """Stand-in for a CUDA tensor: only detach().cpu().numpy() works."""
+
+    def __init__(self, arr):
+        self._arr = arr
+
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return self
+
+    def numpy(self):
+        return self._arr
+
+    def __array__(self, *args, **kwargs):
+        raise TypeError("can't convert cuda:0 device type tensor to numpy")
+
+
+class FakeBoxes:
+    """Stand-in for BaseInstance3DBoxes (exposes ``.tensor``)."""
+
+    def __init__(self, tensor):
+        self.tensor = tensor
+
+
+class FakeDataContainer:
+    """Stand-in for mmcv DataContainer (exposes ``.data``)."""
+
+    def __init__(self, data):
+        self.data = data
+
+
+def test_batch_gt_reads_list_of_cuda_label_tensors():
+    batch = {
+        "gt_bboxes_3d": [FakeBoxes(FakeCudaTensor(np.array([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]])))],
+        "gt_labels_3d": [FakeCudaTensor(np.array([1, 2]))],
+    }
+
+    boxes, labels = _load_ab_eval()._batch_gt(batch)
+
+    assert boxes.shape == (1, 7)
+    assert labels.shape == (2,)
+    assert labels.dtype.kind == "i"
+    assert labels.tolist() == [1, 2]
+
+
+def test_batch_gt_reads_direct_cuda_label_tensor():
+    batch = {
+        "gt_bboxes_3d": FakeBoxes(FakeCudaTensor(np.array([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]]))),
+        "gt_labels_3d": FakeCudaTensor(np.array([0])),
+    }
+
+    boxes, labels = _load_ab_eval()._batch_gt(batch)
+
+    assert boxes.shape == (1, 7)
+    assert labels.tolist() == [0]
+
+
+def test_batch_gt_empty_boxes_and_labels():
+    batch = {
+        "gt_bboxes_3d": [FakeBoxes(FakeCudaTensor(np.empty((0, 7))))],
+        "gt_labels_3d": [FakeCudaTensor(np.array([]))],
+    }
+
+    boxes, labels = _load_ab_eval()._batch_gt(batch)
+
+    assert boxes.shape == (0, 7)
+    assert boxes.dtype.kind == "f"
+    assert labels.shape == (0,)
+    assert labels.dtype.kind == "i"
+
+
+def test_batch_gt_passes_plain_numpy_boxes_through():
+    raw = np.array([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]])
+    batch = {"gt_bboxes_3d": raw, "gt_labels_3d": np.array([3])}
+
+    boxes, labels = _load_ab_eval()._batch_gt(batch)
+
+    assert boxes.shape == (1, 7)
+    assert labels.tolist() == [3]
+
+
+def test_to_numpy_normalizes_every_known_form():
+    expected = np.array([1.0, 2.0])
+    module = _load_ab_eval()
+
+    forms = [
+        [FakeCudaTensor(expected)],
+        FakeDataContainer(FakeCudaTensor(expected)),
+        FakeBoxes(FakeCudaTensor(expected)),
+        FakeCudaTensor(expected),
+        expected,
+    ]
+
+    for form in forms:
+        out = module._to_numpy(form)
+        assert isinstance(out, np.ndarray)
+        assert out.tolist() == expected.tolist()
