@@ -5,9 +5,16 @@ Mục đích file này: lúc có account nuScenes thì không phải suy lại g
 
 ## Vì sao cần
 
-Pipeline hiện đọc 1 keyframe LiDAR. Bản paper cộng dồn 10 khung (1 keyframe + 9 sweep) — nặng hơn ~10× về số điểm.
-Hệ quả nếu thiếu sweeps: ObjectPaste/db_sampler phải tắt; mật độ điểm thưa; plume (điểm **thêm vào**) chiếm tỉ lệ lớn hơn thực tế
-⇒ effect size của A/B bị phóng đại. So sánh giữa 2 nhánh vẫn hợp lệ, số tuyệt đối thì không.
+Pipeline hiện đọc 1 keyframe LiDAR. Bản paper cộng dồn 10 khung (1 keyframe + 9 sweep).
+Hệ quả nếu thiếu sweeps: ObjectPaste/db_sampler phải tắt; **không có thông tin thời gian** (không thấy vật bị che ở khung trước);
+plume (điểm **thêm vào**) chiếm tỉ lệ lớn hơn thực tế ⇒ effect size của A/B bị phóng đại.
+
+**Đính chính kỹ thuật [CODE], đọc từ `mit/bevfusion/mmdet3d/datasets/pipelines/loading.py:184-190`:**
+config `mit/bevfusion/configs/nuscenes/default.yaml` đặt `sweeps_num: 9` + `pad_empty_sweeps: true`.
+Khi `sweeps == []`, loader **copy keyframe 9 lần** rồi `cat` → 10× số điểm nhưng **toạ độ trùng nhau**.
+Nghĩa là: không thưa hơn về số điểm, nhưng (a) không có thông tin mới, (b) voxel hoá gộp các điểm trùng
+nên nhận thức vẫn là single-scan, (c) trả giá 10× công đoạn nạp/collate mỗi bước.
+Vì vậy với dataset keyframe-only phải đặt `sweeps_num: 0` (trung thực + nhanh hơn), và chỉ đặt 9 khi có sweeps thật.
 
 ## Đã kiểm bằng `kaggle datasets files` [ĐO]
 
