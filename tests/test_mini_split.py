@@ -1,5 +1,8 @@
 """Deterministic mini-train split and info validation, no devkit needed."""
 
+import importlib.util
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -106,6 +109,13 @@ def test_validate_info_accepts_a_valid_info():
     assert validate_info(_info()) == []
 
 
+def test_validate_info_accepts_empty_sweeps():
+    keyframe_only = _info()
+    keyframe_only["sweeps"] = []
+
+    assert validate_info(keyframe_only) == []
+
+
 def test_validate_info_reports_broken_infos():
     missing_cam = _info()
     missing_cam["cams"].pop(CAMERA_TYPES[0])
@@ -117,9 +127,9 @@ def test_validate_info_reports_broken_infos():
     bad_boxes["gt_boxes"] = np.zeros((2, 6))
     assert any("gt_boxes shape" in error for error in validate_info(bad_boxes))
 
-    no_sweeps = _info()
-    no_sweeps["sweeps"] = []
-    assert any("sweeps_prev empty" in error for error in validate_info(no_sweeps))
+    bad_sweeps = _info()
+    bad_sweeps["sweeps"] = "not-a-list"
+    assert "missing sweeps" in validate_info(bad_sweeps)
 
 
 def test_summarize_counts_three_infos():
@@ -161,3 +171,105 @@ def test_load_val_scenes_raises_when_file_missing(tmp_path):
 def test_vendor_camera_channels_are_six_cam_entries():
     assert len(CAMERA_TYPES) == 6
     assert all(name.startswith("CAM_") for name in CAMERA_TYPES)
+
+
+class _IdentityQuaternion:
+    """Stand-in for pyquaternion.Quaternion: rotation is the identity."""
+
+    def __init__(self, value):
+        pass
+
+    @property
+    def rotation_matrix(self):
+        return np.eye(3)
+
+
+class _KeyframeOnlyNusc:
+    """One LiDAR keyframe whose ``prev`` points at a missing sweep file."""
+
+    def __init__(self, tmp_path):
+        self.cam_paths = {}
+        for name in CAMERA_TYPES:
+            path = tmp_path / f"{name}.jpg"
+            path.write_bytes(b"")
+            self.cam_paths[name] = path
+
+        self.lidar_path = tmp_path / "lidar.bin"
+        self.lidar_path.write_bytes(b"")
+        self.sweep_path = tmp_path / "sweeps/LIDAR_TOP/missing.bin"
+
+        self._sample_data = {
+            "sd-lidar": {
+                "token": "sd-lidar",
+                "calibrated_sensor_token": "cs",
+                "ego_pose_token": "ego",
+                "prev": "sd-sweep",
+                "timestamp": 1532402927647951,
+            },
+            "sd-sweep": {
+                "token": "sd-sweep",
+                "calibrated_sensor_token": "cs",
+                "ego_pose_token": "ego",
+                "prev": "",
+                "timestamp": 1532402927647951,
+            },
+        }
+        for name in CAMERA_TYPES:
+            token = f"sd-{name}"
+            self._sample_data[token] = {
+                "token": token,
+                "calibrated_sensor_token": "cs",
+                "ego_pose_token": "ego",
+                "prev": "",
+                "timestamp": 1532402927647951,
+            }
+
+        self.sample = {
+            "token": "tok-001",
+            "scene_token": "scene-0001",
+            "timestamp": 1532402927647951,
+            "anns": [],
+            "data": {
+                "LIDAR_TOP": "sd-lidar",
+                **{name: f"sd-{name}" for name in CAMERA_TYPES},
+            },
+        }
+
+    def get(self, table, token):
+        if table == "sample_data":
+            return self._sample_data[token]
+        if table == "calibrated_sensor":
+            return {"translation": [0.0, 0.0, 0.0], "rotation": [1.0, 0.0, 0.0, 0.0]}
+        if table == "ego_pose":
+            return {"translation": [0.0, 0.0, 0.0], "rotation": [1.0, 0.0, 0.0, 0.0]}
+        if table == "scene":
+            return {"log_token": "log"}
+        if table == "log":
+            return {"location": "singapore"}
+        raise KeyError(f"{table}/{token}")
+
+    def get_sample_data_path(self, token):
+        if token == "sd-lidar":
+            return str(self.lidar_path)
+        if token == "sd-sweep":
+            return str(self.sweep_path)
+        return str(self.cam_paths[token.removeprefix("sd-")])
+
+    def get_sample_data(self, token):
+        return self.get_sample_data_path(token), [], np.eye(3)
+
+
+def test_build_info_keeps_empty_sweeps_when_sweep_files_are_absent(tmp_path):
+    module_path = Path(__file__).resolve().parent.parent / "scripts/make_mini_split.py"
+    spec = importlib.util.spec_from_file_location("make_mini_split", module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    nusc = _KeyframeOnlyNusc(tmp_path)
+
+    info = module._build_info(
+        nusc, nusc.sample, 10, CAMERA_TYPES, {}, np, _IdentityQuaternion
+    )
+
+    assert info["sweeps"] == []
+    assert validate_info(info) == []

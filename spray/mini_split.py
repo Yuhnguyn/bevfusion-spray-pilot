@@ -177,8 +177,8 @@ def validate_info(info) -> list[str]:
 
     Checks token, scene_token, timestamp, the 6 ``CAM_*`` channels with
     calibrated_sensor/sensor2ego/ego2global fields, ``lidar_path``
-    (``LIDAR_TOP``), at least one previous sweep, and matching
-    ``gt_boxes``/``gt_names`` shapes.
+    (``LIDAR_TOP``), a ``sweeps`` list (may be empty if the dataset ships
+    keyframes only), and matching ``gt_boxes``/``gt_names`` shapes.
     """
     if not isinstance(info, dict):
         return ["info is not a dict"]
@@ -204,8 +204,6 @@ def validate_info(info) -> list[str]:
     sweeps = info.get("sweeps")
     if not isinstance(sweeps, (list, tuple)):
         errors.append("missing sweeps")
-    elif len(sweeps) < 1:
-        errors.append("sweeps_prev empty (need >= 1)")
 
     cams = info.get("cams")
     if not isinstance(cams, dict):

@@ -29,9 +29,11 @@ Two deliberate additions to the vendor key set, both required downstream:
   while the pinned converter writes ``camera_intrinsics`` (da93b27 mismatch).
   Both aliases are stored so the pickle loads as-is.
 
-Candidates are limited to LiDAR keyframes that have at least one previous
-sweep, because ``validate_info`` requires ``len(sweeps) >= 1``; only the first
-frame of each scene is dropped by this rule.
+Candidates are limited to LiDAR keyframes that declare a previous
+``sample_data`` pointer; only the first frame of each scene is dropped by this
+rule.  The sweep chain is best-effort: when the dataset ships keyframes only
+(no ``sweeps/LIDAR_TOP`` files), the chain stops at the first missing file and
+``info["sweeps"]`` stays empty.  ``validate_info`` accepts an empty sweep list.
 """
 
 from __future__ import annotations
@@ -204,7 +206,7 @@ def _build_info(nusc, sample, max_sweeps, camera_types, name_mapping, np, Quater
             break
         sweep_abs = nusc.get_sample_data_path(sd_rec["prev"])
         if not os.path.exists(sweep_abs):
-            raise FileNotFoundError(sweep_abs)
+            break  # dataset keyframes-only: stop the chain, keep what we have
         sweeps.append(
             _obtain_sensor2top(
                 nusc,
@@ -305,6 +307,7 @@ def main(argv=None) -> int:
     camera_types = load_camera_types()
     infos = []
     missing = 0
+    nosweeps = 0
     for token in selected:
         try:
             info = _build_info(
@@ -318,9 +321,16 @@ def main(argv=None) -> int:
             )
         except FileNotFoundError as exc:
             missing += 1
-            print(f"MINI_SPLIT_MISSING token={token} path={exc}", file=sys.stderr)
+            if missing <= 5:
+                print(f"MINI_SPLIT_MISSING token={token} path={exc}", file=sys.stderr)
             continue
+        if not info["sweeps"]:
+            nosweeps += 1
         infos.append(info)
+
+    if missing:
+        print(f"MINI_SPLIT_MISSING_TOTAL n={missing}", file=sys.stderr)
+    print(f"MINI_SPLIT_NOSWEEPS n={nosweeps}", file=sys.stderr)
 
     min_required = int(args.n * MIN_KEEP_RATIO)
     if len(infos) < min_required:
