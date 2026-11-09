@@ -48,3 +48,32 @@ v6 cho `sweeps=[]` và split dựng được 4.000 sample.
 
 Ghi chú: `LoadPointsFromMultiSweeps` vẫn nằm trong pipeline cả 2 arm nhưng nhận `sweeps=[]` — chạy được,
 không thêm điểm. Khi có sweeps thật (ticket 20) thì transform này tự dùng, không phải sửa pipeline.
+
+## 11-c: ba mảnh code (PM nghiệm thu)
+
+| Mảnh | Nội dung | Commit | Test |
+|---|---|---|---|
+| 11-c1 | `kaggle/train/ab_run.py` train 2 arm × 2.000 bước, `sweeps_num: 0`, lưu `ckpt_arm{A,B}.pth`, marker `AB_STEP/AB_ARM_OK/AB_TRAIN_OK`; sửa lỗi cộng trùng loss bằng `loss_keys()` | `322e26a` | 144 passed |
+| 11-c2 | `scripts/make_eval_split.py` (assert 196 frame / 16 scene, `--selftest`) + `proxy_eval/bootstrap.py` bootstrap paired theo scene | `9e3b4dd` | 165 passed |
+| 11-c3a | `make_mini_split.py --tokens-json`: dựng pkl từ danh sách token cố định, không chọn lại ngẫu nhiên | `a60b78b` | 169 passed |
+| 11-c3b | `kaggle/train/ab_eval.py`: 4 ô (2 arm × sạch/có plume) trên cùng 196 frame, dump pred + GT, gọi `evaluate_files`, `EVAL_CELL`, `EVAL_OK` có `ci95` theo scene | `1c24d9a` | 176 passed |
+
+Hai điểm PM đã kiểm tra trong 11-c3b thay vì tin agent:
+
+1. **Khác biệt duy nhất giữa hai điều kiện là plume.** `build_pipeline_steps` dựng arm B bằng
+   `spray.ab_config.train_pipeline("B")`, tức đúng pipeline của arm A **cộng một** `PlumeTransform`
+   chèn sau `RandomFlip3D`. Không có bước augment riêng nào khác, nên `delta = spray − clean`
+   không bị nhiễu bởi cấu hình khác.
+2. **Plume tất định theo frame.** `PlumeTransform` dùng `seed: 0`, còn `inject_plume()` sinh RNG từ
+   `blake2b("{token}:{seed}")`; hai ô dùng cùng token nên nhận đúng cùng một đám mây plume.
+
+Hạn chế phải ghi vào báo cáo: eval chạy trên `train` pipeline (`test_mode=False`) nên vẫn có
+`GlobalRotScaleTrans`/`RandomFlip3D`; GT được biến đổi cùng điểm nên phép so sánh vẫn đúng cặp,
+nhưng mAP tuyệt đối không phải chuẩn nuScenes và **chỉ đọc phần chênh lệch**, không đọc giá trị tuyệt đối.
+
+### Vì sao eval cần một lượt chạy riêng
+v9 đang train với `--task=ab-run` và không có bước eval trong cùng session. Checkpoint nằm trong
+output của version 9; lượt eval sau phải đọc được chúng. Hai đường:
+(a) tải `ckpt_arm{A,B}.pth` về rồi upload thành dataset, push `--task=ab-eval --ckpt-dir=/kaggle/input/<ds>`;
+(b) gộp train+eval vào một task để session sau tự chạy liền. Đường (a) rẻ GPU hơn, đường (b) sạch hơn
+về mặt "cùng một session". Chọn sau khi biết dung lượng checkpoint thật.
