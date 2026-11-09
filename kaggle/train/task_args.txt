@@ -1,1 +1,1 @@
---task=ab-run --steps=2000 --batch=2 --lr=1e-4 --sweeps-num=0 --log-every=200
+--task=ab-eval --ckpt-dir=/kaggle/input/bevfusion-spray-ckpt --limit=0

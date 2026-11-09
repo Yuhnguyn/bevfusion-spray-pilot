@@ -11,6 +11,7 @@
   "keywords": [],
   "dataset_sources": [
     "nguynhuy9669/bevfusion-spray-pilot-code",
+    "nguynhuy9669/bevfusion-spray-ckpt",
     "sahangunasekara92/nuscenes-v1-0-full-keyframes",
     "aadimator/nuscenes-mini"
   ],
