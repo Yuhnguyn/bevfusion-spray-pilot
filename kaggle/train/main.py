@@ -170,11 +170,11 @@ def main():
         log(stack_probe[-4000:])
         return 1
 
-    if not install_numba_errors_shim(e2e):
-        return 1
-
     version = install_devkit(e2e)
     if version is None:
+        return 1
+
+    if not install_numba_errors_shim(e2e):
         return 1
 
     rc, text = e2e.stream(

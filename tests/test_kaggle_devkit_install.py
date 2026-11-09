@@ -64,8 +64,13 @@ def test_numba_errors_shim_writes_alias_into_site_packages():
     assert "SMOKE_NUMBA_SHIM_OK" in body
 
 
-def test_numba_shim_runs_before_devkit_install():
+def test_shim_runs_after_devkit_install():
     body = _function_source("main")
-    assert "install_numba_errors_shim(e2e)" in body
     assert "install_devkit(e2e)" in body
-    assert body.index("install_numba_errors_shim(e2e)") < body.index("install_devkit(e2e)")
+    assert "install_numba_errors_shim(e2e)" in body
+    assert body.index("install_devkit(e2e)") < body.index("install_numba_errors_shim(e2e)")
+
+    assert body.index("install_numba_errors_shim(e2e)") < body.index("e2e.stream(")
+
+    src = MAIN.read_text()
+    assert src.count("install_numba_errors_shim(") == 2
