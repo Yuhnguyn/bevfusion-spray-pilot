@@ -77,3 +77,20 @@ output của version 9; lượt eval sau phải đọc được chúng. Hai đư
 (a) tải `ckpt_arm{A,B}.pth` về rồi upload thành dataset, push `--task=ab-eval --ckpt-dir=/kaggle/input/<ds>`;
 (b) gộp train+eval vào một task để session sau tự chạy liền. Đường (a) rẻ GPU hơn, đường (b) sạch hơn
 về mặt "cùng một session". Chọn sau khi biết dung lượng checkpoint thật.
+
+## 11-d: kết quả train A/B — kernel v9 COMPLETE (2026-11-09 16:18)
+
+Version `scriptVersionId=367214655`, log 1.070 dòng, `AB_TRAIN_OK arms=2 steps=2000 time_s=5919.9`.
+
+| Arm | loss_first | loss_last | loss_mean_last100 | s/step | peak_gb |
+|---|---|---|---|---|---|
+| A (không plume) | 2,306806 | 1,580883 | 1,852402 | 1,2080 | 4,223 |
+| B (có plume) | 2,310777 | 1,745840 | 1,905799 | 1,2097 | 4,224 |
+
+- Mini split: `MINI_SPLIT_OK n=4000 scenes=698 gt_boxes=137737 val_scenes=150 seed=0`.
+- Thời gian train 5.919,9 s ≈ 98,7 phút cho 4.000 bước (2 arm), đúng ước tính 1,21 s/bước.
+- `s_per_step` hai arm lệch 0,0017 s → plume gần như không tốn thêm thời gian (147 điểm/frame trên nền ~34.700).
+- Arm B có loss cao hơn ở cả bước cuối (1,746 vs 1,581) và trung bình 100 bước cuối (1,906 vs 1,852). Đây là
+  chiều **hợp lý** (dữ liệu khó hơn) nhưng **2000 bước là quá ngắn để kết luận**: chênh lệch loss huấn luyện
+  không phải metric phát hiện, và một điểm loss cuối vẫn chịu nhiễu của batch cuối.
+- Kết luận khoa học phải chờ `EVAL_OK` (4 ô trên 196 frame). Không dùng bảng loss này làm kết quả A/B.
