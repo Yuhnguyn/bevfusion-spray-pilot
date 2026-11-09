@@ -87,6 +87,15 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
+def needs_val_scenes(args) -> bool:
+    """True only when the random selection has to exclude val scenes.
+
+    ``--tokens-json`` builds exactly the listed tokens, so the val split is
+    useful for reporting but never required.
+    """
+    return not bool(args.tokens_json)
+
+
 def _resolve_splits_path(explicit):
     """Return a splits.py path, or None to let load_val_scenes use its default.
 
@@ -302,7 +311,16 @@ def main(argv=None) -> int:
 
     nusc = NuScenes(version=args.version, dataroot=args.dataroot, verbose=False)
 
-    val_scenes = load_val_scenes(_resolve_splits_path(args.splits))
+    val_scenes = frozenset()
+    if needs_val_scenes(args):
+        val_scenes = load_val_scenes(_resolve_splits_path(args.splits))
+    else:
+        try:
+            val_scenes = load_val_scenes(_resolve_splits_path(args.splits))
+        except (OSError, ValueError) as exc:
+            reason = str(exc).strip().splitlines()
+            detail = reason[0] if reason else type(exc).__name__
+            print(f"MINI_SPLIT_VAL_UNKNOWN {detail}")
 
     scene_names = {scene["token"]: scene["name"] for scene in nusc.scene}
     by_token = {}

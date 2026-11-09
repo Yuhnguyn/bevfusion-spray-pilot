@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import ast
 import random
-import re
 from collections import Counter
 from pathlib import Path
 
@@ -39,30 +38,55 @@ VAL_SCENES_CACHE = None
 _CAMERA_TYPES_CACHE = None
 
 
-def _extract_list_literal(text: str, name: str, source: str) -> str:
-    match = re.search(
-        rf"^[ \t]*{re.escape(name)}[ \t]*=[ \t]*\[", text, re.MULTILINE
+def _top_level_names(tree) -> list[str]:
+    seen = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id not in seen:
+                seen.append(target.id)
+    return seen
+
+
+def _extract_list_literal(text: str, name: str, source: str):
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        raise ValueError(
+            f"cannot parse {source}: line {exc.lineno}: {exc.msg}"
+        ) from exc
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+        elif isinstance(node, ast.AnnAssign):
+            target = node.target
+        else:
+            continue
+        if not isinstance(target, ast.Name) or target.id != name:
+            continue
+        try:
+            return ast.literal_eval(node.value)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                f"`{name}` in {source} is not a literal: {exc}"
+            ) from exc
+
+    seen = _top_level_names(tree)
+    raise ValueError(
+        f"no `{name}` assignment in {source}; top-level names: {seen}"
     )
-    if match is None:
-        raise ValueError(f"no `{name} = [` assignment in {source}")
-    start = text.index("[", match.start())
-    depth = 0
-    for index in range(start, len(text)):
-        char = text[index]
-        if char == "[":
-            depth += 1
-        elif char == "]":
-            depth -= 1
-            if depth == 0:
-                return text[start : index + 1]
-    raise ValueError(f"unterminated `{name}` list in {source}")
 
 
 def _read_list(path: Path, name: str) -> list[str]:
     if not path.is_file():
         raise FileNotFoundError(f"cannot read `{name}` from missing file: {path}")
-    literal = _extract_list_literal(path.read_text(), name, str(path))
-    values = ast.literal_eval(literal)
+    values = _extract_list_literal(path.read_text(), name, str(path))
     if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
         raise ValueError(f"`{name}` in {path} is not a list of strings")
     return values
