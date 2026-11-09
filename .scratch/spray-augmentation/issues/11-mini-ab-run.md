@@ -28,3 +28,23 @@ Nguyên tắc đã giữ: không sửa vendor `mit/bevfusion` (pin `da93b27`), k
 không đổi `DEVKIT_PINS`, không nới `val=150`.
 
 Test local: **111 passed, 4 skipped** (baseline 105 + 6 test mới của 2 vòng fix).
+
+## PM nghiệm thu — smoke PASS (kernel v6, 2026-11-09 11:4x)
+
+Kernel `nguynhuy9669/bevfusion-spray-train` **v6 COMPLETE**, `smoke rc=0`, `smoke verdict: SMOKE_OK`.
+Tổng thời gian kernel 2086 s (≈34,8 phút), trong đó ~10–11 phút là dựng venv + build 12 CUDA extension.
+
+| Chỉ số | Giá trị [ĐO] | Ý nghĩa |
+|---|---|---|
+| `s_per_step` | **1,4546 s** (batch 2, Tesla T4) | 4.000 bước (2 arm × 2.000) ≈ **5.818 s ≈ 1 h 37 m** compute |
+| `peak_gb` | **4,251 / 16 GB** | còn dư 3,7× → batch 4 khả thi nếu cần rút thời gian |
+| mini split | `n=4000 scenes=698 gt_boxes=137737 val_scenes=150` | khớp tham số thiết kế |
+| `MINI_SPLIT_NOSWEEPS` | `n=4000` | đúng dự kiến: dataset keyframes-only, `sweeps=[]` (ticket 20) |
+| arm A pipeline | không có `PlumeTransform` | đúng nhánh đối chứng |
+| arm B pipeline | có `PlumeTransform` | đúng nhánh can thiệp |
+
+Bản vá `32cf436` là mắt xích cuối: v5 chết vì `MINI_SPLIT_FAILED got=0` (mọi sample bị loại do thiếu file sweep);
+v6 cho `sweeps=[]` và split dựng được 4.000 sample.
+
+Ghi chú: `LoadPointsFromMultiSweeps` vẫn nằm trong pipeline cả 2 arm nhưng nhận `sweeps=[]` — chạy được,
+không thêm điểm. Khi có sweeps thật (ticket 20) thì transform này tự dùng, không phải sửa pipeline.
