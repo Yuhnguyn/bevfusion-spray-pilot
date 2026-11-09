@@ -94,3 +94,26 @@ Version `scriptVersionId=367214655`, log 1.070 dòng, `AB_TRAIN_OK arms=2 steps=
   chiều **hợp lý** (dữ liệu khó hơn) nhưng **2000 bước là quá ngắn để kết luận**: chênh lệch loss huấn luyện
   không phải metric phát hiện, và một điểm loss cuối vẫn chịu nhiễu của batch cuối.
 - Kết luận khoa học phải chờ `EVAL_OK` (4 ô trên 196 frame). Không dùng bảng loss này làm kết quả A/B.
+
+## 11-e → 11-g: chuỗi lỗi của lượt eval (2026-11-09)
+
+Mục tiêu: chạy `--task=ab-eval` trên 196 frame / 16 scene, đọc ckpt v9 từ dataset
+`nguynhuy9669/bevfusion-spray-ckpt` (2 x 156 MiB, sha256 đã ghi trong log tải).
+
+| Version | Kết quả | Nguyên nhân gốc | Sửa |
+|---|---|---|---|
+| v11 | `EVAL_FAILED eval_pkl` | `nuscenes-devkit 1.1.11` viết `val = \` rồi list ở dòng sau; regex trong `spray/mini_split.py` đòi `[` ngay sau `=` | 11-f: `ast.parse` + `literal_eval`; `--tokens-json` không còn bắt buộc đọc val split |
+| v12 | `EVAL_FAILED cell` | `gt_labels_3d` sau `scatter` là **list** tensor CUDA; `_batch_gt` chỉ xử lý tensor trực tiếp nên rơi vào `np.asarray(list[Tensor])` | 11-g: helper `_to_numpy` chuẩn hoá list / `DataContainer` / `BaseInstance3DBoxes` / tensor CPU-CUDA / ndarray |
+| v13 | đang chạy | — | — |
+
+Bằng chứng cho 11-f: giải nén `nuscenes/utils/splits.py` từ wheel 1.1.11 thật rồi gọi
+`load_val_scenes()` -> **150 scene**, phần tử đầu `scene-0003`, khớp `SMOKE_DEVKIT_OK version=1.1.11 val=150`.
+
+Đã qua ở v12 trước khi chết: `EVAL_SET_OK frames=196 scenes=16`,
+`EVAL_SPLIT_OK frames=196 scenes=16`, `EVAL_INFO device=cuda torch=1.10.1+cu113`.
+
+Chi phí: v11 ~23 phút GPU, v12 ~12 phút GPU. Bài học quy trình: mỗi lần đổi đường code eval
+phải chạy `--limit=5` trước; boot 10 phút là chi phí cố định nên lượt nhỏ gần như miễn phí
+so với việc chết ở frame 1 của ô 1.
+
+Test: 192 passed, 4 skipped sau 11-g (thêm `tests/test_ab_eval.py` 5 test, đỏ trước khi sửa).
