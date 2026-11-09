@@ -1,6 +1,6 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-09 00:25 (dừng shift) · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-09 22:45 (dừng shift) · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
 **Đọc file này trước khi mở bất kỳ ticket nào.** Ticket là chi tiết; file này là thứ tự và phạm vi.
 
 ## Mục tiêu một câu
@@ -18,35 +18,35 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 `mmcv-full 1.4.0` + compile 12 CUDA extension; code repo lên bằng dataset private 2 MB. Kernel
 `bevfusion-e2e` chạy **COMPLETE 516 s / 49 passed** (log tải trực tiếp từ Kaggle). Lớp còn lại: quota GPU T4.
 
-## Dừng shift 2026-11-09 00:25 — bắt đầu lại từ đây
+## Dừng shift 2026-11-09 22:45 — bắt đầu lại từ đây
 
-**Đang ở:** smoke của ticket 11-b **đã PASS** (kernel v6 `COMPLETE`, `SMOKE_OK`, 2026-11-09 11:4x).
-Số đo [ĐO]: `s_per_step = 1,4546 s` (batch 2, T4), `peak_gb = 4,251 / 16`,
-mini split `n=4000 scenes=698 gt_boxes=137737 val_scenes=150`, `MINI_SPLIT_NOSWEEPS n=4000`
-(dataset keyframes-only — xem ticket 20). Kernel chạy 2086 s, trong đó ~10–11 phút là boot venv + build CUDA ext.
+**Đang ở:** thực nghiệm ticket 11 **đã chạy xong**, kết quả **null** và đã chẩn đoán được cơ chế.
+Việc còn lại: **ticket 13 (gate review)** và quyết định có tăng liều plume / đổi thước đo hay không.
 
-**Việc tiếp theo — 11-c (train A/B thật):** chưa có entrypoint train; `kaggle/train/` mới có `main.py` (orchestrator),
-`smoke.py`, `probe.py`. Cần script train 2 arm × 2.000 bước + lưu checkpoint + eval trên eval set 196 frame.
-Ngân sách thời gian từ số đo trên: 4.000 bước × 1,4546 s ≈ **1 h 37 m** compute, cộng boot ~11 phút.
-`peak_gb` chỉ 4,25/16 nên batch 4 khả thi (≈50 phút) nhưng phải chỉnh lr theo batch — chỉ đổi nếu user đồng ý.
+**Kết quả A/B cuối (kernel v13, COMPLETE 22:06, 196 frame / 16 scene):**
 
-**Việc đầu tiên của shift sau:**
-```bash
-kaggle kernels status nguynhuy9669/bevfusion-spray-train
-kaggle kernels output nguynhuy9669/bevfusion-spray-train -p /tmp/ksmoke
-grep -E "SMOKE_DEVKIT_OK|MINI_SPLIT_OK|SMOKE_STEP|SMOKE_OK|SMOKE_FAILED|MINI_SPLIT_FAILED" /tmp/ksmoke/bevfusion-spray-train.log
-```
-Cần đọc được 2 số: **`s_per_step`** và **`peak_gb`**. Nếu kernel fail: đọc 30 dòng cuối, sửa, push lại
-(không hủy lượt chờ của kernel đang có).
+| Ô | mAP | recall |
+|---|---|---|
+| A clean | 0,5458 | 0,5896 |
+| A spray | 0,5449 | 0,5871 |
+| B clean | 0,5459 | 0,5903 |
+| B spray | 0,5419 | 0,5857 |
 
-**Ngân sách đã chốt:** 2000 bước × batch 2 × 2 arm, lr 1e-4, AdamW, freeze chỉ camera. VRAM đã loại khỏi
-rủi ro (param state 0,254 GB / 16 GB). Cách xử lý nếu thiếu VRAM, theo thứ tự: gradient accumulation →
-batch 1 + tăng bước → DDP.
+`EVAL_OK delta_A=-0.0009 delta_B=-0.0040 interaction=-0.0031 ci95=[-0.0140, 0.0017]`
+— CI chứa 0 ⇒ **không kết luận được tác dụng của augmentation**.
 
-**Test:** `105 passed, 4 skipped` local (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`);
-trong kernel Kaggle: **68 passed, 0 skipped**. 12 file test.
+**Chẩn đoán cơ chế (11-i, đo trên output v13):** plume thêm ~0,4 % số điểm; hộp dự đoán dịch trung vị
+**3 mm**; **số hộp dự đoán không đổi** (22,00/frame ở ngưỡng 0,05); 1,9 % hộp nằm sát IoU 0,5 nên chỉ
+cần dịch milimét là lật TP→FP. Toàn bộ delta −0,0031 ≈ **6 hộp lật ròng trên 3.609 GT**. Precision giảm
+(0,3092 → 0,3023) mạnh hơn recall ⇒ đúng cơ chế false positive, nhưng dưới độ phân giải của thước đo.
+Kết luận: **null không phải do eval hỏng**; muốn thấy tín hiệu phải tăng liều plume hoặc đổi thước đo.
 
-**Việc tiếp theo:** `11-b` (chờ smoke kernel) → `11-c` (train A/B thật) → `13` (gate review). Ticket `10` đã xong.
+**Chuỗi lỗi đã sửa trong shift này:** v11 ERROR do regex đọc `splits.py` (sửa `84ce10b`, parse bằng AST);
+v12 ERROR do `gt_labels_3d` là list tensor CUDA (sửa `4ac0a57`); v13 chạy sạch.
+
+**Test local:** 192 passed, 4 skipped (`CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/`).
+
+**Việc đầu tiên của shift sau:** đọc `HANDOFF.md` mục "Việc tiếp theo" — có 3 hướng kèm chi phí GPU.
 
 ## Bảng ticket
 
@@ -63,9 +63,9 @@ trong kernel Kaggle: **68 passed, 0 skipped**. 12 file test.
 | 08 | Model forward routing | **done** `16517f1` | subclass `spray/`; param 16 → 16 |
 | 09 | End-to-end pipeline test | **done** `c66e867` | kernel `68 passed, 0 skipped`, `E2E_OK`; 2 stream + matrix roundtrip |
 | 10 | Train/eval config A/B | **done** `fcaa4f9` + `2ed78b3` | probe `PROBE_OK`: ckpt 0 missing, trainable 9,08M/40,80M, chỉ camera frozen, 0,25 GB param state |
-| 11 | Mini A/B run + report | **in-progress** | 11-b smoke PASS v6 `d76eb46`; sweeps probe PASS v8 `c364174` (`SWEEPS_OK ratio=0,9879`, +53 % s/step); chốt `sweeps_num: 0`. 11-c1 `322e26a`, 11-c2 `9e3b4dd`, 11-c3a `a60b78b`, 11-c3b `1c24d9a` (176 passed). Kernel **v9 đang train** (`scriptVersionId=367214655`); v10 push nhầm đã huỷ |
+| 11 | Mini A/B run + report | **done** `88770b5` | Train v9 (2×2.000 bước) → eval v13: `interaction=-0,0031`, CI95 [−0,0140; 0,0017] ⇒ **null**. Chẩn đoán 11-i: dịch tâm 3 mm, 6 hộp lật/3.609 GT. Sửa lỗi: `84ce10b` (parse splits), `4ac0a57` (CUDA tensor). 192 passed |
 | 12 | SemanticSpray statistics | **done** | `docs/semantic-spray-stats.md` |
-| 13 | Gate review sau mini A/B | blocked | chờ 11 |
+| 13 | Gate review sau mini A/B | **next** | Dùng kết quả null + chẩn đoán 11-i; quyết định hướng đi trước khi làm tiếp |
 | 14a | B0: module lọc | **done** `ed92cf8` | `spray/denoise.py` · `ror_filter` · 60 passed |
 | 14b | B0: DROR thích nghi theo cự ly | **done** `60092a1` | `dror_filter(alpha=0,03)` giữ 100% điểm ở 10/20/40/50 m; 23 ms/2.272 điểm |
 | 15 | Provenance của `PlumeConfig` | **done** `bc0da86`+`d1bf9bf` | `docs/plume-model-provenance.md` |
