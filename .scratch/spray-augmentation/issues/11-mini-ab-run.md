@@ -117,3 +117,49 @@ phải chạy `--limit=5` trước; boot 10 phút là chi phí cố định nên
 so với việc chết ở frame 1 của ô 1.
 
 Test: 192 passed, 4 skipped sau 11-g (thêm `tests/test_ab_eval.py` 5 test, đỏ trước khi sửa).
+
+## 11-h: kết quả A/B cuối cùng — kernel v13 COMPLETE (2026-11-09 22:06)
+
+`--task=ab-eval`, ckpt v9 (2.000 bước/arm), 196 frame / 16 scene, 4 ô.
+
+| Ô | mAP | recall |
+|---|---|---|
+| A (train sạch) — clean | 0,5458 | 0,5896 |
+| A — spray | 0,5449 | 0,5871 |
+| B (train có plume) — clean | 0,5459 | 0,5903 |
+| B — spray | 0,5419 | 0,5857 |
+
+```
+EVAL_DELTA arm=A dmap=-0.0009
+EVAL_DELTA arm=B dmap=-0.0040
+EVAL_OK delta_A=-0.0009 delta_B=-0.0040 interaction=-0.0031 ci95=[-0.0140, 0.0017]
+```
+
+### Đọc kết quả
+
+- **Cả hai arm đều giảm mAP khi gặp plume**, đúng chiều: điểm nhiễu quanh xe làm bộ dò sai.
+  Arm A giảm 0,0009; arm B giảm 0,0040.
+- **`interaction = delta_B − delta_A = −0,0031`**: điểm ước lượng đi **ngược** chiều kỳ vọng.
+  Nếu train bằng plume có tác dụng thì arm B phải *chịu* plume tốt hơn arm A, tức interaction > 0.
+- **CI95 [−0,0140, +0,0017] chứa 0** → không có bằng chứng thống kê cho bất kỳ tác dụng nào,
+  theo cả hai chiều. Độ rộng CI ≈ 0,0157; muốn phát hiện hiệu ứng ở mức 0,003 thì cần cỡ mẫu lớn
+  hơn khoảng (0,0157/0,003)² ≈ 27 lần, hoặc hiệu ứng thật phải lớn hơn ~0,016 mAP.
+
+### Kết luận được phép viết
+
+Với 2.000 bước/arm và 196 frame/16 scene, **không phát hiện được tác dụng của plume augmentation**
+lên mAP; ước lượng điểm hơi âm nhưng nằm gọn trong nhiễu. Đây là kết quả **không kết luận** (inconclusive),
+không phải bằng chứng rằng augmentation vô dụng.
+
+### Không được viết
+
+- Không được nói "plume augmentation làm giảm mAP" — CI chứa 0.
+- Không được so mAP tuyệt đối (~0,546) với mAP nuScenes công bố: eval dùng `train` pipeline
+  (`GlobalRotScaleTrans`/`RandomFlip3D` vẫn bật) và matcher proxy, chỉ đọc chênh lệch.
+- Không được quy kết cho "mô phỏng plume chưa đủ thật": `EVAL_DELTA` đo tác dụng của **false points**;
+  mô hình hiện không có occlusion/attenuation nên không đo được cơ chế mất tín hiệu.
+
+### Chi phí
+
+- v13: 21:45 RUNNING → 22:06 COMPLETE (21 phút wall): boot ~11 phút, split ~2 phút, 4 ô × 196 frame ~7 phút.
+- Chuỗi lỗi trước đó: v11 23 phút GPU (parse), v12 12 phút GPU (CUDA tensor), v13 21 phút.
