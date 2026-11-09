@@ -119,6 +119,38 @@ def install_devkit(e2e):
     return installed
 
 
+def install_numba_errors_shim(e2e):
+    """Alias ``numba.errors`` -> ``numba.core.errors`` (numba >= 0.49 moved it).
+
+    ``mit/bevfusion@da93b27`` does ``from numba.errors import
+    NumbaPerformanceWarning`` in ``mmdet3d/datasets/pipelines/utils.py``. The
+    pinned numba 0.58.1 dropped that module. Patching the vendor tree would
+    break the pin, so write a one-line alias into the venv's site-packages.
+    """
+    shim = e2e.VENV / "lib" / "python3.8" / "site-packages" / "numba" / "errors.py"
+    if not shim.parent.is_dir():
+        log("SMOKE_FAILED numba_shim_missing_numba")
+        return False
+    shim.write_text(
+        '"""Compatibility shim: numba moved these classes to numba.core.errors."""\n'
+        "from numba.core.errors import *  # noqa: F401,F403\n"
+    )
+    probe = e2e.capture(
+        [
+            str(e2e.PY),
+            "-c",
+            "import numba, numba.errors, mmdet3d.datasets.pipelines;"
+            "print('SMOKE_NUMBA_SHIM_OK', numba.__version__)",
+        ]
+    )
+    if "SMOKE_NUMBA_SHIM_OK" in probe:
+        log(_field(probe, "SMOKE_NUMBA_SHIM_OK"))
+        return True
+    log("SMOKE_FAILED numba_shim")
+    log(probe[-2000:])
+    return False
+
+
 def main():
     log("PROBE_STEP boot %s" % BOOT)
     e2e = load_e2e(BOOT)
@@ -136,6 +168,9 @@ def main():
     if not ok:
         log("PROBE_FAILED stack_setup")
         log(stack_probe[-4000:])
+        return 1
+
+    if not install_numba_errors_shim(e2e):
         return 1
 
     version = install_devkit(e2e)

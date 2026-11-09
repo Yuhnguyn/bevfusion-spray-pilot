@@ -44,3 +44,28 @@ def test_devkit_packages_pins():
 
 def test_no_sibling_module():
     assert not DEVKIT_DEPS.exists()
+
+
+def _function_source(name):
+    src = MAIN.read_text()
+    node = next(
+        item
+        for item in ast.parse(src).body
+        if isinstance(item, ast.FunctionDef) and item.name == name
+    )
+    return ast.get_source_segment(src, node) or ""
+
+
+def test_numba_errors_shim_writes_alias_into_site_packages():
+    body = _function_source("install_numba_errors_shim")
+    assert '"numba" / "errors.py"' in body
+    assert "numba.core.errors" in body
+    assert "mmdet3d.datasets.pipelines" in body
+    assert "SMOKE_NUMBA_SHIM_OK" in body
+
+
+def test_numba_shim_runs_before_devkit_install():
+    body = _function_source("main")
+    assert "install_numba_errors_shim(e2e)" in body
+    assert "install_devkit(e2e)" in body
+    assert body.index("install_numba_errors_shim(e2e)") < body.index("install_devkit(e2e)")
