@@ -63,7 +63,7 @@ Sau khi đọc **code tham chiếu đã publish** (`openMSL/.../DetectionEnviron
 
 **Chi tiết + bảng tham số v2 + tiêu chí nghiệm thu:** `docs/plume-v1-defects.md`.
 **Bằng chứng trực quan:** `docs/figs/plume/v1-audit/compare.mp4` (10 s) và `compare_still.png`.
-**Issue GitHub:** 5 issue lỗi + 1 umbrella "Ticket 25".
+**Issue GitHub:** [#1](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/1) z · [#2](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/2) neo · [#3](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/3) rejected_box · [#4](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/4) stateless · [#5](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/5) tương tác phép đo · [#6](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/6) umbrella Ticket 25.
 **Kết luận:** null của ticket 11 là **hệ quả của thiết kế can thiệp**, không phải của augmentation; sửa
 generator trước, train lại sau. Ba việc phải làm trước khi sửa code (0 GPU) ở §5 của tài liệu audit.
 
