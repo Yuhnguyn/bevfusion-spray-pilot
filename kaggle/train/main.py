@@ -17,6 +17,10 @@ import importlib.util
 import pathlib
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+from devkit_deps import devkit_packages
+
 TASK = "smoke"
 TASK_SCRIPT = "kaggle/train/%s.py" % TASK
 DEVKIT_PINS = ("1.1.11", "1.1.10")
@@ -40,28 +44,33 @@ def load_e2e(path):
 def install_devkit(e2e):
     """Install ``nuscenes-devkit`` into the pinned venv and prove it imports.
 
-    numpy is re-pinned in the same command: the devkit has a loose
-    ``numpy`` requirement and letting pip upgrade it would break the pinned
+    The venv is created with ``uv venv`` and has no ``pip``, so the primary
+    path is ``e2e.pip_into_env`` (uv, with ``--python`` pointing at the venv).
+    Only if that fails do we bootstrap pip and fall back to ``-m pip``. numpy
+    is re-pinned in the same install: the devkit has a loose ``numpy``
+    requirement and letting the resolver upgrade it would break the pinned
     torch 1.10 / numba stack.
     """
     installed = None
     for version in DEVKIT_PINS:
-        rc, _ = e2e.stream(
-            [
-                str(e2e.PY),
-                "-m",
-                "pip",
-                "install",
-                "nuscenes-devkit==%s" % version,
-                "numpy==1.22.4",
-                "opencv-python==4.8.1.78",
-            ],
-            timeout=3600,
-            log_name="devkit.log",
-        )
+        packages = devkit_packages(version)
+        via = "uv"
+        rc, _ = e2e.pip_into_env(*packages)
+        if rc != 0:
+            rc_ensurepip, _ = e2e.stream(
+                [str(e2e.PY), "-m", "ensurepip", "--upgrade"]
+            )
+            if rc_ensurepip == 0:
+                via = "ensurepip"
+                rc, _ = e2e.stream(
+                    [str(e2e.PY), "-m", "pip", "install"] + packages,
+                    timeout=3600,
+                    log_name="devkit.log",
+                )
         if rc != 0:
             log("SMOKE_DEVKIT_INSTALL_FAILED version=%s" % version)
             continue
+        log("SMOKE_DEVKIT_INSTALL via=%s version=%s" % (via, version))
         probe = e2e.capture(
             [
                 str(e2e.PY),
