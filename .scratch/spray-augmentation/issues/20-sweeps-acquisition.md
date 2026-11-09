@@ -65,3 +65,19 @@ kaggle datasets create -p <dir> --dir-mode zip
 - `kaggle datasets files <mới>` thấy `sweeps/LIDAR_TOP/*.pcd.bin` đúng số lượng đã cắt.
 - `scripts/make_mini_split.py` sinh `sweeps` khác rỗng, log có `MINI_SPLIT_NOSWEEPS n=0`.
 - `validate_info` pass với `len(sweeps) >= 1`.
+
+## 20-b: chứng minh đường sweeps trên nuScenes mini — đã code xong, chưa chạy kernel
+
+Mục đích: trước khi bỏ công tải blob 25–30 GB, chứng minh bằng số đo rằng loader thật sự đọc nhiều khung hơn.
+
+Đã làm (commit `??`, HEAD trước là `a46e188`):
+
+- `kaggle/train/smoke.py` — thêm `--nusc-version` (mặc định `v1.0-trainval`, không đổi luồng cũ) và `--sweeps-probe`:
+  dựng split `v1.0-mini` với `n=300`, đo `SWEEPS_INFO n_sweeps`, `SWEEPS_PTS mode=single|multi`,
+  `SWEEPS_UNIQUE ratio` (bắt đúng chuyện `pad_empty_sweeps` nhân bản keyframe), `STEP_TIME` cho cả hai mode.
+- `kaggle/train/kernel-metadata.json` — `dataset_sources` 2 → **3** (thêm `aadimator/nuscenes-mini`) [ĐO].
+- `tests/test_smoke_sweeps.py` — 4 test thuần Python.
+- `pytest -q tests/` → **117 passed, 4 skipped** (trước 113) [ĐO].
+- An toàn: `build_pipeline_steps()` deepcopy từng step [CODE `smoke.py:207-243`] nên `_set_sweeps_num` không rò rỉ giữa hai mode.
+
+Chưa nghiệm thu: chưa push kernel, nên **chưa có** `SWEEPS_OK`/`SWEEPS_FAILED` thật. Việc tiếp theo là push v7 chạy `--sweeps-probe`.

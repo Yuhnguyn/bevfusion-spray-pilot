@@ -17,6 +17,10 @@ Log lines:
 * ``SMOKE_OK s_per_step=<f> peak_gb=<f> steps=<n>`` -- last line on success;
 * ``SMOKE_FAILED ...`` -- on a non-finite loss, a missing batch key or a
   failed split, with a traceback and the last three batch entries.
+
+``--sweeps-probe`` replaces the A/B arms with a v1.0-mini measurement of the
+multi-sweep loader: ``SWEEPS_INFO``, ``SWEEPS_PTS``, ``SWEEPS_UNIQUE``,
+``STEP_TIME``, then ``SWEEPS_OK`` or ``SWEEPS_FAILED``.
 """
 
 from __future__ import annotations
@@ -41,6 +45,7 @@ DEFAULT_DATAROOT = (
     "/kaggle/input/datasets/sahangunasekara92/nuscenes-v1-0-full-keyframes"
 )
 ALT_DATAROOT = "/kaggle/input/nuscenes-v1-0-full-keyframes"
+MINI_DATAROOT = "/kaggle/input/nuscenes-mini"
 MINI_PKL = pathlib.Path("/kaggle/working/mini_train_4000.pkl")
 OUT_JSON = pathlib.Path("/kaggle/working/smoke.json")
 # ``nuscenes.utils.splits`` writes ``val = \`` followed by the list on the next
@@ -55,6 +60,11 @@ DATASET_CONFIG = "mit/bevfusion/configs/nuscenes/default.yaml"
 ARM_STEPS = {"A": 5, "B": 15}
 WARMUP_STEPS = 3
 BATCH = 2
+# [CHỌN] ticket 20-b: the sweeps probe needs only a handful of samples to prove
+# that the multi-sweep loader loads more than the keyframe, so the split is tiny.
+SWEEPS_PROBE_N = 300
+SWEEPS_MIN_MULTIPLIER = 2.0
+SWEEPS_MIN_RATIO = 0.9
 WORKERS = 4
 SEED = 0
 LR = 1e-4
@@ -98,33 +108,55 @@ def devkit_version():
 
 
 # ------------------------------------------------------------ step 1: infos
-def find_dataroot(explicit=None):
+def find_dataroot(explicit=None, version="v1.0-trainval"):
     if explicit:
         return pathlib.Path(explicit)
-    for candidate in (DEFAULT_DATAROOT, ALT_DATAROOT):
+    for candidate in (DEFAULT_DATAROOT, ALT_DATAROOT, MINI_DATAROOT):
         root = pathlib.Path(candidate)
-        if (root / "v1.0-trainval" / "sample.json").is_file():
+        if (root / version / "sample.json").is_file():
             return root
-    for sample in sorted(pathlib.Path("/kaggle/input").rglob("v1.0-trainval/sample.json")):
+    for sample in sorted(pathlib.Path("/kaggle/input").rglob("%s/sample.json" % version)):
         return sample.parent.parent
-    fail("dataroot", "no v1.0-trainval/sample.json under /kaggle/input")
+    fail("dataroot", "no %s/sample.json under /kaggle/input" % version)
 
 
-def ensure_splits_file():
-    """Write the installed devkit ``val`` list in the CLI's parsable form."""
+def ensure_splits_file(
+    version="v1.0-trainval", dataroot=None, scene_names=None, path=None
+):
+    """Write the devkit ``val`` list in the CLI's parsable form.
+
+    ``v1.0-mini`` has no official val split, so the last two sorted scenes stand
+    in for it (enough to keep a couple of scenes out of the mini split).  Every
+    other version keeps the official 150-scene ``val`` list.
+    """
+    target = pathlib.Path(path) if path is not None else SPLITS_FILE
+    if version == "v1.0-mini":
+        if scene_names is None:
+            from nuscenes.nuscenes import NuScenes
+
+            nusc = NuScenes(version=version, dataroot=str(dataroot), verbose=False)
+            scene_names = [scene["name"] for scene in nusc.scene]
+        names = sorted(scene_names)[-2:]
+        if len(names) != 2:
+            fail("splits", "expected 2 val scenes for %s, got %d" % (version, len(names)))
+        body = "val = [\n%s]\n" % "".join("    %r,\n" % name for name in names)
+        target.write_text(body)
+        log("SWEEPS_SPLITS val=%d path=%s" % (len(names), target))
+        return target
+
     from nuscenes.utils import splits
 
     names = sorted(set(splits.val))
     if len(names) != 150:
         fail("splits", "expected 150 val scenes, got %d" % len(names))
     body = "val = [\n%s]\n" % "".join("    %r,\n" % name for name in names)
-    SPLITS_FILE.write_text(body)
-    log("SMOKE_SPLITS_OK val=%d path=%s" % (len(names), SPLITS_FILE))
-    return SPLITS_FILE
+    target.write_text(body)
+    log("SMOKE_SPLITS_OK val=%d path=%s" % (len(names), target))
+    return target
 
 
-def run_mini_split(dataroot):
-    splits_file = ensure_splits_file()
+def run_mini_split(dataroot, version="v1.0-trainval", n=4000):
+    splits_file = ensure_splits_file(version, dataroot)
     cmd = [
         sys.executable,
         "scripts/make_mini_split.py",
@@ -133,11 +165,13 @@ def run_mini_split(dataroot):
         "--out",
         str(MINI_PKL),
         "--n",
-        "4000",
+        str(n),
         "--seed",
         str(SEED),
         "--max-sweeps",
         "10",
+        "--version",
+        version,
         "--splits",
         str(splits_file),
     ]
@@ -156,7 +190,7 @@ def run_mini_split(dataroot):
     for line in text.splitlines():
         if line.startswith("MINI_SPLIT_OK"):
             ok_line = line
-    if done.returncode != 0 or ok_line is None or "n=4000" not in ok_line:
+    if done.returncode != 0 or ok_line is None or "n=%d" % n not in ok_line:
         log("last 20 lines of the mini split run:")
         log("\n".join(text.splitlines()[-20:]))
         fail("mini_split", "rc=%d" % done.returncode)
@@ -241,7 +275,13 @@ def _valid_indices(dataset, point_cloud_range, limit):
     return kept
 
 
-def build_loader(arm, cfg, dataroot):
+def _set_sweeps_num(pipeline, sweeps_num):
+    for step in pipeline:
+        if step["type"] == "LoadPointsFromMultiSweeps":
+            step["sweeps_num"] = sweeps_num
+
+
+def build_loader(arm, cfg, dataroot, sweeps_num=None):
     import torch
     from mmdet3d.datasets import build_dataloader, build_dataset
 
@@ -249,6 +289,8 @@ def build_loader(arm, cfg, dataroot):
     dataset_cfg["ann_file"] = str(MINI_PKL)
     dataset_cfg["dataset_root"] = str(dataroot)
     dataset_cfg["pipeline"] = build_pipeline_steps(arm, cfg["data"]["train"]["dataset"]["pipeline"])
+    if sweeps_num is not None:
+        _set_sweeps_num(dataset_cfg["pipeline"], sweeps_num)
     dataset_cfg["test_mode"] = False
 
     dataset = build_dataset(dataset_cfg)
@@ -425,6 +467,102 @@ def run_arm(arm, model, loader, device_index, steps):
     return record
 
 
+# ------------------------------------------------------- step 5: sweeps probe
+def build_points_pipeline(cfg, sweeps_num=None):
+    """Config's LiDAR loader steps only -- enough to count loaded points.
+
+    The camera branch and the augmentation/format steps are irrelevant for this
+    measurement, so only ``LoadPointsFromFile`` and ``LoadPointsFromMultiSweeps``
+    are instantiated.  ``sweeps_num=None`` keeps the config value (9).
+    """
+    from mmdet3d.datasets.pipelines import Compose
+
+    steps = []
+    for step in build_pipeline_steps("A", cfg["data"]["train"]["dataset"]["pipeline"]):
+        if step["type"] not in ("LoadPointsFromFile", "LoadPointsFromMultiSweeps"):
+            continue
+        if step["type"] == "LoadPointsFromMultiSweeps" and sweeps_num is not None:
+            step["sweeps_num"] = sweeps_num
+        steps.append(step)
+    return Compose(steps)
+
+
+def sweeps_summary(points_single, points_multi):
+    """Point counts and the duplicate ratio of the multi-sweep cloud.
+
+    ``ratio`` is the share of distinct ``(x, y, z)`` rows in ``points_multi``:
+    real sweeps give a high value, while a keyframe copied ``sweeps_num`` times
+    by ``LoadPointsFromMultiSweeps`` gives roughly ``1 / (1 + sweeps_num)``.
+    """
+    import numpy as np
+
+    single = np.asarray(points_single)
+    multi = np.asarray(points_multi)
+    n_single = int(single.shape[0])
+    n_multi = int(multi.shape[0])
+    if n_multi == 0:
+        ratio = 0.0
+    else:
+        unique = np.unique(multi[:, :3], axis=0).shape[0]
+        ratio = round(float(unique) / float(n_multi), 4)
+    return {"n_single": n_single, "n_multi": n_multi, "ratio": ratio}
+
+
+def run_sweeps_probe(probe, cfg, dataroot, version, model, checkpoint, device_index):
+    """Prove multi-sweep loading loads more than the keyframe, and time it."""
+    import numpy as np
+    from mmdet3d.datasets import build_dataset
+
+    dataset_cfg = copy.deepcopy(cfg["data"]["train"]["dataset"])
+    dataset_cfg["ann_file"] = str(MINI_PKL)
+    dataset_cfg["dataset_root"] = str(dataroot)
+    dataset_cfg["pipeline"] = build_pipeline_steps(
+        "A", cfg["data"]["train"]["dataset"]["pipeline"]
+    )
+    dataset_cfg["test_mode"] = False
+    dataset = build_dataset(dataset_cfg)
+    if not dataset.data_infos:
+        fail("sweeps_probe", "the mini split is empty")
+
+    n_sweeps = len(dataset.data_infos[0]["sweeps"])
+    log("SWEEPS_INFO version=%s n_sweeps=%d" % (version, n_sweeps))
+
+    modes = (("single", 0), ("multi", None))
+    counts = {}
+    for mode, sweeps_num in modes:
+        pipeline = build_points_pipeline(cfg, sweeps_num)
+        example = pipeline(dataset.get_data_info(0))
+        points = np.asarray(example["points"].tensor)
+        counts[mode] = points
+        log("SWEEPS_PTS mode=%s n=%d" % (mode, points.shape[0]))
+
+    summary = sweeps_summary(counts["single"], counts["multi"])
+    log("SWEEPS_UNIQUE mode=multi ratio=%.4f" % summary["ratio"])
+
+    for mode, sweeps_num in modes:
+        loader, _step_types = build_loader("A", cfg, dataroot, sweeps_num=sweeps_num)
+        load_weights(probe, model, checkpoint)
+        record = run_arm("A", model, loader, device_index, ARM_STEPS["A"])
+        log("STEP_TIME mode=%s s_per_step=%.4f" % (mode, record["s_per_step"]))
+        del loader
+
+    if (
+        summary["n_multi"] > summary["n_single"] * SWEEPS_MIN_MULTIPLIER
+        and summary["ratio"] > SWEEPS_MIN_RATIO
+    ):
+        log(
+            "SWEEPS_OK n_single=%d n_multi=%d ratio=%.4f"
+            % (summary["n_single"], summary["n_multi"], summary["ratio"])
+        )
+        return 0
+
+    log(
+        "SWEEPS_FAILED n_single=%d n_multi=%d ratio=%.4f"
+        % (summary["n_single"], summary["n_multi"], summary["ratio"])
+    )
+    return 1
+
+
 def _serializable(record):
     return {
         key: value
@@ -437,12 +575,24 @@ def _serializable(record):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataroot", default=None, help="nuScenes root")
+    parser.add_argument(
+        "--nusc-version",
+        default="v1.0-trainval",
+        help="nuScenes version directory to read (default: v1.0-trainval)",
+    )
+    parser.add_argument(
+        "--sweeps-probe",
+        action="store_true",
+        help="measure the multi-sweep loader on v1.0-mini instead of running A/B",
+    )
     args = parser.parse_args(argv)
     started = time.time()
 
-    dataroot = find_dataroot(args.dataroot)
-    log("SMOKE_INFO dataroot=%s" % dataroot)
-    run_mini_split(dataroot)
+    version = "v1.0-mini" if args.sweeps_probe else args.nusc_version
+    n = SWEEPS_PROBE_N if args.sweeps_probe else 4000
+    dataroot = find_dataroot(args.dataroot, version)
+    log("SMOKE_INFO dataroot=%s version=%s" % (dataroot, version))
+    run_mini_split(dataroot, version, n)
 
     probe = load_probe()
 
@@ -471,6 +621,11 @@ def main(argv=None):
     cfg, _files = probe.load_config(DATASET_CONFIG)
     checkpoint = probe.ensure_checkpoint()
     model, choice, _freeze_payload = prepare_model(probe, checkpoint, device)
+
+    if args.sweeps_probe:
+        return run_sweeps_probe(
+            probe, cfg, dataroot, version, model, checkpoint, device_index
+        )
 
     results = {}
     for arm in ("A", "B"):
