@@ -20,10 +20,15 @@ số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, �
 
 ## Dừng shift 2026-11-09 00:25 — bắt đầu lại từ đây
 
-**Đang treo:** kernel `nguynhuy9669/bevfusion-spray-train` v1 (dataset code **v10**) — lúc dừng vẫn `QUEUED`
-sau ~17 phút. Đây là **smoke run** của ticket 11-b: cài `nuscenes-devkit==1.1.11` vào venv → chạy
-`scripts/make_mini_split.py` dựng 4.000 sample → dựng dataloader → 5 bước arm A + 15 bước arm B.
-Không train thật.
+**Đang ở:** smoke của ticket 11-b **đã PASS** (kernel v6 `COMPLETE`, `SMOKE_OK`, 2026-11-09 11:4x).
+Số đo [ĐO]: `s_per_step = 1,4546 s` (batch 2, T4), `peak_gb = 4,251 / 16`,
+mini split `n=4000 scenes=698 gt_boxes=137737 val_scenes=150`, `MINI_SPLIT_NOSWEEPS n=4000`
+(dataset keyframes-only — xem ticket 20). Kernel chạy 2086 s, trong đó ~10–11 phút là boot venv + build CUDA ext.
+
+**Việc tiếp theo — 11-c (train A/B thật):** chưa có entrypoint train; `kaggle/train/` mới có `main.py` (orchestrator),
+`smoke.py`, `probe.py`. Cần script train 2 arm × 2.000 bước + lưu checkpoint + eval trên eval set 196 frame.
+Ngân sách thời gian từ số đo trên: 4.000 bước × 1,4546 s ≈ **1 h 37 m** compute, cộng boot ~11 phút.
+`peak_gb` chỉ 4,25/16 nên batch 4 khả thi (≈50 phút) nhưng phải chỉnh lr theo batch — chỉ đổi nếu user đồng ý.
 
 **Việc đầu tiên của shift sau:**
 ```bash
@@ -58,7 +63,7 @@ trong kernel Kaggle: **68 passed, 0 skipped**. 12 file test.
 | 08 | Model forward routing | **done** `16517f1` | subclass `spray/`; param 16 → 16 |
 | 09 | End-to-end pipeline test | **done** `c66e867` | kernel `68 passed, 0 skipped`, `E2E_OK`; 2 stream + matrix roundtrip |
 | 10 | Train/eval config A/B | **done** `fcaa4f9` + `2ed78b3` | probe `PROBE_OK`: ckpt 0 missing, trainable 9,08M/40,80M, chỉ camera frozen, 0,25 GB param state |
-| 11 | Mini A/B run + report | **ready-for-agent** | cần: mini split + infos, s/step, VRAM đỉnh |
+| 11 | Mini A/B run + report | **in-progress** | 11-b smoke PASS v6 `d76eb46`: `s_per_step=1,4546`, `peak_gb=4,251`, split 4.000/698 scene; còn 11-c train 2 arm |
 | 12 | SemanticSpray statistics | **done** | `docs/semantic-spray-stats.md` |
 | 13 | Gate review sau mini A/B | blocked | chờ 11 |
 | 14a | B0: module lọc | **done** `ed92cf8` | `spray/denoise.py` · `ror_filter` · 60 passed |
