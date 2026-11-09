@@ -1,6 +1,6 @@
 # HANDOFF — Spray plume pilot (BEVFusion MIT)
 
-Cập nhật: **2026-11-09 22:45** · nhánh `main` · HEAD `88770b5` · https://github.com/Yuhnguyn/bevfusion-spray-pilot
+Cập nhật: **2026-11-10 00:30** · nhánh `main` · https://github.com/Yuhnguyn/bevfusion-spray-pilot
 **Nguồn sự thật về tiến độ: `.scratch/spray-augmentation/STATUS.md`.**
 File này nói: đang ở đâu, làm gì tiếp, và dựng lại máy mới trong 5 phút.
 
@@ -35,20 +35,29 @@ khi hộp sát ngưỡng IoU 0,5 bị lật. Toàn bộ delta −0,0031 ≈ **6 
 16 scene, không phát hiện khác biệt."
 **Không được viết:** "spray augmentation không có tác dụng", "plume không ảnh hưởng detector".
 
-## 3. Việc tiếp theo
+## 3. Việc tiếp theo — simulator v2 (2026-11-10)
 
-**Ticket 13 (gate review) là việc kế tiếp** — đóng gói null result + phân tích power, rồi mới quyết hướng.
-Ba hướng mở rộng, chi phí GPU tính từ số đo thật (boot ~11 phút + eval ~10 phút/lượt):
+**Không train lại trước khi sửa generator.** Audit ngày 2026-11-10 tìm ra **5 lỗi cấu trúc** trong
+`spray/plume.py` khiến can thiệp A/B yếu về mặt thiết kế (chi tiết: `docs/plume-v1-defects.md`,
+clip: `docs/figs/plume/v1-audit/compare.mp4`):
 
-| Hướng | Chi phí | Trả lời được gì |
+| # | Lỗi | Mức |
 |---|---|---|
-| **A. Tăng liều plume 5–10×**, giữ 2.000 bước | ~1,2 h | Tác dụng có vượt nhiễu khi mật độ tăng? (rẻ nhất, kiểm tra đúng nghi phạm) |
-| **B. Đổi thước đo** (đếm hộp lật TP↔FP, AP theo dải cự ly gần) | ~0 GPU (chạy lại scoring trên output v13 đã tải) | Tín hiệu có bị thước đo thô che mất? |
-| **C. Train 10.000 bước/arm** | ~6,7 h | Tác dụng có xuất hiện khi train đủ lâu? |
+| D1 | `z` sai frame — cụm lơ lửng **2,0–3,8 m trên mặt đường** (trên nóc xe) | P0 — cần xác nhận bằng 1 frame thật |
+| D2 | neo từ **tâm box**, không có bề dài `v·Δt`; trung vị 4,01 m sau đuôi, mật độ 2,3× loãng | P0 |
+| D3 | **13,9–63,1 %** điểm bị `rejected_box` xoá (tự triệt tiêu liều) | P1 |
+| D4 | stateless mỗi frame ⇒ không có vệt/lifetime/drag | P1 |
+| D5 | thiếu visibility / occlusion / attenuation / thay return yếu | P1 |
 
-Thứ tự khuyến nghị: **B (miễn phí) → A (~1,2 h) → C (chỉ khi A vẫn null)**.
-Hướng A/B là **thay đổi mô hình hoặc thước đo**, phải ghi `[CHỌN]` vào `docs/plume-model-provenance.md`
-và chốt tham số **trước** khi xem kết quả; không trộn với A/B cũ.
+**Ba việc trước khi sửa code (0 GPU):** audit CPU trên mini split (% frame có plume, liều/frame,
+% `rejected_box`, % frame xe ngược chiều) · đo `z` mặt đường trên 1 frame thật · rồi mới chốt spec.
+
+**Sau v2:** dose–response eval trên ckpt cũ (10×, 20×) + control camera-off (~1 h GPU) → chọn liều →
+train lại 2 arm 10.000 bước (~6,7 h). Ba hướng A/B/C cũ vẫn giữ nguyên thứ tự B → A → C, nhưng **chỉ
+có nghĩa sau khi generator đúng**.
+
+Hướng nào đổi mô hình/thước đo đều phải ghi `[CHỌN]` vào `docs/plume-model-provenance.md` và chốt
+**trước** khi xem kết quả; không trộn với A/B cũ.
 
 ## 4. Dựng lại máy trên PC (copy nguyên khối)
 
@@ -138,6 +147,8 @@ xong; `kernel_card.py <log>` in card nén; `quota_watch.sh` xem quota.
 | Quyết định + khác biệt paper | `docs/PROJECT.md` §5, `docs/adr/` |
 | Kanban HTML | `docs/kanban.html` (sinh bằng `scripts/build_kanban.py`) |
 | Provenance plume | `docs/plume-model-provenance.md` |
+| Audit generator v1 (5 lỗi) | `docs/plume-v1-defects.md` |
+| Clip + ảnh so sánh generator | `docs/figs/plume/v1-audit/` |
 | Ảnh/clip plume | `docs/figs/plume/` |
 | Code kernel | `kaggle/train/{main.py,smoke.py,ab_run.py,ab_eval.py}` |
 | Eval/scoring | `proxy_eval/`, `scripts/make_eval_split.py` |

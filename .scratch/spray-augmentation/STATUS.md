@@ -48,6 +48,25 @@ v12 ERROR do `gt_labels_3d` là list tensor CUDA (sửa `4ac0a57`); v13 chạy s
 
 **Việc đầu tiên của shift sau:** đọc `HANDOFF.md` mục "Việc tiếp theo" — có 3 hướng kèm chi phí GPU.
 
+## Audit generator v1 — 2026-11-10 (trước khi planning v2)
+
+Sau khi đọc **code tham chiếu đã publish** (`openMSL/.../DetectionEnvironmentalEffects.cpp`) và đo trực tiếp
+`spray.plume.inject_plume`, tìm được **5 lỗi cấu trúc** giải thích vì sao can thiệp A/B quá yếu:
+
+| # | Lỗi | Số đo | Mức |
+|---|---|---|---|
+| D1 | `z` sai frame: cụm ở **2,0–3,8 m trên mặt đường** (trên nóc xe 1,7 m) | `height_range_m [0,2;2,0]` gán tuyệt đối; mặt đường ≈ −1,84 m | **P0** |
+| D2 | neo từ **tâm box** thay vì mặt đuôi, không có bề dài `v·Δt` | trung vị **4,01 m** sau đuôi (p90 6,93); tham chiếu 1,39–2,78 m; mật độ 3,6 vs 14,0 điểm/m³ | **P0** |
+| D3 | tự triệt tiêu: điểm sinh trong box bị `rejected_box` xoá | **13,9 %** xe con · **45,7 %** truck · **63,1 %** trailer | **P1** |
+| D4 | stateless mỗi frame ⇒ không có vệt | trung vị sau đuôi dao động **1,57 → 7,33 m** giữa các frame | **P1** |
+| D5 | thiếu visibility / occlusion / attenuation / thay return yếu | 0/5 cơ chế của code tham chiếu | **P1** |
+
+**Chi tiết + bảng tham số v2 + tiêu chí nghiệm thu:** `docs/plume-v1-defects.md`.
+**Bằng chứng trực quan:** `docs/figs/plume/v1-audit/compare.mp4` (10 s) và `compare_still.png`.
+**Issue GitHub:** 5 issue lỗi + 1 umbrella "Ticket 25".
+**Kết luận:** null của ticket 11 là **hệ quả của thiết kế can thiệp**, không phải của augmentation; sửa
+generator trước, train lại sau. Ba việc phải làm trước khi sửa code (0 GPU) ở §5 của tài liệu audit.
+
 ## Bảng ticket
 
 | # | Việc | Trạng thái | Bằng chứng / next |
@@ -78,6 +97,7 @@ v12 ERROR do `gt_labels_3d` là list tensor CUDA (sửa `4ac0a57`); v13 chạy s
 | 22 | Sửa lỗi tính hai lần + docs | **done** `75d210c` | `K = 2,51`; 8 cụm @80 km/h; 56 test |
 | 23 | Trần bán kính 1,0 m + tên cột 5 + docs `K`/`T` | **done** `da996ff` | chạm trần đo thật 6,51%; 57 test |
 | 24 | `build_kanban.py` sinh board từ nguồn thật | **done** `8da032a` | bỏ hard-code; 25 ticket, 18 done, nguồn STATUS.md |
+| 25 | **Plume simulator v2** (4 tầng: hình học → khả kiến → tương tác → thời gian) | **planning** | `docs/plume-v1-defects.md` §4–5; chờ audit CPU + xác nhận D1 |
 
 ## Thứ tự hiện tại
 
