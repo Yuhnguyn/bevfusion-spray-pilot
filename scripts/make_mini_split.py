@@ -39,6 +39,7 @@ rule.  The sweep chain is best-effort: when the dataset ships keyframes only
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import pickle
 import sys
@@ -72,6 +73,11 @@ def parse_args(argv=None):
         "--splits",
         default=None,
         help="official nuScenes splits.py (default: vendor path, else installed devkit)",
+    )
+    parser.add_argument(
+        "--tokens-json",
+        default=None,
+        help="JSON from make_eval_split.py; build exactly its `frames` tokens",
     )
     parser.add_argument(
         "--dry-run",
@@ -261,6 +267,33 @@ def _build_info(nusc, sample, max_sweeps, camera_types, name_mapping, np, Quater
     return info
 
 
+def load_tokens_from_json(path) -> list[str]:
+    """Read ``sample_token`` values from a ``make_eval_split.py`` payload.
+
+    The order of the ``frames`` list is preserved; ``scene`` is ignored.
+    """
+    payload = json.loads(Path(path).read_text())
+    return [frame["sample_token"] for frame in payload["frames"]]
+
+
+def build_infos_for_tokens(tokens, build_info):
+    """Build one info per token with the injected ``build_info(token)``.
+
+    Returns ``(infos, missing)``.  A token whose builder raises
+    ``FileNotFoundError`` or ``KeyError`` lands in ``missing`` instead of
+    aborting the run, so the caller can fail loudly with a count.  Input
+    order is preserved.
+    """
+    infos = []
+    missing = []
+    for token in tokens:
+        try:
+            infos.append(build_info(token))
+        except (FileNotFoundError, KeyError):
+            missing.append(token)
+    return infos, missing
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
 
@@ -285,7 +318,10 @@ def main(argv=None) -> int:
         )
 
     try:
-        selected = select_tokens(samples, args.n, args.seed, val_scenes)
+        if args.tokens_json:
+            selected = load_tokens_from_json(args.tokens_json)
+        else:
+            selected = select_tokens(samples, args.n, args.seed, val_scenes)
     except ValueError as exc:
         candidates = sum(1 for s in samples if s["scene_token"] not in val_scenes)
         print(f"MINI_SPLIT_FAILED got={candidates}")
@@ -305,34 +341,60 @@ def main(argv=None) -> int:
     from pyquaternion import Quaternion
 
     camera_types = load_camera_types()
-    infos = []
-    missing = 0
-    nosweeps = 0
-    for token in selected:
-        try:
-            info = _build_info(
-                nusc,
-                by_token[token],
-                args.max_sweeps,
-                camera_types,
-                NuScenesDataset.NameMapping,
-                np,
-                Quaternion,
-            )
-        except FileNotFoundError as exc:
-            missing += 1
-            if missing <= 5:
-                print(f"MINI_SPLIT_MISSING token={token} path={exc}", file=sys.stderr)
-            continue
-        if not info["sweeps"]:
-            nosweeps += 1
-        infos.append(info)
+
+    def _build_one(token):
+        return _build_info(
+            nusc,
+            by_token[token],
+            args.max_sweeps,
+            camera_types,
+            NuScenesDataset.NameMapping,
+            np,
+            Quaternion,
+        )
+
+    if args.tokens_json:
+        infos, missing_tokens = build_infos_for_tokens(selected, _build_one)
+        if missing_tokens:
+            print(f"TOKENS_MISSING n={len(missing_tokens)}")
+            return 1
+        missing = 0
+        nosweeps = sum(1 for info in infos if not info["sweeps"])
+    else:
+        infos = []
+        missing = 0
+        nosweeps = 0
+        for token in selected:
+            try:
+                info = _build_one(token)
+            except FileNotFoundError as exc:
+                missing += 1
+                if missing <= 5:
+                    print(
+                        f"MINI_SPLIT_MISSING token={token} path={exc}",
+                        file=sys.stderr,
+                    )
+                continue
+            if not info["sweeps"]:
+                nosweeps += 1
+            infos.append(info)
 
     if missing:
         print(f"MINI_SPLIT_MISSING_TOTAL n={missing}", file=sys.stderr)
     print(f"MINI_SPLIT_NOSWEEPS n={nosweeps}", file=sys.stderr)
 
-    min_required = int(args.n * MIN_KEEP_RATIO)
+    if args.tokens_json:
+        split_counts = {}
+        for info in infos:
+            scene = scene_names[info["scene_token"]]
+            split = "val" if scene in val_scenes else "train"
+            split_counts[split] = split_counts.get(split, 0) + 1
+        print(
+            f"MINI_SPLIT_TOKENS n={len(infos)} "
+            f"splits={json.dumps(split_counts, sort_keys=True)}"
+        )
+
+    min_required = len(selected) if args.tokens_json else int(args.n * MIN_KEEP_RATIO)
     if len(infos) < min_required:
         print(f"MINI_SPLIT_FAILED got={len(infos)}")
         return 1
@@ -340,9 +402,9 @@ def main(argv=None) -> int:
     summary = summarize(infos)
     metadata = dict(
         version=args.version,
-        source="mini_split",
+        source="eval_tokens" if args.tokens_json else "mini_split",
         seed=args.seed,
-        n_requested=args.n,
+        n_requested=len(selected) if args.tokens_json else args.n,
         n_built=len(infos),
         max_sweeps=args.max_sweeps,
         val_scenes=len(val_scenes),
