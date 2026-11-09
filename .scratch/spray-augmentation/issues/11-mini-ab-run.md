@@ -163,3 +163,54 @@ không phải bằng chứng rằng augmentation vô dụng.
 
 - v13: 21:45 RUNNING → 22:06 COMPLETE (21 phút wall): boot ~11 phút, split ~2 phút, 4 ô × 196 frame ~7 phút.
 - Chuỗi lỗi trước đó: v11 23 phút GPU (parse), v12 12 phút GPU (CUDA tensor), v13 21 phút.
+
+## 11-i: chẩn đoán cơ chế — vì sao kết quả null
+
+Nguồn: tải output v13 (`/tmp/kv13out`), 120 frame có đủ cặp cell A_clean / A_spray
+(tải bị Kaggle 502 nên dừng ở 120/196; mAP đầy đủ lấy từ log kernel).
+
+### Kiểm tra ghép cặp TRƯỚC khi diễn giải
+
+GT của cùng một token ở hai cell **giống nhau tuyệt đối** (40/40 frame so sánh,
+`np.allclose` atol 1e-4). Nguyên nhân: `GlobalRotScaleTrans`/`RandomFlip3D` dùng
+`random.uniform/choice`, nhưng `build_dataloader(..., seed=0)` của mmcv seed worker
+theo `num_workers*rank + worker_id + seed`, nên mỗi cell nhận **cùng chuỗi biến đổi**.
+⇒ so sánh cặp là hợp lệ, delta không phải nhiễu do augmentation hình học.
+
+### Số đo trên dữ liệu thật (120 frame)
+
+| Đại lượng | clean | spray |
+|---|---|---|
+| Số dự đoán score ≥ 0,05 mỗi frame | 22,00 | 22,00 |
+| Số dự đoán score ≥ 0,20 mỗi frame | 7,00 | 7,00 |
+| score cao nhất (trung bình) | 0,7434 | 0,7413 |
+| recall (86 frame) | 0,5882 | 0,5855 |
+| precision (86 frame) | 0,3092 | 0,3023 |
+
+Ghép 25.137 hộp dự đoán giữa hai cell (theo tâm, ngưỡng 1 m):
+IoU trung vị **0,981**, dịch tâm trung vị **3 mm** (p90 = 62 mm),
+1,9 % số hộp tụt dưới IoU 0,5.
+
+### Chuỗi nguyên nhân
+
+1. Plume chỉ thêm **~0,4 % số điểm** (147 điểm trên ~34.700), gom thành cụm nhỏ sau các box đang chạy.
+2. Đầu vào đổi rất ít ⇒ dự đoán **gần như không đổi**: dịch tâm 3 mm, **số hộp dự đoán y hệt** (22,00/frame).
+3. Vì số hộp không đổi, mAP chỉ có thể đổi khi một hộp nằm sát ngưỡng IoU 0,5 bị đẩy sang phía FP.
+   1,9 % hộp sát ngưỡng × 200 hộp ≈ 3,8 hộp/frame có khả năng lật.
+4. AP mỗi frame bị lượng tử hoá thô: ~11 GT/frame chia cho 10 class ⇒ mất 1 class = −0,1 AP.
+   Trung bình 196 frame ⇒ mỗi lần lật chỉ ~0,0005 mAP. Delta −0,0031 ≈ **6 hộp lật ròng / 3.609 GT**.
+5. Precision giảm (0,3092 → 0,3023) mạnh hơn recall (0,5882 → 0,5855): đúng dấu hiệu **lật TP→FP ở biên**,
+   không phải sinh thêm dự đoán mới.
+
+### Vì sao CI rộng
+
+Bootstrap theo **16 scene**; mỗi scene 12 frame trung bình; mỗi frame delta là bội số của 0,1/10 class.
+Độ rộng CI 0,0157 lớn hơn hiệu ứng 5 lần ⇒ không thể phân biệt với 0 dù cơ chế có thật.
+
+### Kết luận
+
+Kết quả null **không phải** do eval hỏng, không phải do ghép cặp sai, và **không** chứng minh
+augmentation vô dụng. Nó cho thấy: với mật độ plume 0,4 % và mô hình 2.000 bước,
+tác động lên dự đoán là cỡ milimét — nhỏ hơn độ phân giải của thước đo.
+Muốn đo được phải tăng **liều** (mật độ plume) hoặc tăng **độ nhạy thước đo**
+(AP theo dải cự ly, hoặc đếm hộp lật TP↔FP thay vì mAP tổng).
