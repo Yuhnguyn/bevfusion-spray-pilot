@@ -14,8 +14,8 @@ MAIN = pathlib.Path(__file__).resolve().parents[1] / "kaggle" / "train" / "main.
 ARGS_FILE = MAIN.parent / "task_args.txt"
 
 
-def _load_main():
-    tree = ast.parse(MAIN.read_text())
+def _load_main(path=MAIN):
+    tree = ast.parse(path.read_text())
     body = [
         node
         for node in tree.body
@@ -25,9 +25,9 @@ def _load_main():
         )
     ]
     module = types.ModuleType("train_main")
-    module.__file__ = str(MAIN)
+    module.__file__ = str(path)
     exec(
-        compile(ast.Module(body=body, type_ignores=[]), str(MAIN), "exec"),
+        compile(ast.Module(body=body, type_ignores=[]), str(path), "exec"),
         module.__dict__,
     )
     return module
@@ -63,9 +63,71 @@ def test_whitespace_and_newlines_split_into_tokens(tmp_path):
     ]
 
 
-def test_checked_in_args_file_is_comment_only():
+def test_checked_in_args_file_holds_only_cli_tokens():
     assert ARGS_FILE.is_file()
-    assert _load_main().task_args() == []
+    assert all(token.startswith("-") for token in _load_main().task_args())
+
+
+def test_resolve_args_file_prefers_repo_over_cwd(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    repo_flag = repo / "kaggle" / "train" / "task_args.txt"
+    repo_flag.parent.mkdir(parents=True)
+    repo_flag.write_text("--sweeps-probe\n")
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+
+    resolved = _load_main().resolve_args_file(
+        [repo_flag, cwd / "kaggle" / "train" / "task_args.txt"]
+    )
+
+    assert resolved == repo_flag
+
+
+def test_resolve_args_file_returns_none_when_absent(tmp_path):
+    main = _load_main()
+
+    assert main.resolve_args_file([tmp_path / "absent.txt"]) is None
+    assert main.resolve_args_file([]) is None
+
+
+def test_resolve_args_file_returns_first_existing(tmp_path):
+    first = tmp_path / "first.txt"
+    first.write_text("--one\n")
+    second = tmp_path / "second.txt"
+    second.write_text("--two\n")
+    main = _load_main()
+
+    assert main.resolve_args_file([first, second]) == first
+    assert main.resolve_args_file([tmp_path / "missing.txt", second]) == second
+
+
+def test_flag_found_when_main_py_lives_outside_repo(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    flag = repo / "kaggle" / "train" / "task_args.txt"
+    flag.parent.mkdir(parents=True)
+    flag.write_text("--sweeps-probe\n")
+
+    script = tmp_path / "kernel" / "main.py"
+    script.parent.mkdir()
+    script.write_text(MAIN.read_text())
+
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+
+    main = _load_main(script)
+    candidates = [
+        pathlib.Path(repo) / "kaggle/train/task_args.txt",
+        pathlib.Path.cwd() / "kaggle/train/task_args.txt",
+        pathlib.Path(main.__file__).resolve().parent / "task_args.txt",
+    ]
+
+    resolved = main.resolve_args_file(candidates)
+
+    assert pathlib.Path(main.__file__).resolve().parent == script.parent
+    assert resolved == flag
+    assert main.task_args(resolved) == ["--sweeps-probe"]
 
 
 def test_verdict_accepts_sweeps_ok():

@@ -47,6 +47,20 @@ def log(*parts):
     print(*parts, flush=True)
 
 
+def resolve_args_file(candidates):
+    """Return the first existing path in ``candidates``, or ``None``.
+
+    The kernel script is started as ``/kaggle/src/main.py`` while the code tree
+    is extracted to ``e2e.REPO`` (``/kaggle/working/repo``), so
+    ``__file__`` cannot be the only source for ``task_args.txt``.
+    """
+    for candidate in candidates:
+        path = pathlib.Path(candidate)
+        if path.is_file():
+            return path
+    return None
+
+
 def task_args(path=ARGS_FILE):
     """Extra CLI tokens for the task script, read from ``task_args.txt``.
 
@@ -55,6 +69,8 @@ def task_args(path=ARGS_FILE):
     only channel.  A missing file means no extra tokens; blank lines and lines
     starting with ``#`` are ignored.
     """
+    if path is None:
+        return []
     try:
         text = pathlib.Path(path).read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -215,7 +231,15 @@ def main():
     if not install_numba_errors_shim(e2e):
         return 1
 
-    args = task_args()
+    args_path = resolve_args_file(
+        [
+            pathlib.Path(e2e.REPO) / "kaggle/train/task_args.txt",
+            pathlib.Path.cwd() / "kaggle/train/task_args.txt",
+            pathlib.Path(__file__).resolve().parent / "task_args.txt",
+        ]
+    )
+    log("TASK_ARGS_FILE %s" % (args_path if args_path else "none"))
+    args = task_args(args_path)
     log("TASK_ARGS %s" % (" ".join(args) if args else "(none)"))
     rc, text = e2e.stream(
         [str(e2e.PY), TASK_SCRIPT] + args,
