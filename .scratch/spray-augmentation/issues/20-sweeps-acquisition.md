@@ -81,3 +81,36 @@ Mục đích: trước khi bỏ công tải blob 25–30 GB, chứng minh bằng
 - An toàn: `build_pipeline_steps()` deepcopy từng step [CODE `smoke.py:207-243`] nên `_set_sweeps_num` không rò rỉ giữa hai mode.
 
 Chưa nghiệm thu: chưa push kernel, nên **chưa có** `SWEEPS_OK`/`SWEEPS_FAILED` thật. Việc tiếp theo là push v7 chạy `--sweeps-probe`.
+
+## 20-d: kết quả đo thật trên kernel v8 — `SWEEPS_OK`
+
+Chuỗi chạy: `06cdf0f` (task_args = `--sweeps-probe`) → v7 chạy sai vì `main.py` đọc `task_args.txt` theo `__file__` (`/kaggle/src`) thay vì `e2e.REPO` ⇒ sửa ở `fb12ffc` → v8 đúng.
+
+Log v8 (`/tmp/ktrain_raw.log`, kernel `COMPLETE`, rc=0):
+
+```
+TASK_ARGS_FILE /kaggle/working/repo/kaggle/train/task_args.txt
+TASK_ARGS --sweeps-probe
+SWEEPS_SPLITS val=2 path=/kaggle/working/mini_splits.py
+MINI_SPLIT_OK n=300 scenes=8 gt_boxes=14808 val_scenes=2 seed=0
+SWEEPS_INFO version=v1.0-mini n_sweeps=10
+SWEEPS_PTS mode=single n=34720
+SWEEPS_PTS mode=multi n=273637
+SWEEPS_UNIQUE mode=multi ratio=0.9879
+STEP_TIME mode=single s_per_step=1.2513
+STEP_TIME mode=multi s_per_step=1.9198
+SWEEPS_OK n_single=34720 n_multi=273637 ratio=0.9879
+```
+
+Đọc số:
+
+- 10 sweep/keyframe thật ⇒ 273.637 điểm so với 34.720 điểm của keyframe, **7,9×**.
+- `ratio = 0,9879` ⇒ 98,8 % toạ độ là phân biệt, tức **không** phải keyframe bị nhân bản (nhân bản sẽ cho ≈0,1). Đây là bằng chứng định lượng rằng đường sweeps đọc dữ liệu thật.
+- Giá phải trả: **+0,67 s/step** (1,2513 → 1,9198 s, **+53 %**) ở batch 2 trên T4. Với 2.000 bước ⇒ +22 phút/arm.
+- Chi phí nằm ở I/O đọc 9 file `.pcd.bin` thêm + transform theo thời gian, không phải ở số điểm: lượt A/B trên dữ liệu keyframe-only (10× điểm nhân bản, 1,4653 s/step) còn nhanh hơn lượt sweeps thật.
+
+Hệ quả cho kế hoạch:
+
+- Đường sweeps thật **chạy được trên kernel** ⇒ tải blob 25–30 GB không còn là việc mò, chỉ còn là việc đĩa/thời gian.
+- Nếu chọn keyframe-only cho báo cáo thì phải đặt `sweeps_num: 0`: giữ `9` chỉ tổn công nạp 9 bản sao trùng toạ độ mà không thêm thông tin.
+- `peak_gb` chưa được log trong probe (chỉ có `STEP_TIME`); nếu cần con số bộ nhớ cho cấu hình 10 sweep thì phải thêm một dòng log rồi chạy lại 1 lượt ~12 phút.
