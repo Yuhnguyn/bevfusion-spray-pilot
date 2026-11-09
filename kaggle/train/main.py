@@ -17,13 +17,24 @@ import importlib.util
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-
-from devkit_deps import devkit_packages
-
 TASK = "smoke"
 TASK_SCRIPT = "kaggle/train/%s.py" % TASK
 DEVKIT_PINS = ("1.1.11", "1.1.10")
+
+
+def devkit_packages(version):
+    """Return the packages that install ``nuscenes-devkit==<version>`` safely.
+
+    numpy and opencv-python stay pinned: the devkit's ``numpy`` requirement is
+    loose and letting the resolver upgrade it breaks the pinned torch 1.10 /
+    numba stack.
+    """
+    return [
+        "nuscenes-devkit==%s" % version,
+        "numpy==1.22.4",
+        "opencv-python==4.8.1.78",
+    ]
+
 
 # The dataset mount layout has been both /kaggle/input/<slug> and
 # /kaggle/input/datasets/<owner>/<slug>; rglob finds the boot module in either.

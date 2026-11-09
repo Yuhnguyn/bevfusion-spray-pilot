@@ -1,24 +1,17 @@
-"""Static guard: the train kernel installs nuscenes-devkit through uv first.
+"""Static guards for the train kernel script.
 
-``main.py`` is not imported here because it resolves ``/kaggle/input`` at import
-time; the source is read as text instead, and ``devkit_deps`` is loaded by path.
+Kaggle uploads only ``main.py`` as ``/kaggle/src/script.py``; sibling modules are
+not present until the dataset is extracted, so ``main.py`` must import stdlib
+only. ``main.py`` is not imported here because it resolves ``/kaggle/input`` at
+import time; the source is read as text and parsed with ``ast`` instead.
 """
 
-import importlib.util
+import ast
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MAIN = ROOT / "kaggle" / "train" / "main.py"
 DEVKIT_DEPS = ROOT / "kaggle" / "train" / "devkit_deps.py"
-
-
-def _load_devkit_deps():
-    spec = importlib.util.spec_from_file_location(
-        "devkit_deps_under_test", DEVKIT_DEPS
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_uv_is_primary_path_and_devkit_packages_pinned():
@@ -27,8 +20,27 @@ def test_uv_is_primary_path_and_devkit_packages_pinned():
     assert "ensurepip" in src
     assert src.index("pip_into_env(") < src.index("ensurepip")
 
-    packages = _load_devkit_deps().devkit_packages("1.1.11")
-    assert len(packages) == 3
-    assert "nuscenes-devkit==1.1.11" in packages
-    assert "numpy==1.22.4" in packages
-    assert "opencv-python==4.8.1.78" in packages
+
+def test_main_imports_stdlib_only():
+    tree = ast.parse(MAIN.read_text())
+    roots = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                roots.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0 and node.module:
+                roots.add(node.module.split(".")[0])
+    assert roots <= {"importlib", "pathlib", "sys"}, roots
+
+
+def test_devkit_packages_pins():
+    src = MAIN.read_text()
+    assert "def devkit_packages(" in src
+    assert '"nuscenes-devkit==%s"' in src
+    assert '"numpy==1.22.4"' in src
+    assert '"opencv-python==4.8.1.78"' in src
+
+
+def test_no_sibling_module():
+    assert not DEVKIT_DEPS.exists()
