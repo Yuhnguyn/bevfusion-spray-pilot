@@ -8,20 +8,29 @@ this kernel imports that module and calls its functions, installs
 ``nuscenes-devkit`` into the venv (the mini split builder needs the real
 devkit), then runs ``kaggle/train/smoke.py`` inside that venv.
 
-``TASK`` names the script under ``kaggle/train`` that is executed; the smoke
-run prints ``SMOKE_DEVKIT_OK`` / ``MINI_SPLIT_OK`` / ``SMOKE_STEP`` /
-``SMOKE_OK`` so the evidence can be grepped out of the kernel log.
+``--task <name>`` in ``task_args.txt`` selects the script under ``kaggle/train``
+that is executed (default ``smoke``); the smoke run prints ``SMOKE_DEVKIT_OK`` /
+``MINI_SPLIT_OK`` / ``SMOKE_STEP`` / ``SMOKE_OK`` and the A/B training run
+prints ``AB_STEP`` / ``AB_ARM_OK`` / ``AB_TRAIN_OK`` so the evidence can be
+grepped out of the kernel log.
 """
 
 import importlib.util
 import pathlib
 import sys
 
-TASK = "smoke"
-TASK_SCRIPT = "kaggle/train/%s.py" % TASK
+DEFAULT_TASK = "smoke"
 DEVKIT_PINS = ("1.1.11", "1.1.10")
 ARGS_FILE = pathlib.Path(__file__).resolve().parent / "task_args.txt"
-TASK_MARKERS = ("SMOKE_OK", "SWEEPS_OK")
+TASK_MARKERS = ("SMOKE_OK", "SWEEPS_OK", "AB_TRAIN_OK")
+
+
+def task_script(task):
+    """Return the repo-relative path of the script that runs ``task``."""
+    return "kaggle/train/%s.py" % task.replace("-", "_")
+
+
+TASK_SCRIPT = task_script(DEFAULT_TASK)
 
 
 def devkit_packages(version):
@@ -82,6 +91,35 @@ def task_args(path=ARGS_FILE):
             continue
         tokens.extend(token for token in line.split() if token)
     return tokens
+
+
+def parse_task(args):
+    """Split ``--task <name>`` out of the task-script arguments.
+
+    ``--task`` may appear anywhere and accepts both ``--task name`` and
+    ``--task=name``.  It is never forwarded to the task script: the kernel is
+    the only component that reads it.  Without the flag the default task
+    (``smoke``) is used and every token is kept.
+    """
+    task = DEFAULT_TASK
+    rest = []
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "--task":
+            if index + 1 < len(args):
+                task = args[index + 1]
+                index += 2
+                continue
+            index += 1
+            continue
+        if token.startswith("--task="):
+            task = token[len("--task="):]
+            index += 1
+            continue
+        rest.append(token)
+        index += 1
+    return task, rest
 
 
 def verdict(rc, text):
@@ -239,30 +277,43 @@ def main():
         ]
     )
     log("TASK_ARGS_FILE %s" % (args_path if args_path else "none"))
-    args = task_args(args_path)
+    raw_args = task_args(args_path)
+    task, args = parse_task(raw_args)
+    script = task_script(task)
+    log("TASK_NAME %s" % task)
+    log("TASK_SCRIPT %s" % script)
     log("TASK_ARGS %s" % (" ".join(args) if args else "(none)"))
+    if not (pathlib.Path(e2e.REPO) / script).is_file():
+        log("TASK_FAILED script_missing")
+        log("script_missing %s" % script)
+        return 1
     rc, text = e2e.stream(
-        [str(e2e.PY), TASK_SCRIPT] + args,
+        [str(e2e.PY), script] + args,
         cwd=e2e.REPO,
         timeout=10800,
-        log_name="%s.log" % TASK,
+        log_name="%s.log" % task,
     )
 
     passed, marker = verdict(rc, text)
     log("")
     log("=" * 72)
-    log("task          : %s (%s)" % (TASK, TASK_SCRIPT))
+    log("task          : %s (%s)" % (task, script))
     log("devkit        : %s" % version)
     log("mini split    : %s" % _field(text, "MINI_SPLIT_OK"))
-    log("smoke rc      : %d" % rc)
-    log("smoke verdict : %s" % (marker if passed else "FAILED"))
+    log("%s rc      : %d" % (task, rc))
+    log("%s verdict : %s" % (task, marker if passed else "FAILED"))
     if "SWEEPS_OK" in text or "SWEEPS_FAILED" in text:
         log("SWEEPS_INFO   : %s" % _field(text, "SWEEPS_INFO"))
         log("SWEEPS_PTS    : %s" % _field(text, "SWEEPS_PTS mode=multi"))
         log("SWEEPS_UNIQUE : %s" % _field(text, "SWEEPS_UNIQUE"))
         log("STEP_TIME     : %s" % _field(text, "STEP_TIME"))
+    if "AB_TRAIN_OK" in text or "AB_FAILED" in text:
+        log("AB_TRAIN_OK   : %s" % _field(text, "AB_TRAIN_OK"))
+        log("AB_ARM_A      : %s" % _field(text, "AB_ARM_OK arm=A"))
+        log("AB_ARM_B      : %s" % _field(text, "AB_ARM_OK arm=B"))
+        log("AB_FAILED     : %s" % _field(text, "AB_FAILED"))
     if not passed:
-        log("last 30 lines of the smoke run:")
+        log("last 30 lines of the %s run:" % task)
         log("\n".join(text.splitlines()[-30:]))
     return 0 if passed else 1
 

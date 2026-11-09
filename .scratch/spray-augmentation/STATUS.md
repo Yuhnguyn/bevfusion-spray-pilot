@@ -63,7 +63,7 @@ trong kernel Kaggle: **68 passed, 0 skipped**. 12 file test.
 | 08 | Model forward routing | **done** `16517f1` | subclass `spray/`; param 16 → 16 |
 | 09 | End-to-end pipeline test | **done** `c66e867` | kernel `68 passed, 0 skipped`, `E2E_OK`; 2 stream + matrix roundtrip |
 | 10 | Train/eval config A/B | **done** `fcaa4f9` + `2ed78b3` | probe `PROBE_OK`: ckpt 0 missing, trainable 9,08M/40,80M, chỉ camera frozen, 0,25 GB param state |
-| 11 | Mini A/B run + report | **in-progress** | 11-b smoke PASS v6 `d76eb46`: `s_per_step=1,4546`, `peak_gb=4,251`, split 4.000/698 scene; còn 11-c train 2 arm |
+| 11 | Mini A/B run + report | **in-progress** | 11-b smoke PASS v6 `d76eb46`; sweeps probe PASS v8 `c364174` (`SWEEPS_OK ratio=0,9879`, +53 % s/step). Chốt `sweeps_num: 0` cho A/B. 11-c1 train entrypoint đang giao agent (`dispatch-11c1.md`) |
 | 12 | SemanticSpray statistics | **done** | `docs/semantic-spray-stats.md` |
 | 13 | Gate review sau mini A/B | blocked | chờ 11 |
 | 14a | B0: module lọc | **done** `ed92cf8` | `spray/denoise.py` · `ror_filter` · 60 passed |
