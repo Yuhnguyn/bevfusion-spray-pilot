@@ -20,6 +20,8 @@ import sys
 TASK = "smoke"
 TASK_SCRIPT = "kaggle/train/%s.py" % TASK
 DEVKIT_PINS = ("1.1.11", "1.1.10")
+ARGS_FILE = pathlib.Path(__file__).resolve().parent / "task_args.txt"
+TASK_MARKERS = ("SMOKE_OK", "SWEEPS_OK")
 
 
 def devkit_packages(version):
@@ -43,6 +45,42 @@ BOOT = next(pathlib.Path("/kaggle/input").rglob("kaggle/e2e/main.py"))
 
 def log(*parts):
     print(*parts, flush=True)
+
+
+def task_args(path=ARGS_FILE):
+    """Extra CLI tokens for the task script, read from ``task_args.txt``.
+
+    Kaggle starts the kernel script without arguments and a script kernel
+    cannot set environment variables for it, so the pushed source tree is the
+    only channel.  A missing file means no extra tokens; blank lines and lines
+    starting with ``#`` are ignored.
+    """
+    try:
+        text = pathlib.Path(path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    tokens = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        tokens.extend(token for token in line.split() if token)
+    return tokens
+
+
+def verdict(rc, text):
+    """Return ``(passed, marker)`` for a finished task run.
+
+    ``marker`` is the success line found in the log, or ``""`` when the run
+    failed.  The A/B smoke run (``SMOKE_OK``) and the sweeps probe
+    (``SWEEPS_OK``) both count as success.
+    """
+    if rc != 0:
+        return False, ""
+    for marker in TASK_MARKERS:
+        if marker in text:
+            return True, marker
+    return False, ""
 
 
 def load_e2e(path):
@@ -177,21 +215,28 @@ def main():
     if not install_numba_errors_shim(e2e):
         return 1
 
+    args = task_args()
+    log("TASK_ARGS %s" % (" ".join(args) if args else "(none)"))
     rc, text = e2e.stream(
-        [str(e2e.PY), TASK_SCRIPT],
+        [str(e2e.PY), TASK_SCRIPT] + args,
         cwd=e2e.REPO,
         timeout=10800,
         log_name="%s.log" % TASK,
     )
 
-    passed = rc == 0 and "SMOKE_OK" in text
+    passed, marker = verdict(rc, text)
     log("")
     log("=" * 72)
     log("task          : %s (%s)" % (TASK, TASK_SCRIPT))
     log("devkit        : %s" % version)
     log("mini split    : %s" % _field(text, "MINI_SPLIT_OK"))
     log("smoke rc      : %d" % rc)
-    log("smoke verdict : %s" % ("SMOKE_OK" if passed else "SMOKE_FAILED"))
+    log("smoke verdict : %s" % (marker if passed else "FAILED"))
+    if "SWEEPS_OK" in text or "SWEEPS_FAILED" in text:
+        log("SWEEPS_INFO   : %s" % _field(text, "SWEEPS_INFO"))
+        log("SWEEPS_PTS    : %s" % _field(text, "SWEEPS_PTS mode=multi"))
+        log("SWEEPS_UNIQUE : %s" % _field(text, "SWEEPS_UNIQUE"))
+        log("STEP_TIME     : %s" % _field(text, "STEP_TIME"))
     if not passed:
         log("last 30 lines of the smoke run:")
         log("\n".join(text.splitlines()[-30:]))
