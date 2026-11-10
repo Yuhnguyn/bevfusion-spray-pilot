@@ -82,6 +82,18 @@ nên không kiểm được họ truyền `0,001` hay `1,0`.
 
 ## 2. Hợp đồng dữ liệu
 
+> **Phát hiện 2026-11-10, chưa xử lý — chặn ticket 26.**
+> Dataset trên đĩa **không có 3D box** (`labels/*.label` là nhãn semantic theo điểm, `int32`,
+> dài bằng số điểm; không có `sample_annotation`, không có `.json` meta kiểu nuScenes).
+> Nên chữ ký `boxes (M,9)` hiện tại không lấy được từ dữ liệu thật.
+> Ba hướng, phải chọn trước khi làm ticket 26:
+> **(a)** dựng khối phun từ `metadata.txt` (`object_velocity`, `distance_to_object`,
+> `unimog_direction`) — không cần box, khớp đúng biến điều khiển của paper;
+> **(b)** suy box từ nhãn: cụm điểm cùng `label` (xe) → AABB/oriented box, dùng luôn cho đường
+> "real plume + synthetic plume";
+> **(c)** giữ `boxes` là tham số API, nhưng coi là optional: nếu `None` thì rơi về (a).
+> `[CHỌN]` đề xuất **(c)** — API không vỡ, và (a) là đường chạy được ngay trên dữ liệu này.
+
 `PlumeTransform` hiện nhận `points (N,5)` + `boxes (M,9)` `[ĐO đọc code]`. v2 cần thêm:
 
 | Input | Nguồn | Bắt buộc | Dùng cho |

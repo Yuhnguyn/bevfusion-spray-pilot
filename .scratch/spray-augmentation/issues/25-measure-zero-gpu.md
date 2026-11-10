@@ -13,18 +13,33 @@ Chưa đo tốc độ thì mọi con số mật độ trong spec chỉ là phỏ
 
 Không train, không GPU. Chỉ đọc dataset + chạy script.
 
+## Bố cục dữ liệu THẬT (PM kiểm 2026-11-10, `data/SemanticSprayDataset/`) — đọc trước khi code
+
+| Đường dẫn | Nội dung | Ghi chú |
+|---|---|---|
+| `Crafter_dynamic/<scene>/metadata.txt` | CSV: `object_name, object_velocity (km/h), object_direction, ego_velocity (km/h), distance_to_object (m), amb_tmp, unimog_direction, measurement_itr, itr_after_water` | **1 dòng/scene** — vận tốc có sẵn, không phải vi phân |
+| `.../poses.txt` | 85 dòng (1 dòng/frame), **16 float** = ma trận 4×4 (row-major) | quỹ đạo ego, không có timestamp |
+| `.../labels/000000.label` | `int32[]`, `n = số điểm` (vd 29.747) | **nhãn semantic theo điểm**, KHÔNG phải box |
+| `.../velodyne/000000.bin` | float32 ×4 | có; `image_2`, `delphi_radar`, `ibeo_front/rear` đi kèm |
+| JSON meta kiểu nuScenes (`sample_annotation`, `ego_pose.json`) | **KHÔNG CÓ** | đừng viết script theo nuScenes devkit |
+
+Hệ quả: **velocity đo trực tiếp từ `metadata.txt`**, không cần `nuscenes-devkit`.
+`itr_after_water` là **biến điều khiển mức nước** của SemanticSpray (số iteration sau khi tưới)
+— dùng làm proxy cho `wfh`, không phải `wfh` theo mét.
+
 ## Việc phải làm
 
-1. `scripts/measure_speeds.py` — trên nuScenes **val**, lọc box trong 50 m:
-   tốc độ ego (từ `ego_pose` hai sample liên tiếp / `timestamp`) và tốc độ box
-   (`sample_annotation.velocity`). Xuất bảng: `n_frame`, `median/p90 speed`, số frame có
-   ego ≥ 50 km/h, số box ≥ 40 km/h. Nếu `sample_annotation` không có thì ghi rõ và dùng
-   vi phân vị trí — **không bịa**.
+1. `scripts/measure_speeds.py` — đọc **toàn bộ** `metadata.txt` của 207 scene:
+   bảng `object_velocity`, `ego_velocity`, `distance_to_object`, `itr_after_water`.
+   Xuất: n scene, histogram tốc độ, số scene có `object_velocity ≥ 50`, số scene `≥ 40`
+   (ngưỡng kích hoạt spray). **Không** suy vận tốc từ `poses.txt` khi metadata đã có.
 2. `scripts/measure_beam_angles.py` — 32 góc elevation HDL-32E: lấy từ spec nhà sản xuất (ghi URL),
    rồi **kiểm chéo** bằng phân bố `ring` thật của 1.209 frame: mỗi ring phải tương ứng một dải
    elevation, sai lệch median < 0,5°. Nếu không khớp thì báo, không tự sửa.
-3. `scripts/measure_trajectory.py` — 1 scene có xe chạy ≥ 50 km/h: trích quỹ đạo 5 s của xe đó
-   (position + yaw theo từng keyframe) để dùng cho bước 1. Xuất CSV.
+   **Kiểm thêm:** `velodyne/*.bin` là float32×4 hay ×5 (`intensity` có không), và `ring` có trong
+   file không — pipeline hiện tại đọc `points (N,5)`, phải xác nhận cột 4 và 5 là gì.
+3. `scripts/measure_ego_motion.py` — từ `poses.txt` của 3 scene: quỹ đạo ego (x, y, yaw mỗi frame),
+   `d(yaw)/dt` so với `ego_velocity` trong `metadata.txt` (kiểm chéo, sai lệch < 10 %). Xuất CSV.
 4. ~~`scripts/verify_constants.py`~~ **XONG 2026-11-10 (PM đọc code)** — không cần giao lại.
    Kết quả, dẫn `file:line`, đã ghi vào `spec-v2-paper-faithful.md` §1:
    số cụm **tất định** `round(mean)` (`dee.cpp:509–512`); `K = 2,51` **không tồn tại** (0 hit `grep "2\.51"`);
@@ -36,7 +51,7 @@ Không train, không GPU. Chỉ đọc dataset + chạy script.
 
 ## Tiêu chí nghiệm thu
 
-- [ ] 5 script chạy được, exit 0, mỗi script in bảng số ra `docs/plume-v2-measurements.md`.
+- [ ] 4 script (item 1, 2, 3, 5) chạy được, exit 0, mỗi script in bảng số ra `docs/plume-v2-measurements.md`.
 - [ ] Mỗi số trong doc có tag `[ĐO]` và tên script sinh ra nó.
 - [ ] Bảng tốc độ nêu rõ: bao nhiêu frame sẽ **không** kích hoạt spray (< 50 km/h) — đây là
       ràng buộc trần dữ liệu, phải biết trước khi làm bước 2.
