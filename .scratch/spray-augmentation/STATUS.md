@@ -136,8 +136,8 @@ tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng ho
 | 23 | Trần bán kính 1,0 m + tên cột 5 + docs `K`/`T` | **done** `da996ff` | chạm trần đo thật 6,51%; 57 test |
 | 24 | `build_kanban.py` sinh board từ nguồn thật | **done** `8da032a` | bỏ hard-code; 25 ticket, 18 done, nguồn STATUS.md |
 | 25 | Đo 0 GPU: tốc độ ego/xe dẫn, beam angles, quỹ đạo, hằng số | **done** | 4 script + `docs/plume-v2-measurements.md` (5 section, idempotent sha `3085a237`); 192 passed, 4 skipped. Nghiệm thu: `issues/25-measure-zero-gpu.md` §PM |
-| 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | **next** | `issues/26-plume-context-contract.md` — nhận 5 phát hiện của 25 |
-| 27 | Bước 0 — wet ground (tái dùng `SysCV/LiDAR_snow_sim`) | blocked by 26 | `issues/27-wet-ground.md` |
+| 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | **done** | 3 file; **200 passed, 4 skipped** (+8 test); `inject_plume` không đổi chữ ký. Nghiệm thu: `issues/26-plume-context-contract.md` §PM |
+| 27 | Bước 0 — wet ground (tái dùng `SysCV/LiDAR_snow_sim`) | **next** | `issues/27-wet-ground.md` |
 | 28 | Bước 1–3 — vùng sau đuôi, sinh cụm, vòng đời | blocked by 26, 25 | `issues/28-plume-volume-lifetime.md` |
 | 29 | Bước 4–5 — ray casting, attenuation, strongest return | blocked by 27, 28 | `issues/29-ray-casting-attenuation.md` |
 | 30 | Intensity, ring, seed theo epoch, cap | blocked by 29 | `issues/30-intensity-ring-seed-cap.md` |

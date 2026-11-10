@@ -20,6 +20,7 @@ from dataclasses import asdict, is_dataclass
 import numpy as np
 
 from spray.plume import PlumeConfig, PlumeStats, inject_plume
+from spray.plume_context import PlumeContext, seed_for
 
 try:  # pragma: no cover - exercised only inside the pinned MIT env
     from mmdet3d.datasets import PIPELINES
@@ -52,6 +53,11 @@ class PlumeTransform:
             self.config = PlumeConfig(**kwargs)
         self.enabled = bool(enabled)
         self.seed = int(seed)
+        self.epoch = 0
+
+    def set_epoch(self, epoch: int) -> None:
+        """Record the augmentation epoch used to seed scene-level draws."""
+        self.epoch = int(epoch)
 
     def __call__(self, results: dict) -> dict:
         points_obj = results["points"]
@@ -61,6 +67,17 @@ class PlumeTransform:
         metadata = results.get("metadata") or {}
         token = str(metadata.get("token", results.get("token", "")))
         seed = int(metadata.get("seed", results.get("seed", self.seed)))
+
+        context = results.get("plume_context")
+        if context is not None:
+            if not isinstance(context, PlumeContext):
+                raise TypeError(
+                    "results['plume_context'] must be a PlumeContext, got "
+                    f"{type(context).__name__}"
+                )
+            seed = seed_for(
+                context.scene_token, context.frame_index, context.epoch, self.seed
+            )
 
         if not self.enabled:
             results["points_clean"] = _like(points_obj, points.copy())

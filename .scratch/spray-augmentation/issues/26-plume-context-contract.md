@@ -34,3 +34,36 @@ và không tái lập được seed.
 
 - Không đọc config mới trong `plume.py` bằng `os.environ`.
 - Không refactor ngoài 2 file trên + 1 file test.
+
+---
+
+## PM nghiệm thu — 2026-11-10
+
+**Trạng thái: done.** CommandCode `--skill tdd --max-turns 80`, log `/tmp/t26.log`, exit 0.
+
+| Kiểm | Kết quả `[ĐO]` |
+|---|---|
+| `pytest -q tests/` (2 lượt) | **200 passed, 4 skipped** = 192 cũ + **8 test mới**, 0 skip mới |
+| `git status --porcelain` | đúng 3 file: `spray/plume_context.py` (mới, 294 dòng), `spray/plume_transform.py` (+17 dòng), `tests/test_plume_context.py` (mới, 135 dòng) |
+| `git diff --stat spray/plume.py` | **rỗng** — chữ ký `inject_plume()` không đổi |
+| `spray/config/*.yaml` | 0 file bị chạm |
+| `grep os.environ` trong 3 file | **0 hit** |
+| `grep "0\.411\|1\.84"` trong 3 file | **0 hit** — không hardcode mặt đường |
+
+**Nội dung thật (PM đọc code, không tin báo cáo):**
+
+- `PlumeContext` frozen dataclass, 8 trường bắt buộc + 3 optional, validate trong `__post_init__`;
+  `wfh_mm` ràng buộc `0 < wfh_mm <= 1.2` (mm), `ego_pose` kiểm trực giao `|R·Rᵀ−I| < 1e-6`,
+  `road_z_m` bắt buộc finite.
+- `from_sample()` **không có default** cho `wfh_mm`/`road_z_m`; thiếu key → `PlumeContextError` liệt kê
+  **tất cả** key thiếu, sắp xếp alphabet. `ego2global` được nghịch đảo thành world→ego; `ego_pose` dùng nguyên.
+  Không suy `ego_speed_mps` từ dịch chuyển pose (đúng phát hiện #1 của ticket 25).
+- `seed_for()` dùng `blake2b`, không dùng `hash()` (tránh randomize theo process).
+- `compute_elevation_deg()` tính `atan2(z, hypot(x,y))`, không đọc cột 4 — đúng phát hiện #4.
+- `PlumeTransform.set_epoch()` + nhánh `results["plume_context"]`: có context thì seed =
+  `seed_for(scene_token, frame_index, epoch, self.seed)`; **không** có context thì đường cũ. Test #3 chứng minh
+  đường cũ bằng `np.array_equal` trên `points`, `points_clean` và `spray_stats["injected"]`.
+
+**Ghi chú phạm vi:** ticket này chưa sinh plume mới. Nó chỉ dựng hợp đồng dữ liệu + nhánh seed; bước 1–5 của
+v2 (khối sau đuôi, vòng đời, ray casting, attenuation) là ticket 28–30. `compute_elevation_deg()` hiện chỉ có
+test gọi tới, sẽ được ticket 29 dùng thật.
