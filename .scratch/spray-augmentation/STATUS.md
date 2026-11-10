@@ -1,6 +1,11 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-09 22:45 (dừng shift) · **PM:** Hermes (chốt phạm vi, tiêu chí, nghiệm thu) · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-10 11:05 · **PM:** Hermes · **Thi công:** CommandCode
+
+> **Quyết định 2026-11-10 (user chốt):** hướng **(c)** — khối nước **sinh từ `metadata.txt` +
+> `poses.txt`**, **nghiệm thu bằng nhãn spray thật** (`label == 2`, 24–44 điểm/frame).
+> `boxes` thành tham số optional (`None` ⇒ dùng metadata). Chi tiết: `spec-v2-paper-faithful.md` §2.
+> Việc kế tiếp sau restart: **ticket 25** (đo 0 GPU, không cần train).
 **Đọc file này trước khi mở bất kỳ ticket nào.** Ticket là chi tiết; file này là thứ tự và phạm vi.
 
 ## Mục tiêu một câu
@@ -10,9 +15,14 @@ khoảng cách giữa mAP trên frame sạch và frame có spray — đo trên n
 
 ## Trạng thái hiện tại
 
-**Generator đã khớp code tham chiếu Linnhoff** (ticket 21–22): kích hoạt `v > 40 km/h` + `wfh > 0`,
-số cụm `(0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51`, `T ≈ 0,20 s`, σ = 1,1, trần bán kính sắp sửa 1,0 m
-(ticket 23). Ở 80 km/h sinh **8 cụm/frame** (trước ticket 22: 0,73; đo thật SemanticSpray: 17,06).
+**v1 đã đóng, không sửa nữa** — v2 dựng lại theo `spec-v2-paper-faithful.md` (ticket 25–31).
+
+**Đính chính 2026-11-10 (đọc lại code openMSL):** dòng cũ ở đây ghi
+`số cụm = (0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51` là **sai**. `grep -rn "2\.51"` trên toàn repo
+openMSL → **0 hit**. Số cụm là `round(max(0, mean))`, **tất định**, không nhân hệ số
+(`dee.cpp:509–512`). `K ≈ 2,5` trong paper là **số detection trung bình mỗi cụm**, tức đầu ra của
+ray casting, không phải tham số sinh. Đơn vị `wfh` cũng phải là **mm** mới khớp Fig. 11b
+(24 cụm @130 km/h); config v1 đang để `0.001` m ⇒ chỉ ra 8 cụm @130.
 
 **Môi trường Kaggle đã giải xong 2/3 lớp** (ticket 02b + 19): venv Python 3.8.20 + torch 1.10.1+cu113 +
 `mmcv-full 1.4.0` + compile 12 CUDA extension; code repo lên bằng dataset private 2 MB. Kernel

@@ -2,7 +2,9 @@
 
 **Type:** task
 **Status:** needs-triage
-**Blocked by:** 25 (cần biết tốc độ/beam/`w`-`l` trước khi chốt chữ ký hàm)
+**Blocked by:** 25
+**Quyết định nguồn khối nước (2026-11-10, user chốt):** hướng (c) — sinh từ `metadata.txt` +
+`poses.txt`, nghiệm thu bằng nhãn spray thật (`label == 2`). `boxes` là optional, `None` ⇒ metadata. (cần biết tốc độ/beam/`w`-`l` trước khi chốt chữ ký hàm)
 **Chủ:** CommandCode. PM: Hermes.
 
 ## Hiện trạng

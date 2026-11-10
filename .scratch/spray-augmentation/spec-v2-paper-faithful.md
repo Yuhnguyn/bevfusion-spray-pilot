@@ -92,7 +92,13 @@ nên không kiểm được họ truyền `0,001` hay `1,0`.
 > **(b)** suy box từ nhãn: cụm điểm cùng `label` (xe) → AABB/oriented box, dùng luôn cho đường
 > "real plume + synthetic plume";
 > **(c)** giữ `boxes` là tham số API, nhưng coi là optional: nếu `None` thì rơi về (a).
-> `[CHỌN]` đề xuất **(c)** — API không vỡ, và (a) là đường chạy được ngay trên dữ liệu này.
+
+**`[CHỌN 2026-11-10 — user chốt]` = hướng (c), chia hai vai:**
+- **Sinh (a)**: khối nước dựng từ `metadata.txt` (`object_velocity`, `distance_to_object`,
+  `unimog_direction`) + `poses.txt`. Không cần box, không cần suy box từ nhãn.
+- **Nghiệm thu (b)**: nhãn `2` (spray thật, 24–44 điểm/frame) là thước đo. Sai lệch giữa plume
+  sinh ra và plume thật là tiêu chí của ticket 31.
+- API: `boxes` giữ là tham số optional, `None` ⇒ đi đường (a). Không xoá tham số để test cũ không vỡ.
 
 `PlumeTransform` hiện nhận `points (N,5)` + `boxes (M,9)` `[ĐO đọc code]`. v2 cần thêm:
 
