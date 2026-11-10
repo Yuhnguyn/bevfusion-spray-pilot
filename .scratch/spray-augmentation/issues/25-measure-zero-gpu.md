@@ -115,7 +115,17 @@ Eval/calibration phải báo riêng dải 50 km/h hoặc loại khỏi mẫu dos
 
 ### Việc còn mở (không thuộc ticket 25)
 
+- **README của dataset tự xác nhận 2 điểm** (`data/SemanticSprayDataset/README.txt`): dòng 76 cảm biến là
+  **Velodyne VLP-32C** (không phải HDL-32E), dòng 108 ghi rõ layout `x,y,z,intensity,ring` ⇒ cột 4 = `ring`.
+  Dòng 91–94: nhãn chỉ có 3 lớp `0 Background / 1 Leading Vehicle / 2 Spray`.
+- **`poses.txt` lệch chính README**: dòng 87 nói theo **SemanticKITTI convention** (ma trận 3×4 = 12 số/dòng,
+  **có** tịnh tiến), nhưng file thực tế 16 số/dòng với dòng cuối `0 0 0 0` và cột tịnh tiến `0` ⇒ bản release
+  chỉ lưu rotation. Đây là khuyết điểm của release, không phải lỗi đọc của ta.
+- `object_labels/` **không có trong README gốc** (SemanticSpray RA-L/ICRA-2024 chỉ có nhãn semantic);
+  nó là phần bổ sung của **SemanticSpray++ (IV2024, arXiv 2406.09945)** — giải thích vì sao chỉ **36/207** scene
+  có box 3D.
 - `[CHỌN]` **đơn vị `wfh` trong công thức `T`**: `T = 0,02·wfh·(v−50)+0,2` cho `0,20 s` nếu `wfh` là mét (v1)
   và **1,80 s @130 km/h** (vệt 65 m) nếu `wfh = 1` mm (paper, user xác nhận 2026-11-10). Chốt trước ticket 28.
+  → **Đã chốt 2026-11-10: mm cho cả `count` và `T`** (commit `8c0ef3e`).
 - Đơn vị `rotation3D.z` trong `object_labels` (radian vs độ) — toolkit gốc dùng `deg2rad`, script dùng trực tiếp;
   ở góc nhỏ chưa đổi kết luận, ghi lại để ticket 26 xử lý.
