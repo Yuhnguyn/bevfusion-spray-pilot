@@ -1,0 +1,165 @@
+import numpy as np
+import pytest
+
+from spray.plume_context import PlumeContext
+from spray.plume_state import (
+    PlumeState,
+    PlumeStateConfig,
+    SprayCluster,
+    cluster_count_for_speed_abs,
+    lifetime_mean_s,
+)
+
+
+def _context(**overrides):
+    fields = {
+        "scene_token": "scene-0001",
+        "frame_index": 0,
+        "epoch": 0,
+        "sensor_origin": np.array([0.0, 0.0, 1.8], dtype=np.float64),
+        "ego_speed_mps": 130.0 / 3.6,
+        "object_speed_mps": 130.0 / 3.6,
+        "wfh_mm": 1.0,
+        "road_z_m": -0.411,
+    }
+    fields.update(overrides)
+    return PlumeContext(**fields)
+
+
+def _cluster(age, ttl):
+    return SprayCluster(
+        pos=np.zeros(3, dtype=np.float64),
+        vel=np.zeros(3, dtype=np.float64),
+        radius=0.30,
+        age=age,
+        ttl=ttl,
+        drag=0.0,
+        object_id=0,
+        cluster_id=0,
+    )
+
+
+def test_cluster_count_for_speed_abs_uses_mm_water_film():
+    assert cluster_count_for_speed_abs(130.0, 1.0) == 24
+    assert cluster_count_for_speed_abs(80.0, 1.0) == 9
+    assert cluster_count_for_speed_abs(50.0, 1.0) == 0
+    assert cluster_count_for_speed_abs(40.0, 1.0) == 0
+    # Passing metres by mistake gives a different count, so the unit is pinned.
+    assert cluster_count_for_speed_abs(130.0, 0.001) == 8
+
+
+def test_lifetime_mean_matches_reference_formula():
+    assert lifetime_mean_s(130.0, 1.0) == pytest.approx(1.80, abs=1e-9)
+    assert lifetime_mean_s(50.0, 1.0) == pytest.approx(0.20, abs=1e-9)
+
+
+def test_clusters_from_frame_k_survive_later_frames():
+    state = PlumeState()
+    config = PlumeStateConfig(lifetime_sigma_s=0.0)
+
+    clusters = state.spawn(
+        _context(), object_id=7, rng=np.random.default_rng(3), config=config
+    )
+
+    assert len(clusters) == 24
+    for cluster in clusters:
+        assert cluster.ttl == pytest.approx(1.8)
+
+    for _ in range(2):
+        state.advance(0.1)
+        assert len(state.alive(7)) == 24
+
+    # 70 steps leave age at 6.9 s, still below 4*T = 7.2 s.
+    for _ in range(68):
+        state.advance(0.1)
+
+    assert all(cluster.age < 4.0 * cluster.ttl for cluster in state.alive(7))
+    assert state.prune() == 0
+    assert len(state.alive(7)) == 24
+
+
+def test_display_probability_decays_monotonically():
+    ttl = 1.0
+    early = _cluster(0.2 * ttl, ttl).probability()
+    middle = _cluster(0.5 * ttl, ttl).probability()
+    late = _cluster(2.0 * ttl, ttl).probability()
+
+    assert early == pytest.approx(np.exp(-0.2))
+    assert middle == pytest.approx(np.exp(-0.5))
+    assert late == pytest.approx(np.exp(-2.0))
+    assert early > middle > late
+
+
+def test_prune_removes_clusters_past_four_lifetimes():
+    state = PlumeState()
+    config = PlumeStateConfig(lifetime_sigma_s=0.0)
+
+    clusters = state.spawn(
+        _context(), object_id=2, rng=np.random.default_rng(11), config=config
+    )
+    alive_before = len(state.alive(2))
+    assert alive_before == 24
+
+    # 80 steps leave age at 7.9 s, past 4*T = 7.2 s.
+    for _ in range(80):
+        state.advance(0.1)
+
+    expired = state.prune()
+
+    assert expired == alive_before
+    assert state.counters.expired == expired
+    assert len(state.alive(2)) == 0
+    assert state.counters.alive == 0
+
+
+def test_drag_reduces_air_velocity_and_zero_drag_keeps_it():
+    state = PlumeState()
+    config = PlumeStateConfig(
+        lifetime_sigma_s=0.0, drag_mean=-0.12, drag_std=0.0
+    )
+    clusters = state.spawn(
+        _context(), object_id=3, rng=np.random.default_rng(5), config=config
+    )
+    wind = state.wind
+    before = np.array([np.linalg.norm(cluster.vel - wind) for cluster in clusters])
+
+    state.advance(0.1)
+
+    after = np.array([np.linalg.norm(cluster.vel - wind) for cluster in clusters])
+    assert np.all(after < before)
+
+    steady = PlumeState()
+    steady_config = PlumeStateConfig(
+        lifetime_sigma_s=0.0, drag_mean=0.0, drag_std=0.0
+    )
+    steady_clusters = steady.spawn(
+        _context(), object_id=3, rng=np.random.default_rng(5), config=steady_config
+    )
+    steady_wind = steady.wind
+    before_steady = np.array(
+        [cluster.vel - steady_wind for cluster in steady_clusters]
+    )
+
+    steady.advance(0.1)
+
+    after_steady = np.array(
+        [cluster.vel - steady_wind for cluster in steady_clusters]
+    )
+    assert np.allclose(after_steady, before_steady)
+
+
+def test_spawn_is_deterministic_by_rng_seed():
+    def positions(seed):
+        state = PlumeState()
+        clusters = state.spawn(
+            _context(), object_id=4, rng=np.random.default_rng(seed)
+        )
+        return np.array([cluster.pos for cluster in clusters])
+
+    first = positions(9)
+    second = positions(9)
+    other = positions(10)
+
+    assert first.shape == second.shape == other.shape
+    assert np.array_equal(first, second)
+    assert not np.array_equal(first, other)

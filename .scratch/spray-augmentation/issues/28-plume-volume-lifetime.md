@@ -50,3 +50,35 @@ v1 hiện **không có trạng thái thời gian**: mỗi frame sinh lại từ 
 
 - Không đổi ngưỡng 40 km/h, không đổi `K`, `T`, drag.
 - Không dùng `time.time()`; thời gian lấy từ `age` cộng dồn theo frame.
+
+---
+
+## PM nghiệm thu 28a — 2026-11-10 (nửa đầu: state module)
+
+**Trạng thái: 28a done, 28b next.** Brief: `dispatch/dispatch-28a.md` · CommandCode `--skill tdd`, exit 0.
+
+| Kiểm | Kết quả `[ĐO]` |
+|---|---|
+| `pytest -q tests/` | **207 passed, 4 skipped** (200 cũ + 7 mới), 0 skip mới |
+| `pytest -q tests/test_plume_lifetime.py` | 7 passed |
+| `git status` | đúng 2 file mới: `spray/plume_state.py` (280 dòng), `tests/test_plume_lifetime.py` (165 dòng) |
+| `spray/plume.py` | **không chạm** (diff rỗng) |
+| `grep time.time\|os.environ\|import spray.plume` | **0 hit** |
+| Ba số chốt công thức | `count(130 km/h, wfh=1 mm) = 24`; `T = 1,80 s`; `count(50 km/h) = 0` — khớp brief |
+
+**Hai vai tốc độ đã vào code đúng chỗ** (đọc code, không tin báo cáo):
+`plume_state.py:199–201` — `v_abs_kmh = object_speed_mps·3.6` nuôi `count` + `T`;
+`plume_state.py:200` — `v_rel = object_speed_mps − ego_speed_mps` nuôi vận tốc đầu của cụm.
+Gió 208°/2 m/s: `wind_vector()` cho `(0,939; 1,766; 0)` m/s = hướng 28°, đúng quy ước khí tượng (gió **từ** 208°).
+
+### Ba điểm phải xử lý ở 28b (PM ghi lại, không sửa lúc này)
+
+1. **Vận tốc cụm đang gán cứng theo `+x`**: `vel = [v_rel, 0, vz]`. Đúng dấu cho xe phía trước trên trục x,
+   nhưng sai nếu hướng xe lệch trục x > ~10°. `PlumeContext` hiện chỉ có **độ lớn** tốc độ ⇒ 28b phải thêm
+   vector/hướng vận tốc của vật (hoặc ghi rõ đây là giả định và kiểm bằng góc heading của eval set).
+2. **`P_t` > 1 ở frame sinh**: `age` khởi tạo `−0,1 s` nên `exp(−age/T) = e^{+0,055} = 1,057`. Phải clamp `1,0`.
+3. **Vị trí spawn là placeholder**: `pos = sensor_origin + jitter(±0,5 m)` (có ghi chú trong code). 28b thay
+   bằng khối sau đuôi `3,4 × 1,5 × v_abs·0,1` m, đáy = đáy box.
+
+**Chưa kiểm được ở 28a (đúng phạm vi):** marker `PLUME_STATE`, gap dọc quỹ đạo, và ràng buộc "không cụm nào
+nằm trong thân box" — cả ba cần nối vào `spray/plume.py`, tức 28b.
