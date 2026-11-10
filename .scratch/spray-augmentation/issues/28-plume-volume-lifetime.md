@@ -82,3 +82,41 @@ Gió 208°/2 m/s: `wind_vector()` cho `(0,939; 1,766; 0)` m/s = hướng 28°, �
 
 **Chưa kiểm được ở 28a (đúng phạm vi):** marker `PLUME_STATE`, gap dọc quỹ đạo, và ràng buộc "không cụm nào
 nằm trong thân box" — cả ba cần nối vào `spray/plume.py`, tức 28b.
+
+---
+
+## PM nghiệm thu 28b — 2026-11-10 (khối sau đuôi + nối state + marker)
+
+**Trạng thái: done về hình học/nối dây, NHƯNG phát hiện 1 lỗi mô hình → mở 28c.** CommandCode `--skill tdd`, exit 0.
+
+| Kiểm | Kết quả `[ĐO]` |
+|---|---|
+| `pytest -q tests/` | **213 passed, 4 skipped** (207 + 6), 0 skip mới |
+| File đổi | 5 file: `plume.py` (+169), `plume_state.py` (+68), `plume_context.py` (+20), `plume_transform.py` (+39), `tests/test_plume_tail_block.py` (mới) |
+| `inject_plume()` | chữ ký không đổi; `test_without_context_matches_direct_inject_plume` xanh |
+| D6 | `_inside_box` đã đổi: `length/2` theo trục yaw, `width/2` ngang — đúng quy ước `nuscenes_converter.py:250` |
+| Marker | 1 dòng/lần gọi, 7 khoá `scene/frame/spawned/alive/expired/capped/assumed`; test bắt stdout |
+
+**Ngoài brief (PM chấp thuận):** agent sửa thêm `spray/plume_transform.py` để nối đường mới (giữ `PlumeState`
+trong transform, nhánh `context is not None`). Cần thiết, không có nó thì đường mới không gọi được; đây là
+thiếu sót trong brief của PM, không phải agent vượt phạm vi.
+
+**PM tự đo bằng probe riêng** (`PYTHONPATH=. python -`, 110 frame, 1 box @23,2 m, `wfh = 1,0 mm`):
+
+| v | `mean`/chu kỳ | `alive` khi ổn định | điểm tiêm | `capped` | **vệt dài** | gap_x p50 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 80 km/h | 9 | — | — | 0 | — | < 1,0 m (test) |
+| 130 km/h | 24 | **1.781** | 2.000 (chạm trần) | **6.099** | **7,3 m** | 0,002 m |
+
+### Lỗi mô hình phát hiện ở 28b: advection sai hệ quy chiếu
+
+- **Triệu chứng:** vệt chỉ dài **7,3 m** ở 130 km/h, trong khi `v·T = 36,1 × 1,8 = 65 m`. 1.781 cụm dồn vào
+  một dải 7 m ⇒ mật độ vô lý, và trần 2.000 điểm cắt **6.099/8.099 = 75 %** plume mỗi frame.
+- **Nguyên nhân gốc:** brief 28a/28b (do PM viết) cho cụm khởi tạo bằng `v_rel` và advection trong hệ ego.
+  Giọt nước có `v_rel = 0` (ego và xe dẫn cùng tốc độ) nên **không bao giờ trôi về phía sau**; drag chỉ tác
+  động lên hiệu với gió 2 m/s.
+- **Đúng theo paper:** "the velocity of the moving object is **set as an initial cluster velocity**" — tức vận
+  tốc **tuyệt đối** (hệ ground/`v_abs`), rồi drag làm giọt giảm tốc trong hệ ground; hệ ego chỉ là nơi **render**
+  (code gốc: `transform_position_from_world_to_sensor_coordinates`). Vì ego cũng chạy 130 km/h, giọt giảm tốc
+  trong ground ⇒ trong ego chúng trôi ngược ~36 m/s ⇒ vệt dài `v·T`.
+- **Quyết định trước đó của PM (`v_rel` cho advection, commit `aae6ac1`) là SAI** ở đúng điểm này. Sửa ở 28c.

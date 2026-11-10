@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from typing import ClassVar
 
 import numpy as np
 
@@ -102,6 +103,15 @@ class PlumeConfig:
     intensity: float = 0.0
     # Cột 5 là ring index; điểm tổng hợp gán ring 0; không dùng cho occlusion.
     ring: float = 0.0
+    # [CODE] dee.cpp:571–591 — khối phun sau đuôi rộng 3,4 m, cao 1,5 m, đáy =
+    # đáy box. Chỉ đường stateful (ticket 28b) đọc các hằng này.
+    #
+    # ClassVar cố ý: `spray/config/plume_default.yaml` phải là bản sao khít của
+    # mọi field dataclass (tests/test_plume_config_yaml.py), mà ticket 28b không
+    # được sửa YAML. Vẫn đọc được qua `config.tail_block_width_m` v.v.
+    water_film_height_mm: ClassVar[float] = 1.0
+    tail_block_width_m: ClassVar[float] = 3.4
+    tail_block_height_m: ClassVar[float] = 1.5
 
 
 @dataclass
@@ -311,6 +321,160 @@ def inject_plume(
     )
 
 
+def inject_plume_stateful(
+    points: np.ndarray,
+    boxes: np.ndarray,
+    context,
+    state,
+    *,
+    seed: int,
+    token: str = "",
+    config: PlumeConfig | None = None,
+    dt: float = _UPDATE_CYCLE_TIME_S,
+) -> PlumeResult:
+    """Add a plume that keeps clusters alive across frames.
+
+    Each call advances and prunes the existing clusters once, then spawns this
+    frame's clusters inside a block behind every box:
+
+    - block length ``|v_abs| * dt``, width 3.4 m, height 1.5 m;
+    - block centre ``box_pos - (L_box/2 + L_block/2) * [cos yaw, sin yaw]``;
+    - block bottom on the box bottom, so ``z_centre = z_box - h_box/2 + 0.75``.
+
+    Clusters are materialised as points of radius ``cluster.radius`` with the
+    per-range point count from ``_POINTS_MEDIAN_BY_RANGE``, ``intensity = 0``
+    and ``ring = -1`` (not assigned yet). The marker line is printed once per
+    call.
+    """
+    cfg = config or PlumeConfig()
+    clean = _as_five_columns(points)
+    box_arr = _as_boxes(boxes)
+    rng = _rng(seed, token or context.scene_token)
+    stats = PlumeStats()
+
+    state.advance(dt)
+    expired = state.prune()
+
+    block_length = abs(float(context.object_speed_mps)) * dt
+    spawned = 0
+    assumed = False
+    for index, box in enumerate(box_arr):
+        if not np.isfinite(box[:7]).all():
+            continue
+        if not _in_range(box[:3], cfg.point_cloud_range):
+            continue
+
+        x, y, z = (float(value) for value in box[:3])
+        _, length, height, yaw = (float(value) for value in box[3:7])
+        offset = length / 2.0 + block_length / 2.0
+        center = np.array(
+            [
+                x - offset * np.cos(yaw),
+                y - offset * np.sin(yaw),
+                z - height / 2.0 + cfg.tail_block_height_m / 2.0,
+            ],
+            dtype=np.float64,
+        )
+        extents = np.array(
+            [
+                block_length / 2.0,
+                cfg.tail_block_width_m / 2.0,
+                cfg.tail_block_height_m / 2.0,
+            ],
+            dtype=np.float64,
+        )
+
+        created = state.spawn(
+            context,
+            object_id=index,
+            rng=rng,
+            dt=dt,
+            center=center,
+            extents=extents,
+        )
+        if created:
+            stats.eligible_boxes += 1
+            stats.clusters_spawned += len(created)
+            spawned += len(created)
+            assumed = assumed or any(
+                cluster.velocity_assumed for cluster in created
+            )
+
+    chunks: list[np.ndarray] = []
+    for cluster in state.all_alive():
+        distance = float(np.linalg.norm(cluster.pos))
+        count = _count_for_distance(rng, distance, cfg)
+        offsets = _ball(rng, count, cluster.radius)
+        if distance > 0.0:
+            offsets = _thin_radial(
+                offsets, cluster.pos / distance, cfg.radial_squash
+            )
+        cloud = np.empty((count, 5), dtype=np.float32)
+        cloud[:, 0:3] = offsets + cluster.pos
+        cloud[:, 3] = 0.0
+        cloud[:, 4] = -1.0
+        chunks.append(cloud)
+        stats.clusters += 1
+
+    injected = (
+        np.concatenate(chunks, axis=0)
+        if chunks
+        else np.empty((0, 5), dtype=np.float32)
+    )
+
+    x_min, y_min, z_min, x_max, y_max, z_max = cfg.point_cloud_range
+    in_range = (
+        (injected[:, 0] >= x_min)
+        & (injected[:, 0] <= x_max)
+        & (injected[:, 1] >= y_min)
+        & (injected[:, 1] <= y_max)
+        & (injected[:, 2] >= z_min)
+        & (injected[:, 2] <= z_max)
+    )
+    stats.rejected_range = int((~in_range).sum())
+    injected = injected[in_range]
+
+    if len(injected) and len(box_arr):
+        inside = np.zeros(len(injected), dtype=bool)
+        for box in box_arr:
+            if not np.isfinite(box[:7]).all():
+                continue
+            inside |= _inside_box(injected, box, cfg.box_margin_m)
+        stats.rejected_box = int(inside.sum())
+        injected = injected[~inside]
+
+    if len(injected) > cfg.max_injected_points:
+        keep = rng.choice(len(injected), cfg.max_injected_points, replace=False)
+        keep.sort()
+        stats.capped = len(injected) - cfg.max_injected_points
+        injected = injected[keep]
+
+    stats.injected = int(len(injected))
+    augmented = (
+        np.concatenate([clean, injected], axis=0)
+        if len(injected)
+        else clean.copy()
+    )
+
+    print(
+        "PLUME_STATE "
+        f"scene={token or context.scene_token} "
+        f"frame={context.frame_index} "
+        f"spawned={spawned} "
+        f"alive={state.counters.alive} "
+        f"expired={expired} "
+        f"capped={stats.capped} "
+        f"assumed={1 if assumed else 0}"
+    )
+
+    return PlumeResult(
+        points=augmented,
+        points_clean=clean.copy(),
+        injected=injected,
+        stats=stats,
+    )
+
+
 def _as_five_columns(points: np.ndarray) -> np.ndarray:
     arr = np.asarray(points)
     if arr.ndim != 2 or arr.shape[1] not in (4, 5):
@@ -395,6 +559,7 @@ def _thin_radial(offsets: np.ndarray, u: np.ndarray, squash: float) -> np.ndarra
 
 
 def _inside_box(points: np.ndarray, box: np.ndarray, margin: float) -> np.ndarray:
+    # 9 cột: (x, y, z, w, l, h, yaw, vx, vy), w = ngang, l = dọc yaw — nuscenes_converter.py:250
     cx, cy, cz, width, length, height, yaw = (float(v) for v in box[:7])
     dx = points[:, 0] - cx
     dy = points[:, 1] - cy
@@ -403,8 +568,8 @@ def _inside_box(points: np.ndarray, box: np.ndarray, margin: float) -> np.ndarra
     local_x = dx * cos_yaw - dy * sin_yaw
     local_y = dx * sin_yaw + dy * cos_yaw
     return (
-        (np.abs(local_x) <= width / 2.0 + margin)
-        & (np.abs(local_y) <= length / 2.0 + margin)
+        (np.abs(local_x) <= length / 2.0 + margin)
+        & (np.abs(local_y) <= width / 2.0 + margin)
         & (points[:, 2] >= cz - height / 2.0 - margin)
         & (points[:, 2] <= cz + height / 2.0 + margin)
     )

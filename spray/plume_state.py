@@ -97,12 +97,17 @@ class SprayCluster:
     drag: float
     object_id: int
     cluster_id: int
+    velocity_assumed: bool = False
 
     def probability(self) -> float:
-        """Displayed survival probability ``P_t = exp(-age/T)`` [PAPER] III-C."""
+        """Displayed survival probability ``P_t = exp(-age/T)`` [PAPER] III-C.
+
+        A newborn cluster has ``age = -dt``, so the raw value is slightly above
+        one; the displayed probability is clamped to ``[0, 1]``.
+        """
         if self.ttl <= 0.0:
             return 0.0
-        return float(np.exp(-self.age / self.ttl))
+        return float(min(1.0, np.exp(-self.age / self.ttl)))
 
 
 @dataclass
@@ -178,13 +183,21 @@ class PlumeState:
         object_id: int,
         rng: np.random.Generator,
         dt: float = DEFAULT_DT_S,
+        center: np.ndarray | None = None,
+        extents: np.ndarray | None = None,
         config: PlumeStateConfig | None = None,
     ) -> list[SprayCluster]:
         """Spawn this cycle's clusters for one object.
 
-        ``n`` and ``T`` use ``v_abs`` (``object_speed_mps``); the initial
-        velocity uses ``v_rel = object_speed_mps - ego_speed_mps``. ``age``
-        starts one cycle behind so the cluster is inactive on its birth frame.
+        ``n`` and ``T`` use ``v_abs`` (``object_speed_mps``). The initial
+        velocity uses ``context.object_velocity_ego_mps`` when the caller
+        supplied it; otherwise it falls back to ``v_rel`` along ``+x`` and the
+        cluster is flagged ``velocity_assumed``. ``age`` starts one cycle
+        behind so the cluster is inactive on its birth frame.
+
+        ``center`` and ``extents`` describe the spray block (centre and half
+        sizes in metres); positions are uniform inside it. Passing ``None``
+        keeps the 28a placeholder jitter around the sensor origin.
         """
         cfg = config or self._config
         if config is not None:
@@ -202,6 +215,20 @@ class PlumeState:
         mean_ttl = lifetime_mean_s(v_abs_kmh, context.wfh_mm)
         origin = np.asarray(context.sensor_origin, dtype=np.float64)
 
+        velocity = context.object_velocity_ego_mps
+        if velocity is None:
+            base_vel = np.array([v_rel, 0.0, 0.0], dtype=np.float64)
+            velocity_assumed = True
+        else:
+            base_vel = np.asarray(velocity, dtype=np.float64).copy()
+            velocity_assumed = False
+
+        if (center is None) != (extents is None):
+            raise ValueError("center and extents must be provided together")
+        if center is not None:
+            block_center = _vec3("center", center)
+            block_extents = _vec3("extents", extents)
+
         bucket = self._clusters.setdefault(
             (context.scene_token, object_id), []
         )
@@ -216,18 +243,24 @@ class PlumeState:
             )
             drag = float(rng.normal(cfg.drag_mean, cfg.drag_std))
             vz = float(rng.uniform(0.0, cfg.initial_vz_max_mps))
-            pos = origin + rng.uniform(
-                -_SPAWN_JITTER_HALF_M, _SPAWN_JITTER_HALF_M, size=3
-            )
+            if center is None:
+                pos = origin + rng.uniform(
+                    -_SPAWN_JITTER_HALF_M, _SPAWN_JITTER_HALF_M, size=3
+                )
+            else:
+                pos = block_center + rng.uniform(-1.0, 1.0, size=3) * block_extents
+            vel = base_vel.copy()
+            vel[2] += vz
             cluster = SprayCluster(
                 pos=pos,
-                vel=np.array([v_rel, 0.0, vz], dtype=np.float64),
+                vel=vel,
                 radius=radius,
                 age=-dt,
                 ttl=ttl,
                 drag=drag,
                 object_id=object_id,
                 cluster_id=self._next_cluster_id,
+                velocity_assumed=velocity_assumed,
             )
             self._next_cluster_id += 1
             bucket.append(cluster)
@@ -276,5 +309,22 @@ class PlumeState:
         key = (self._scene_token, object_id)
         return list(self._clusters.get(key, []))
 
+    def all_alive(self) -> list[SprayCluster]:
+        """Every live cluster in the active scene, across all objects."""
+        return [
+            cluster
+            for clusters in self._clusters.values()
+            for cluster in clusters
+        ]
+
     def _total_alive(self) -> int:
         return sum(len(clusters) for clusters in self._clusters.values())
+
+
+def _vec3(field: str, value) -> np.ndarray:
+    array = np.asarray(value, dtype=np.float64)
+    if array.shape != (3,):
+        raise ValueError(f"{field} must have shape (3,), got {array.shape}")
+    if not np.isfinite(array).all():
+        raise ValueError(f"{field} must be finite")
+    return array

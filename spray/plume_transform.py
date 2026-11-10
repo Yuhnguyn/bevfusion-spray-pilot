@@ -19,8 +19,14 @@ from dataclasses import asdict, is_dataclass
 
 import numpy as np
 
-from spray.plume import PlumeConfig, PlumeStats, inject_plume
+from spray.plume import (
+    PlumeConfig,
+    PlumeStats,
+    inject_plume,
+    inject_plume_stateful,
+)
 from spray.plume_context import PlumeContext, seed_for
+from spray.plume_state import PlumeState
 
 try:  # pragma: no cover - exercised only inside the pinned MIT env
     from mmdet3d.datasets import PIPELINES
@@ -54,6 +60,7 @@ class PlumeTransform:
         self.enabled = bool(enabled)
         self.seed = int(seed)
         self.epoch = 0
+        self._state = None
 
     def set_epoch(self, epoch: int) -> None:
         """Record the augmentation epoch used to seed scene-level draws."""
@@ -84,13 +91,29 @@ class PlumeTransform:
             results["spray_stats"] = asdict(PlumeStats())
             return results
 
-        result = inject_plume(
-            points,
-            boxes,
-            seed=seed,
-            token=token,
-            config=self.config,
-        )
+        if context is None:
+            result = inject_plume(
+                points,
+                boxes,
+                seed=seed,
+                token=token,
+                config=self.config,
+            )
+        else:
+            state = results.get("plume_state")
+            if state is None:
+                if self._state is None:
+                    self._state = PlumeState()
+                state = self._state
+            result = inject_plume_stateful(
+                points,
+                boxes,
+                context,
+                state,
+                seed=seed,
+                token=token,
+                config=self.config,
+            )
         results["points"] = _like(points_obj, result.points)
         results["points_clean"] = _like(points_obj, result.points_clean)
         results["spray_stats"] = (

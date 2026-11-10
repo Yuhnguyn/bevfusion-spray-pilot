@@ -44,6 +44,10 @@ class PlumeContext:
     ego_pose: np.ndarray | None = None
     elevation_angles_deg: np.ndarray | None = None
     boxes: np.ndarray | None = None
+    # Object velocity in the ego frame (m/s). ``None`` means the caller did
+    # not supply a heading, and the stateful plume falls back to a +x
+    # assumption and reports it through the marker.
+    object_velocity_ego_mps: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.scene_token, str) or not self.scene_token:
@@ -86,6 +90,17 @@ class PlumeContext:
 
         if self.boxes is not None:
             object.__setattr__(self, "boxes", _boxes(self.boxes))
+
+        if self.object_velocity_ego_mps is not None:
+            object.__setattr__(
+                self,
+                "object_velocity_ego_mps",
+                _array(
+                    "object_velocity_ego_mps",
+                    self.object_velocity_ego_mps,
+                    (3,),
+                ),
+            )
 
     @classmethod
     def from_sample(
@@ -167,6 +182,10 @@ class PlumeContext:
         if boxes is not None:
             boxes = _tensor_to_array(boxes)
 
+        velocity = sample.get("object_velocity_ego_mps")
+        if velocity is not None:
+            velocity = _tensor_to_array(velocity)
+
         return cls(
             scene_token=scene_token,
             frame_index=frame_index,
@@ -178,6 +197,7 @@ class PlumeContext:
             road_z_m=road_z_m,
             ego_pose=pose,
             boxes=boxes,
+            object_velocity_ego_mps=velocity,
         )
 
 
