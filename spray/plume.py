@@ -6,6 +6,8 @@ from typing import ClassVar
 
 import numpy as np
 
+from spray.wet_ground import WetGroundConfig, apply_wet_ground
+
 # Số điểm/cụm median theo cự ly 3D của tâm cụm trong LiDAR frame [ĐO, ticket 16].
 # Ngoại xuy phẳng: mọi cự ly > 30 m dùng 10 (không bịa đường cong mới).
 _POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
@@ -127,6 +129,8 @@ class PlumeStats:
     rejected_range: int = 0
     rejected_box: int = 0
     capped: int = 0
+    wet_points_in: int = 0
+    wet_mean_ratio: float = 0.0
 
 
 @dataclass
@@ -331,6 +335,7 @@ def inject_plume_stateful(
     token: str = "",
     config: PlumeConfig | None = None,
     dt: float = _UPDATE_CYCLE_TIME_S,
+    wet_ground: WetGroundConfig | None = None,
 ) -> PlumeResult:
     """Add a plume that keeps clusters alive across frames.
 
@@ -351,6 +356,16 @@ def inject_plume_stateful(
     """
     cfg = config or PlumeConfig()
     clean = _as_five_columns(points)
+    if wet_ground is not None and wet_ground.enabled:
+        base, wet_stats = apply_wet_ground(
+            clean,
+            road_z_m=context.road_z_m,
+            wfh_mm=context.wfh_mm,
+            config=wet_ground,
+        )
+    else:
+        base = clean
+        wet_stats = None
     box_arr = _as_boxes(boxes)
     rng = _rng(seed, token or context.scene_token)
     stats = PlumeStats()
@@ -455,10 +470,13 @@ def inject_plume_stateful(
         injected = injected[keep]
 
     stats.injected = int(len(injected))
+    if wet_stats is not None:
+        stats.wet_points_in = wet_stats.points_in
+        stats.wet_mean_ratio = wet_stats.mean_ratio
     augmented = (
-        np.concatenate([clean, injected], axis=0)
+        np.concatenate([base, injected], axis=0)
         if len(injected)
-        else clean.copy()
+        else base.copy()
     )
 
     print(

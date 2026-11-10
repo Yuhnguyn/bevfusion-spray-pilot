@@ -27,6 +27,7 @@ from spray.plume import (
 )
 from spray.plume_context import PlumeContext, seed_for
 from spray.plume_state import PlumeState
+from spray.wet_ground import WetGroundConfig
 
 try:  # pragma: no cover - exercised only inside the pinned MIT env
     from mmdet3d.datasets import PIPELINES
@@ -49,6 +50,7 @@ class PlumeTransform:
         config: PlumeConfig | dict | None = None,
         enabled: bool = True,
         seed: int = 0,
+        wet_ground: WetGroundConfig | None = None,
         **kwargs,
     ) -> None:
         if isinstance(config, PlumeConfig):
@@ -59,6 +61,7 @@ class PlumeTransform:
             self.config = PlumeConfig(**kwargs)
         self.enabled = bool(enabled)
         self.seed = int(seed)
+        self.wet_ground = wet_ground
         self.epoch = 0
         self._state = None
 
@@ -113,6 +116,7 @@ class PlumeTransform:
                 seed=seed,
                 token=token,
                 config=self.config,
+                wet_ground=self.wet_ground,
             )
         results["points"] = _like(points_obj, result.points)
         results["points_clean"] = _like(points_obj, result.points_clean)

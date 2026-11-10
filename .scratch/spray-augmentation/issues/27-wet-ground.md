@@ -96,3 +96,32 @@ Hai điểm của ticket không khớp thực tế, PM đã kiểm bằng máy v
 
 **Còn lại cho 27b:** nối `apply_wet_ground` vào `inject_plume_stateful` (thứ tự: wet ground trên
 `points_clean` → rồi mới thêm plume), bật/tắt qua config, và kiểm `mean_ratio` trong log eval thật.
+
+---
+
+## PM nghiệm thu 27b — 2026-11-11 (nối vào generator)
+
+**Trạng thái: done. Ticket 27 đóng.**
+
+| Kiểm | Kết quả `[ĐO]` |
+|---|---|
+| `pytest -q tests/` | **227 passed, 4 skipped** (223 + 4 test tích hợp) |
+| File | `spray/plume.py` (+22), `spray/plume_transform.py` (+4), `tests/test_plume_wet_integration.py` (mới) |
+| `spray/wet_ground.py` | diff **rỗng** — module 27a không bị sửa |
+| Marker `PLUME_STATE` | vẫn đúng 7 khoá (test cũ xanh) |
+
+**PM tự kiểm ràng buộc quan trọng nhất** (probe riêng: 1 điểm mặt đường `y = 4`, intensity 100; 1 điểm cao
+`z = 5`, intensity 50; `wfh = 1,0 mm`, wet ground bật):
+
+```
+points_clean[0,3] = 100.0     # nhánh camera KHÔNG bị sửa ✓
+points[0,3]       =   2.96    # nền LiDAR bị giảm, tỉ lệ 0,030 ✓
+points[1,3]       =  50.0     # điểm cao ngoài dải mặt đường, không đổi ✓
+stats.wet_points_in = 1, wet_mean_ratio = 0,0296
+```
+
+⇒ Ba ràng buộc của brief đều đúng: `points_clean` sạch, wet ground chạy **trước** khi cộng plume, và tắt thì
+không in marker.
+
+**Ghi chú:** khi bật wet ground, log mỗi frame có **2** marker (`WET_GROUND_STATS` + `PLUME_STATE`). Khi tắt,
+chỉ 1. Log eval cần đếm theo tiền tố, không theo số dòng.
