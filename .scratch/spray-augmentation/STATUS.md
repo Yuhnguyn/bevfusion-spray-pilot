@@ -56,10 +56,18 @@ Sau khi đọc **code tham chiếu đã publish** (`openMSL/.../DetectionEnviron
 | # | Lỗi | Số đo | Mức |
 |---|---|---|---|
 | D1 | `z` sai frame: cụm ở **2,0–3,8 m trên mặt đường** (trên nóc xe 1,7 m) | `height_range_m [0,2;2,0]` gán tuyệt đối; mặt đường ≈ −1,84 m | **P0** |
-| D2 | neo từ **tâm box** thay vì mặt đuôi, không có bề dài `v·Δt` | trung vị **4,01 m** sau đuôi (p90 6,93); tham chiếu 1,39–2,78 m; mật độ 3,6 vs 14,0 điểm/m³ | **P0** |
-| D3 | tự triệt tiêu: điểm sinh trong box bị `rejected_box` xoá | **13,9 %** xe con · **45,7 %** truck · **63,1 %** trailer | **P1** |
-| D4 | stateless mỗi frame ⇒ không có vệt | trung vị sau đuôi dao động **1,57 → 7,33 m** giữa các frame | **P1** |
-| D5 | thiếu visibility / occlusion / attenuation / thay return yếu | 0/5 cơ chế của code tham chiếu | **P1** |
+| D2 | neo từ **tâm box** thay vì mặt đuôi, không có bề dài `v·Δt` | p50 **3,32 m**, p90 **7,02 m** sau đuôi @80 km/h; tham chiếu 1,39–2,78 m; **loãng 4,7× @80 (16,9× @60, 2,3× @100)** | **P0** |
+| D3 | điểm sinh rơi vào thân xe; `rejected_box` hiện **gần như không xoá** (≤2 %) vì D1 đẩy cụm lên trên nóc **và** D6 làm hộp khử mỏng theo trục vệt | hôm nay **0,0–2 %**; sửa D6 một mình → **30,2 / 63,6 %**; sửa cả D1+D6 → **≈14 / 45 / 63 %** | **P1 (tiềm ẩn, sửa cùng D1 + D6)** |
+| D6 | `_inside_box` dùng `width` làm nửa trục **dọc theo yaw** ⇒ hộp khử xoay 90° so với dữ liệu production (`dims = wlh`) | test của repo theo quy ước ngược nên không bắt được; sửa quy ước → mất 30–64 % liều | **P0 (khi sửa D1)** |
+| D4 | stateless mỗi frame ⇒ không có vệt | trung vị sau đuôi dao động **1,16 → 5,84 m** (std 1,33 m) giữa các frame | **P1** |
+| D5 | thiếu visibility / occlusion / attenuation / thay return yếu | 0/5 cơ chế; xe ngược chiều **100 %** điểm plume nằm sau thân xe | **P1** |
+| D7 | trần `max_injected_points = 2000` là global, cắt ngẫu nhiên | 16 xe @80 km/h → 2.340 điểm/frame, **cắt 14,2 %**; regime heavy ~4.000 **bất khả thi** | **P1** |
+| D8 | can thiệp **đông cứng** qua epoch; `intensity = 0` toàn bộ điểm plume | seed luôn 0, RNG chỉ theo token ⇒ hình học plume giống hệt mọi epoch | **P1** |
+
+**Kiểm chứng độc lập (2026-11-10):** PM đo lại cả 5 lỗi trên generator thật (20–60 seed) và tải `dee.cpp` bản gốc
+đối chiếu: **D1/D4/D5 đúng**, **D2 sai p50 (4,01 → 3,32 m)**, **D3 sai bản chất** (`rejected_box` thật 0,03–2,1 %,
+không phải 13,9–63,1 % — đã sửa trong bảng trên). Thêm **D7** (trần 2000 điểm global) và **D8** (seed đông cứng
+qua epoch + `intensity = 0`); **D6** (thứ tự `w`/`l` của box production) còn là câu hỏi mở. Chi tiết: `docs/plume-v1-defects.md` §7.
 
 **Chi tiết + bảng tham số v2 + tiêu chí nghiệm thu:** `docs/plume-v1-defects.md`.
 **Bằng chứng trực quan:** `docs/figs/plume/v1-audit/compare.mp4` (10 s) và `compare_still.png`.
@@ -97,7 +105,20 @@ generator trước, train lại sau. Ba việc phải làm trước khi sửa co
 | 22 | Sửa lỗi tính hai lần + docs | **done** `75d210c` | `K = 2,51`; 8 cụm @80 km/h; 56 test |
 | 23 | Trần bán kính 1,0 m + tên cột 5 + docs `K`/`T` | **done** `da996ff` | chạm trần đo thật 6,51%; 57 test |
 | 24 | `build_kanban.py` sinh board từ nguồn thật | **done** `8da032a` | bỏ hard-code; 25 ticket, 18 done, nguồn STATUS.md |
-| 25 | **Plume simulator v2** (4 tầng: hình học → khả kiến → tương tác → thời gian) | **planning** | `docs/plume-v1-defects.md` §4–5; chờ audit CPU + xác nhận D1 |
+| 25 | Đo 0 GPU: tốc độ ego/xe dẫn, beam angles, quỹ đạo, hằng số | **next** | `issues/25-measure-zero-gpu.md` — chặn mọi tham số v2 |
+| 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | blocked by 25 | `issues/26-plume-context-contract.md` |
+| 27 | Bước 0 — wet ground (tái dùng `SysCV/LiDAR_snow_sim`) | blocked by 26 | `issues/27-wet-ground.md` |
+| 28 | Bước 1–3 — vùng sau đuôi, sinh cụm, vòng đời | blocked by 26, 25 | `issues/28-plume-volume-lifetime.md` |
+| 29 | Bước 4–5 — ray casting, attenuation, strongest return | blocked by 27, 28 | `issues/29-ray-casting-attenuation.md` |
+| 30 | Intensity, ring, seed theo epoch, cap | blocked by 29 | `issues/30-intensity-ring-seed-cap.md` |
+| 31 | Nghiệm thu thống kê + render + audit độc lập | blocked by 25–30 | `issues/31-acceptance-v2.md` |
+
+### Quyết định 2026-11-10: v2 đi phương án đầy đủ
+
+User chốt **phương án 1** — làm đủ 6 bước theo paper, gồm **ray casting + wet ground**.
+Spec: `spec-v2-paper-faithful.md`. Chi phí **5–6,5 ngày agent + review**; GPU chỉ dùng ở A/B sau ticket 31.
+Khác paper: ta tách được `plume-only` vs `plume+wet` (paper gộp cả hai thành một dòng "spray" trong Bảng II),
+nên giải thích được vì sao ticket 11 null.
 
 ## Thứ tự hiện tại
 
@@ -105,10 +126,11 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 
 | Bước | Ticket | Trạng thái |
 |---|---|---|
-| 1 | **23** dọn 3 chỉnh nhỏ | ✅ `da996ff` — trần 1,0 m, cột 5 = `ring`, docs `K`/`T` + self-spray |
-| 2 | **09** e2e trên Kaggle | ✅ `c66e867` — `68 passed`, 0 skipped, 5 lần push |
-| 3 | **10 → 11 → 13** | config A/B → mini run → gate review |
-| // | **14** (B0) | chạy song song được |
+| 1 | **25** đo 0 GPU | ⏭ **next** — chặn 26–31 |
+| 2 | **26 → 27 → 28 → 29 → 30** | hình học → wet ground → động học → ray casting → trường dữ liệu |
+| 3 | **31** nghiệm thu + render + audit | trước khi train lại |
+| 4 | A/B `plume-only` vs `plume+wet` | chỉ sau 31, cần GPU |
+| 5 | **13** gate review | dùng kết quả null của 11 + chẩn đoán 11-i |
 
 ## Critical path
 
