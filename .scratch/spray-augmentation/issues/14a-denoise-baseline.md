@@ -1,4 +1,4 @@
-# 14: Arm B0 — baseline lọc spray trước khi detect
+# 14a/14b: Arm B0 — baseline lọc spray trước khi detect
 
 **What to build:** Một arm tham chiếu không train: lọc điểm nghi là spray khỏi `points` bằng filter thống kê cố định, rồi chạy đúng model của arm A. Mục đích là để kết quả âm của arm B không bị quy cho "chưa thử cách rẻ hơn". Báo mAP/FP/recall của B0 trên cùng held-out spray, cùng evaluator, cùng frame list với A và B.
 

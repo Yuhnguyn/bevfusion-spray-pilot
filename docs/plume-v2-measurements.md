@@ -1,5 +1,10 @@
 # Plume v2 — số đo 0 GPU (ticket 25)
 
+> **Phạm vi:** 5 section dưới là số đo **0 GPU của ticket 25** (tốc độ, beam, quỹ đạo ego,
+> hình học frame, hằng số). Hai file đo **mới hơn** không nằm trong đây:
+> `docs/plume-geometry-measurements.md` (hình học plume thật vs mô phỏng) và
+> `docs/paper-qa-notebooklm.md` (paper nói gì). Đọc cả ba trước khi chốt tham số.
+
 File này do 4 script sinh ra; mỗi section nằm giữa cặp marker
 `<!-- BEGIN <script> -->` … `<!-- END <script> -->` và được **thay**, không nối thêm.
 Chạy lại bất kỳ script nào cũng cho đúng cùng nội dung (idempotent).

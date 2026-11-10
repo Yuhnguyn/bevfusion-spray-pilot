@@ -1,5 +1,17 @@
 # Bảng góc beam đo được từ SemanticSpray (ring → elevation)
 
+> ## ⚠️ FILE NÀY ĐÃ BỊ BÁC BỎ — KHÔNG DÙNG ĐỂ CAST
+>
+> Toàn bộ nội dung bên dưới (kể cả "Kết luận một câu") là **kết quả sai** và chỉ được giữ
+> làm phản chứng. Lý do bác bỏ: ring id **không phải** beam id trên bản release này, và
+> `spray/config/beam_elevation.yaml` sinh từ bảng này **đang sai**.
+>
+> Quyết định thay thế (2026-11-11): cast trên **lưới tia đều 0,333° elevation × 0,197307°
+> azimuth**, FOV −4,06…+5,88°, ~30 × 1.826 ≈ 54.800 tia. Xem mục "ĐÍNH CHÍNH" ở cuối file
+> và `docs/PROJECT.md` §4.
+>
+> Trạng thái file `spray/config/beam_elevation.yaml`: **phải xoá ở ticket 29c**.
+
 Ngày: 2026-11-11 · PM đo trên máy này · Sinh ra để ticket 29 dùng cho ray casting.
 
 ## Kết luận một câu

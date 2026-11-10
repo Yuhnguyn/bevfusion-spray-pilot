@@ -1,5 +1,11 @@
 # Provenance của từng tham số `PlumeConfig`
 
+> ⚠️ **File này mô tả `PlumeConfig` của v1** (2026-11-07). v2 dùng `PlumeStateConfig` +
+> `PlumeContext`, không còn `points_per_cluster`, `K = 2,51`, `points_per_cluster` theo cự ly
+> hay hệ số bẹp `0,885`. Các con số "17,06 cụm/frame", "thiếu 2,13×" trong file đến từ
+> clustering **single-linkage** nên **không dùng làm mốc**.
+> Trạng thái hiện hành: `docs/PROJECT.md` §4 và `spec-v2-paper-faithful.md` §1.
+
 Mục đích: mỗi con số trong `spray/plume.py` phải trả lời được "lấy từ đâu". File này là bản đồ đó.
 Viết lại sau khi PM nói sai rằng "số cụm tăng theo tốc độ không có trong paper Linnhoff" — **sai**,
 xem dòng "số cụm" trong bảng dưới. Đừng lặp lại lỗi này.

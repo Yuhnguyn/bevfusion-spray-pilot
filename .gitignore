@@ -23,3 +23,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+
+# PM profile data — không thuộc tài liệu dự án
+.scratch/hermes-pm/

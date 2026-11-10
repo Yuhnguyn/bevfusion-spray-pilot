@@ -1,6 +1,6 @@
 # HANDOFF — Spray plume pilot (BEVFusion MIT)
 
-Cập nhật: **2026-11-10 11:52** · nhánh `main` · https://github.com/Yuhnguyn/bevfusion-spray-pilot
+Cập nhật: **2026-11-11** · nhánh `main` · https://github.com/Yuhnguyn/bevfusion-spray-pilot
 **Nguồn sự thật về tiến độ: `.scratch/spray-augmentation/STATUS.md`.**
 File này nói: đang ở đâu, làm gì tiếp, và dựng lại máy mới trong 5 phút.
 
@@ -10,8 +10,9 @@ File này nói: đang ở đâu, làm gì tiếp, và dựng lại máy mới tr
 
 1. `HANDOFF.md` (file này) — 3 phút.
 2. `.scratch/spray-augmentation/STATUS.md` — board + mục **"Dừng shift 2026-11-09 22:45"**.
-3. `.scratch/spray-augmentation/issues/11-mini-ab-run.md` — toàn bộ kết quả + chẩn đoán (mục 11-h, 11-i).
-4. Chỉ khi cần: `docs/PROJECT.md` §5, `docs/plume-model-provenance.md`.
+3. `docs/PROJECT.md` §4 — cơ chế generator **v2** (đừng đọc `walkthrough-tickets.md` §3, đó là v1).
+4. `.scratch/spray-augmentation/issues/11-mini-ab-run.md` — kết quả null của v1 + chẩn đoán (11-h, 11-i).
+5. Khi cần số: `docs/plume-geometry-measurements.md`, `docs/paper-qa-notebooklm.md`.
 
 Không đọc lại toàn repo. Không đọc log `/tmp` trừ khi ticket yêu cầu.
 
@@ -35,11 +36,11 @@ khi hộp sát ngưỡng IoU 0,5 bị lật. Toàn bộ delta −0,0031 ≈ **6 
 16 scene, không phát hiện khác biệt."
 **Không được viết:** "spray augmentation không có tác dụng", "plume không ảnh hưởng detector".
 
-## 3. Việc tiếp theo — simulator v2 (2026-11-10)
+## 3. Việc tiếp theo — simulator v2 (cập nhật 2026-11-11)
 
-**Không train lại trước khi sửa generator.** Audit ngày 2026-11-10 tìm ra **5 lỗi cấu trúc** trong
-`spray/plume.py` khiến can thiệp A/B yếu về mặt thiết kế (chi tiết: `docs/plume-v1-defects.md`,
-clip: `docs/figs/plume/v1-audit/compare.mp4`):
+**Không train lại trước khi generator xong 29c + 29d.** Audit 2026-11-10 tìm ra 8 lỗi cấu trúc của v1
+(`docs/plume-v1-defects.md`, clip `docs/figs/plume/v1-audit/compare.mp4`). Trạng thái từng lỗi:
+D1–D6 **đã sửa** ở ticket 26–28; D7 (trần 2.000 điểm) và D8 (intensity) **còn ở 29c**.
 
 | # | Lỗi | Mức |
 |---|---|---|
@@ -49,24 +50,43 @@ clip: `docs/figs/plume/v1-audit/compare.mp4`):
 | D4 | stateless mỗi frame ⇒ không có vệt/lifetime/drag | P1 |
 | D5 | thiếu visibility / occlusion / attenuation / thay return yếu | P1 |
 
-**Ba việc trước khi sửa code (0 GPU) — ĐÃ XONG ở ticket 25 (2026-11-10).** Số đo:
-`docs/plume-v2-measurements.md`; nghiệm thu: `issues/25-measure-zero-gpu.md` §PM. Năm phát hiện đổi thiết kế:
+**Việc 0 GPU — đã xong ở ticket 25** (`docs/plume-v2-measurements.md`, nghiệm thu
+`issues/25-measure-zero-gpu.md` §PM). Năm phát hiện đổi thiết kế:
 
 1. `poses.txt` (207/207 scene) **không có tịnh tiến** → tốc độ ego chỉ lấy từ `metadata.txt`.
 2. `object_velocity == ego_velocity` 207/207; cự ly chỉ 20,0 / 30,0 m → ma trận thí nghiệm có kiểm soát.
 3. Box 3D thật chỉ ở **36/207 scene** ⇒ hướng (c) là bắt buộc; `size3D.x` = **chiều dài** (xác nhận D6).
-4. Cột 4 = ring id nhưng **không khớp** góc VLP-32C (median `3,49°`) → elevation phải tính từ toạ độ.
+4. Cột 4 = ring id nhưng **không khớp** góc VLP-32C ⇒ **bỏ hẳn** ring làm beam id, cast trên lưới tia đều.
 5. `z` mặt đường SemanticSpray = **`−0,411 m`**, không phải `−1,84 m` của nuScenes.
 
-**Next = ticket 26** (`PlumeContext` + state theo scene). Đã chốt `[CHỌN 2026-11-10 — user]`: `wfh` dùng
-**mm cho cả hai công thức** ⇒ `T = 1,80 s @130 km/h` (vệt 65 m), `T = 0,80 s @80 km/h` (vệt 17,8 m),
-xoá khi `age > 4T`. Không trộn đơn vị; ticket 28 dùng một hằng `wfh_unit: mm`.
+**Đã xong trong v2:** 26 (`PlumeContext`) · 27a/b (wet ground, mặc định tắt) · 28a–d (khối sau đuôi,
+advection hệ ground, `C = −0,15`, vệt 73,4 m @130 km/h) · 29a (lưới tia) · 29b (`raycast.py`, 239 passed).
+
+**29c còn lại — 4 việc, theo thứ tự:**
+
+| # | Việc | Căn cứ |
+|---|---|---|
+| 1 | `intensity` của detection sinh ra đặt **0** | [PAPER]: *"the final intensity value of the simulated spray detections are set to 0"*; hiện code xuất 72–166 |
+| 2 | Bỏ trần `max_injected_points = 2000`, thay bằng trần theo **số điểm thật của frame** | hình học đúng cho 807–1.555 điểm/frame ⇒ trần tuyệt đối cắt oan |
+| 3 | Khối sau đuôi cao **5–92 % chiều cao box** (0,13–2,41 m với van 2,62 m) thay vì 1,5 m cứng | [ĐO] 939.803 điểm; elevation median 8,9–11,0° so với thật 9,2–9,5° |
+| 4 | Hạ latency **266–476 ms → < 100 ms/frame**; thêm marker `PLUME_RAYCAST` | đo trên 100 cụm, ~1.794 cụm @130 km/h |
+
+**29d là cổng, làm trước hoặc song song:** chia 207 scene thành `cal` / `held-out` (1 scene = 1 lần ghi,
+1/1 theo ô tốc độ × lớp), đo lại **toàn bộ** thống kê chỉ trên `cal`, rồi so `cal` vs `held-out` bằng
+7 tiêu chí đóng băng trước. Không có bước này thì mọi con số sau đó không kiểm chứng được.
+
+**Ba quyết định 2026-11-11 (không mở lại):**
+
+- **Không** đặt ngưỡng cắt cụm theo mét. p5 của `x` dao động **−40,6 … +3,7 m** giữa hai nửa scene
+  ⇒ không phải hằng số; `n_max ∝ 1/d²` tự dập đuôi (cụm 0,3 m chỉ còn 3 ô góc ở ~61 m).
+- Kích thước khối lấy từ `dee.cpp` (paper không cho số); **chiều cao** đổi sang phân số chiều cao box.
+- `P_det`: lognormal Fig. 7 bốc **mỗi cụm**, Bernoulli **mỗi tia** — code hiện tại đã đúng, không sửa.
 
 **Sau v2:** dose–response eval trên ckpt cũ (10×, 20×) + control camera-off (~1 h GPU) → chọn liều →
-train lại 2 arm 10.000 bước (~6,7 h). Ba hướng A/B/C cũ vẫn giữ nguyên thứ tự B → A → C, nhưng **chỉ
+train lại 2 arm 10.000 bước (~6,7 h). Ba hướng A/B/C cũ vẫn giữ thứ tự B → A → C, nhưng **chỉ
 có nghĩa sau khi generator đúng**.
 
-Hướng nào đổi mô hình/thước đo đều phải ghi `[CHỌN]` vào `docs/plume-model-provenance.md` và chốt
+Hướng nào đổi mô hình/thước đo đều phải ghi `[CHỌN]` vào `spec-v2-paper-faithful.md` §1 và chốt
 **trước** khi xem kết quả; không trộn với A/B cũ.
 
 ## 4. Dựng lại máy trên PC (copy nguyên khối)

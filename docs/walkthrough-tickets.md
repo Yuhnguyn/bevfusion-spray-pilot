@@ -1,5 +1,10 @@
 # Walkthrough cho intern — repo này làm gì, từng ticket làm thế nào
 
+> ⚠️ **Lịch sử v1** (2026-11-07). §3 mô tả công thức generator v1 (8 bước,
+> `points_per_cluster` theo cự ly, bẹp `×0,885`) — đã bị thay bằng v2. Đọc
+> `docs/PROJECT.md` §4 cho cơ chế hiện hành. Phần còn lại (§0, §1, §2, §4–§10 về pipeline,
+> routing, evaluator, A/B) vẫn đúng.
+
 Viết cho người mới, không giả định biết BEVFusion. Mỗi mục: việc → dữ liệu vào/ra → công thức →
 dựa trên gì → chỗ dễ sai → tự kiểm.
 

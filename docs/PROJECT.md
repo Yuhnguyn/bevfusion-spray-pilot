@@ -27,15 +27,19 @@ augmentation plume có làm giảm mức mất đó không?
 
 | thư mục | làm gì | trạng thái |
 |---|---|---|
-| `spray/plume.py` | bộ sinh plume (thuần numpy, không phụ thuộc mmdet3d) | xong, kể cả `_thin_radial` (ticket 17) |
-| `spray/plume_transform.py` | `PlumeTransform` — bọc generator vào pipeline mmdet3d | xong (ticket 07) |
-| `spray/spray_stats.py` | thống kê trên SemanticSpray | xong (ticket 12) |
-| `proxy_eval/` | matcher + AP/mAP, adapter cho output MIT | xong (ticket 05, 06) |
+| `spray/plume.py` | vỏ generator + `inject_plume` / `inject_plume_stateful`; khối sau đuôi | v2 (ticket 28) |
+| `spray/plume_state.py` | `PlumeState`, `SprayCluster`: sinh cụm, advection hệ ground, tan theo `T`, xoá `age > 4T` | v2 (28b–28d) |
+| `spray/plume_context.py` | `PlumeContext`: tốc độ ego/vật thể, `wfh_mm`, hình học box | v2 (26) |
+| `spray/plume_transform.py` | `PlumeTransform` — bọc generator vào pipeline mmdet3d | xong (07) |
+| `spray/raycast.py` | cast beam × cầu, `P_det`, attenuation, strongest-return | 29b; **còn sửa ở 29c** |
+| `spray/beam_model.py` | lưới tia đều 0,333° × 0,197° | 29a; **`beam_elevation.yaml` bị bác bỏ, xoá ở 29c** |
+| `spray/wet_ground.py` | Snell eq. 12–19, chỉ `set_intensity`, mặc định tắt | xong (27a/b) |
+| `spray/spray_stats.py` | thống kê trên SemanticSpray | xong (12) |
+| `proxy_eval/` | matcher + AP/mAP, adapter cho output MIT | xong (05, 06) |
 | `mit/bevfusion` | working copy MIT pinned `da93b27` (**gitignored**) | — |
-| `kaggle/smoke_test/` | kernel build env + checkpoint + ticket 04/06/07 | xong |
-| `kaggle/eligibility/` | kernel đo eligibility nuScenes (CPU, không checkpoint) | xong (ticket 18) |
-| `tests/` | 98 test, chạy được trên laptop không cần GPU | 94 passed, 4 skipped local (2026-11-08); 4 test e2e chỉ chạy trên kernel: 68 passed |
-| `.scratch/spray-augmentation/` | spec, STATUS, 18 ticket | nguồn sự thật của tiến độ |
+| `kaggle/smoke_test/`, `kaggle/eligibility/` | kernel build env + đo eligibility nuScenes | xong (02b, 04, 18, 19) |
+| `tests/` | chạy trên laptop không cần GPU | **239 passed, 4 skipped** (2026-11-11); 4 test e2e chỉ chạy trên kernel |
+| `.scratch/spray-augmentation/` | spec v2, STATUS, ticket | nguồn sự thật của tiến độ |
 
 ---
 
@@ -46,7 +50,7 @@ nuscenes_infos_{train,val}.pkl
    ▼ LoadPointsFromFile        points (N,5) = x,y,z,intensity,ring       N ≈ 34.720 [ĐO]
    ▼ GlobalRotScaleTrans       xoay/scale, ghi lidar_aug_matrix
    ▼ RandomFlip3D              lật trái/phải
-   ▼ PlumeTransform  (07)      points (N+K,5)  +  points_clean (N,5)
+   ▼ PlumeTransform (26–29)    context → state.spawn/advance → raycast → points (N+K,5) + points_clean (N,5)
    ▼ DefaultFormatBundle3D     tensor, gom batch
    ▼ BEVFusion.forward (08)
        ├── camera branch: 6 ảnh + points_clean → sparse depth → BEV camera
@@ -59,40 +63,33 @@ Sơ đồ chi tiết từng bước + công thức: `docs/walkthrough-tickets.md
 
 ---
 
-## 4. Plume được sinh ra thế nào
+## 4. Plume được sinh ra thế nào (v2)
 
-Tám bước, theo đúng thứ tự trong `spray/plume.py::inject_plume`. Công thức + ví dụ đầy đủ:
-`docs/walkthrough-tickets.md` §3.
+Năm tầng, theo đúng thứ tự trong `spray/plume_transform.py`:
 
-| # | Bước | Công thức / giá trị | Nguồn |
-|---|---|---|---|
-| a | tốc độ box | `speed_kmh = hypot(vx,vy) × 3.6` | [CODE] |
-| b | cổng kích hoạt | `v > 40 km/h` **và** `wfh > 0`; ở `v ≤ 50 km/h` công thức số cụm cho 0 (không thêm sàn) | [CODE] `dee.cpp:502,:554`; offset 50 từ profile |
-| c | số cụm / frame | `round(mean × K)` với `mean = (0,2·wfh + 0,1)·(v − 50)`, `K = Σ exp(−0,1k/0,2) = 2,51` | [CODE] `dee.cpp:509–512` (ticket 21), `K` từ lifetime (ticket 22) |
-| d | bán kính cụm | lognormal median **0,30 m**, σ 0,8, kẹp **[0,10; 1,00]** | [PAPER] Fig. 5 (μ=−1,2); trần 1,0 m [CODE] `dee.cpp:528` (ticket 23) |
-| e | số điểm/cụm | median **theo cự ly**: 30 / 20 / 14 / 10 / 10 cho `0–5 / 5–10 / 10–20 / 20–30 / >30 m`, σ 0,67, kẹp [3; 200] | [ĐO] ticket 16 (median **gộp = 17,0**, đúng hằng số cũ) |
-| f | đặt cụm | sau đuôi box `1–10 m` theo `−v/|v|`, lệch ngang `N(0;0,5)`, cao `U(0,2;2,0)` | [PAPER] định tính, khoảng cách [CHỌN] |
-| g | rải điểm | đều trong khối cầu `u^(1/3)`, rồi **bẹp theo phương tia ×0,885** | dạng [CHỌN], hệ số [ĐO] ticket 17 → `r_range/r_extent` = 1,28 |
-| h | lọc | bỏ điểm ngoài `±54 m`, bỏ điểm trong GT box nới `0,2 m`, cap `2.000` điểm/frame | [CHỌN] |
+| # | Tầng | Việc | Công thức / giá trị | Nguồn |
+|---|---|---|---|---|
+| 1 | `plume_context.py` | dựng ngữ cảnh một frame | `object_speed_mps` (`v_abs`), `object_velocity_ego_mps`, `wfh_mm`, kích thước box | [CODE] 26 |
+| 2 | `plume_state.spawn` | sinh cụm mỗi `Δt = 0,1 s` | `round(max(0,(0,2·wfh+0,1)·(v−50)))`; tâm **uniform** trong khối sau đuôi: dài `|v|·Δt`, rộng `3,4 m`, cao `1,5 m`; `r = min(1,0; lognormal(−1,2; 0,8))` | công thức [PAPER] §III-B; kích thước khối [CODE] `dee.cpp:559–561` (**paper không cho số**) |
+| 3 | `plume_state.advance` | trôi + tan | advection hệ **ground**, `v ← C·v̂_rel·|v_rel|²·Δt + v`, `C = −0,15 m⁻¹`, gió 208°/2 m/s; `P_t = e^{−t/T}`, `T = 0,02·wfh·(v−50)+0,2`; xoá khi `age > 4T` | `C`, `P_t`, `T` [PAPER]; `4T` [CODE] `dee.cpp:445–450` (**paper không có luật xoá**) |
+| 4 | `raycast.py` | sinh detection | lưới tia đều **0,333° × 0,197°**; `P_det = n/n_max(r_cl, p_cl)` với lognormal `µ=−2,3 σ=1,09` bốc **mỗi cụm**, Bernoulli **mỗi tia**; attenuation `e^{−2·0,02·L}`; mỗi beam giữ echo mạnh nhất | [PAPER] eq. (7), Fig. 7; attenuation [CODE] |
+| 5 | `wet_ground.py` | ướt mặt đường | Snell eq. 12–19, **chỉ** `set_intensity`, không xoá điểm; mặc định **tắt** | [CODE] `dee.cpp:305–380` |
 
-Đầu ra: `points` (đã chèn), `points_clean` (bản sao byte-equal trước khi chèn), `injected` (chỉ điểm mới),
-`stats` (đếm từng nhánh). RNG dựng từ `seed` + hash(`token`) → cùng sample cùng seed cho cùng kết quả.
+`points_clean` là bản sao byte-equal trước khi chèn, dùng cho nhánh camera. RNG dựng từ
+`seed` + hash(`token`) ⇒ cùng sample, cùng seed, cùng kết quả.
 
-**Ví dụ số [ĐO]:** frame 34.720 điểm, box 50 km/h → 2 cụm → **76 điểm** (0,22%); 130 km/h → 8 cụm →
-**174 điểm** (0,50%). Trên scene-0796 qua pipeline thật: **+127 điểm**, 12/12 check pass.
+**Đang sai, sửa ở 29c** `[ĐO]`:
 
-**Vì sao phải chèn sau `GlobalRotScaleTrans` + `RandomFlip3D`, trước `PointShuffle`:** velocity của box đã ở
-LiDAR frame của keyframe và được xoay/flip cùng box (`lidar_box3d.py:152`); chèn sớm hơn thì plume trôi
-khỏi vị trí hình học. Chi tiết: `docs/velocity-contract.md`.
+- `raycast.py:256–261` xuất `intensity ≈ 72–166` trên thang 255. Paper: *"the final intensity
+  value of the simulated spray detections are set to 0"* ⇒ phải là **0**.
+- `plume.py:104` còn trần `max_injected_points = 2000`; hình học đúng cho 807–1.555 điểm/frame nên trần này cắt oan.
+- `plume.py:115–116` khối cao `1,5 m` hardcode, trong khi nhãn thật phủ **6–90 % chiều cao box**.
+- Latency **266–476 ms/frame** với 100 cụm ⇒ phải < 100 ms.
 
-**Đã sửa ở ticket 16–17 (2026-11-07):** số điểm/cụm nay **phụ thuộc cự ly** (30 điểm ở 0–5 m → 10 ở
-20–30 m, đo được giảm **3,0×**), và cụm được **bẹp theo phương tia ×0,885** để `r_range/r_extent` = **1,28**
-như số đo. Giả thuyết cũ "cảm biến chỉ thấy bề mặt cụm" là **sai**: paper cũng lấy range quanh **tâm** cụm,
-và số đo cho cụm có bề dày theo tia.
-
-**Còn biết là thiếu:** attenuation/occlusion (ADR-0002), `P_det` per-tia, cụm tan dần theo thời gian,
-self-spray của ego (§5.2 dòng 12). Bán kính giữ **0,30** theo paper dù đo được 0,755 m — số đo là cận trên do
-single-linkage chaining. Hai chỗ **chưa có số đo** và yếu nhất: vị trí cụm (§5.2 dòng 10) và `wfh` (§5.2 dòng 11).
+**Lịch sử v1 (không còn dùng):** v1 đặt `points_per_cluster` theo cự ly (30/20/14/10/10) và bẹp
+điểm theo phương tia `×0,885`. Cả hai đã bỏ vì điểm phải **nổi lên từ ray casting**. Con số
+"17,06 cụm/frame" của v1 là artifact của single-linkage (bán kính 0,5 m, `dense-min 5`), không
+so được với `minPts = 3` của paper.
 
 ---
 
@@ -118,33 +115,34 @@ thay đổi giữa hai arm, nên phép so sánh paired còn hiệu lực"*.
 
 | # | Paper / code tham chiếu | Repo | Căn cứ |
 |---|---|---|---|
-| 1 | **Không có khái niệm "số điểm mỗi cụm"**: điểm rơi ra từ tia cắt khối cầu × `P_det` | Bảng đo `30/20/14/10/10` điểm/cụm theo cự ly | [ĐO] ticket 16, n = 11.607 cụm; median **gộp = 17,0** trùng hằng số gốc ⇒ đọc đúng cơ chế |
-| 2 | **Ray casting + `P_det` mỗi tia** (`min(1, lognormal(−2,3; 1,1))`, median 0,10) | Không có; sinh cụm trực tiếp | Không có beam profile của nuScenes; **áp thêm `P_det` là đếm hai lần** (17 điểm/cụm đo được đã là sau detect; ×0,10 còn 1,7 — vô lý). ADR-0002 |
+| 1 | **Không có khái niệm "số điểm mỗi cụm"**: điểm rơi ra từ tia cắt khối cầu × `P_det` | **Đã bỏ ở v2** — không còn `points_per_cluster` | Bảng `30/20/14/10/10` của v1 đo bằng single-linkage (radius 0,5 m, `dense-min 5`), không phải `minPts = 3` ⇒ số **17,0 không dùng** |
+| 2 | **Ray casting + `P_det` mỗi tia** (lognormal `µ=−2,3 σ=1,09`, bốc **mỗi cụm**, Bernoulli **mỗi tia**) | **Đã có** (`raycast.py`, 29b) | Trước đây repo cho rằng "áp thêm `P_det` là đếm hai lần" — **sai**: `17 điểm/cụm` của v1 đến từ single-linkage chứ không phải từ detect. Paper: `P_det = n/n_max`, `n` = detection đo được, `n_max` = số tia cắt khối cầu |
 | 3 | Paper: số cụm phụ thuộc tốc độ **và loại xe**. Code: chỉ `(0,2·wfh + 0,1)·(v−50)` | Theo **code** | [CODE] `dee.cpp:509–512` + `profile_VLP32.hpp.in`: tham số spray nằm trong profile **loại cảm biến**, không có biến loại xe ⇒ divergence paper ↔ code |
-| 4 | Code rút `T ~ N(T; 0,2)` (std bằng chính mean) | `T` **cố định** 0,2 s | Bỏ vì **15,9%** lần rút cho `T ≤ 0` (cụm chết ngay) → không tái lập được giữa seed, A/B mất hiệu lực. Giá: `K = 2,51` vs `E[K] = 2,76` (**−9%**, tức bớt lạc quan) |
+| 4 | Code rút `T ~ N(T; 0,2)` (std bằng chính mean) | `T = 0,02·wfh·(v−50)+0,2`, **không** cộng nhiễu | Bỏ nhiễu vì **15,9 %** lần rút cho `T ≤ 0` (cụm chết ngay) ⇒ không tái lập giữa seed, A/B mất hiệu lực |
 | 5 | Code cắt `std::min(1.0f, …)` | Trần **1,00 m** | [CODE] `dee.cpp:528`; trần 1,5 m cũ chỉ bóp 2,2% cụm, trần 1,0 bóp **6,7%** — đo lại **6,51%** (ticket 23) |
-| 6 | Attenuation `exp(−2×0,02×d)` = **0,04 m⁻¹** | Không có | Đường tia chỉ xuyên qua cụm **0,5–0,8 m** ⇒ còn **96,9–98,0%** độ sáng; điểm spray gán intensity 0 nên áp lên nó bằng không |
+| 6 | Attenuation `exp(−2×0,02×d)` = **0,04 m⁻¹** | **Đã có** (`raycast.py`, 29b) | Áp lên cả điểm thật nằm sau plume: đo được **631 điểm thật bị giảm intensity** mỗi frame |
 | 7 | Occlusion: điểm spray thắng theo `power = intensity/d²` (`add_max_detection`) | Không có | Spray 25 m: `3,1×10⁻⁴`; xe 40 m thắng khi `I_xe > 0,5`, mà `I_xe` thật **4–40** ⇒ xe thắng **8–80×**, **81%** tia xuyên ⇒ ảnh hưởng **<3%** |
-| 8 | `simulate_wet_pavement` (Fresnel, `\|z−ground\| < 0,2 m`) | Không có | Chỉ `set_intensity`, không xoá điểm; input của repo **đã là** cloud nuScenes thật; thêm nữa cần độ cao cảm biến + fit mặt phẳng ⇒ thêm biến thứ ba |
-| 9 | Drag `C = −0,15 m⁻¹`, cụm trôi & tan theo thời gian | Không có | Cần state qua frame; `4T ≈ 0,8 s` mà keyframe nuScenes cách **0,5 s**, xác suất sống qua 0,5 s chỉ **8%** |
-| 10 | Paper §III: cụm đặt **uniform trong vùng sau vật thể đang di chuyển** (định tính) | `U(1;10) m` sau đuôi, ngang `N(0;0,5)`, cao `U(0,2;2,0)` | **[CHỌN]**, chỉ đối chiếu clip A (plume thật 1–8 m sau đuôi). **Chỗ yếu nhất của mô hình** — chưa ai đo |
-| 11 | `water_film_height` là **input** của OSI, không có default | `0,001 m` (1 mm) | **[CHỌN]** — dataset không khai độ ướt. Quyết định trực tiếp số cụm: @80 km/h ra **8** cụm, đo thật **17,06** (thiếu **2,13×**). **Không** nâng để khớp |
-| 12 | Paper mô phỏng cả scene | Chỉ sinh sau **xe phía trước** | Self-spray của ego (clip A: `x ≈ −4,5 m`) chưa có; không ảnh hưởng eval set A (`x > 0`) nhưng phải khai |
+| 8 | `simulate_wet_pavement` (Fresnel, `\|z−ground\| < 0,2 m`) | **Đã có** (`wet_ground.py`, 27a/b), mặc định **tắt** | Chỉ `set_intensity`, không xoá điểm; giữ tắt để hai arm A/B chỉ khác đúng một biến |
+| 9 | Drag `C = −0,15 m⁻¹`, cụm trôi & tan theo thời gian | **Đã có** (`plume_state.py`, 28b–28d) | State sống trong scene; advection hệ ground, xoá `age > 4T` (**paper không có luật xoá**, đây là `[CODE]`) |
+| 10 | Paper §III: cụm đặt **uniform trong vùng sau vật thể**, paper **không cho kích thước** | khối `\|v\|·Δt × 3,4 × 1,5 m` sau đuôi; chiều cao **sẽ đổi thành 5–92 % chiều cao box** ở 29c | kích thước [CODE] `dee.cpp:559–561`; chiều cao [ĐO] trên 939.803 điểm: p5 0,16 / med 1,51 / p95 2,36 m (`plume-geometry-measurements.md` §A) |
+| 11 | `water_film_height` là **input** của OSI | `wfh ~ exp(0,1…1,2) mm` **mỗi frame** | [PAPER] §IV. Ba mức cố định khi calibration: 0,5 / 0,75 / 1,0 mm. Con số `17,06 cụm/frame` của v1 **không dùng** (xem dòng 1) |
+| 12 | Paper sinh cho **ego và mọi vật thể di chuyển** | Chỉ sinh sau **xe phía trước** | Nhãn thật: **62–93 %** điểm spray nằm ở `x < 0` (median `x ≈ −5 m`) ⇒ một phần là self-spray của ego. Chưa làm; ticket riêng sau 29c |
 
 ### 5.3 Hệ quả cho claim
 
 - **Không được so trực tiếp với +17,39 AP của paper.** Cùng bảng đó Voxel-RCNN chỉ +0,62 → hiệu ứng phụ thuộc
   detector rất mạnh. Claim đúng phạm vi: *plume augmentation calibrated theo thống kê spray **đo được**, cho
   bài toán fusion trên nuScenes*.
-- Repo **không tái lập** Linnhoff (thiếu ray casting + `P_det` + attenuation + occlusion). Hướng lạc quan đã
-  xếp thứ tự: (1) camera branch sạch → (2) số cụm thiếu 2,13× → (3) lifetime → (4) drag → (5) occlusion.
-- **Chỗ phản biện sẽ đánh trước:** còn **một** con số `[CHỌN]` là dòng **10** (vị trí cụm) — quyết định
-  plume nằm đâu, tức quyết định độ khó bài toán. Con số này **đo được** bằng dữ liệu đang có (tâm cụm đã có
-  trong frame cảm biến, chỉ cần quy về frame box) — chưa làm, đã ghi nhận.
-  Dòng **11** (`wfh = 1 mm`) **không còn là `[CHỌN]`**: paper dùng mm cho cả `wfh` và ba lớp `h`
-  (moist 0,5 / partially 0,75 / fully 1,0 mm) — user xác nhận 2026-11-10.
-  Nhưng đơn vị mm **kéo theo công thức `T`**: `T = 0,02·wfh·(v−50)+0,2` cho 1,8 s @130 km/h (vệt 65 m)
-  thay vì 0,20 s khi đọc theo mét. Chốt ở ticket 28/30, xem `spec-v2-paper-faithful.md` §1.
+- Sau 29b, repo **đã tái lập** ray casting + `P_det` + attenuation; **chỉ còn occlusion** là thiếu.
+  Hướng lạc quan còn lại, xếp theo mức ảnh hưởng: (1) camera branch nhận `points_clean` →
+  (2) `intensity` đang xuất sai giá trị (phải **0**) → (3) self-spray của ego chưa có → (4) occlusion.
+- Dòng **10** (vị trí + chiều cao cụm) **không còn mù**: đã đo trên **939.803 điểm** — chiều cao
+  6 / 58 / 90 % chiều cao box, `|y|` p95 **2,31 m**, `x` trải **−35 … +25 m**. Xem
+  `docs/plume-geometry-measurements.md`.
+- Dòng **11** (`wfh`) đã chốt: `exp(0,1…1,2) mm` mỗi frame, dùng **mm** cho cả `count` và `T`
+  (user, 2026-11-10). Hệ quả `T(130) = 1,8 s` ⇒ vệt `v·T = 65 m`; xem `spec-v2-paper-faithful.md` §1.
+- Ba thứ paper **không** cho nên là quyết định của mình, phải ghi đúng nhãn: kích thước khối
+  (`[CODE]`), luật xoá `age > 4T` (`[CODE]`), và có sinh self-spray hay không (`[CHỌN]`).
 
 ---
 
@@ -174,9 +172,15 @@ Eligibility — box vehicle ≥50 km/h, **phía trước** (`x>0`), không lọc
 
 ### SemanticSpray [ĐO, `docs/semantic-spray-stats.md`]
 
-207 scene (mẫu 2.070 frame / 17.419 scan): **28.546 điểm/scan**, spray median **144 điểm/frame**, 14 cụm,
-**17 điểm/cụm** (median **gộp**; theo cự ly là 30 → 10, xem ticket 16), **82% điểm intensity = 0**.
+207 scene (mẫu 2.070 frame / 17.419 scan): **28.546 điểm/scan**, spray median **144 điểm/frame**,
+**82 % điểm intensity = 0**, spray chỉ chiếm **0,25–0,5 %** số điểm mỗi scan.
 Chỉ dùng để calibrate — không train/eval trên đó (ADR-0003).
+
+> ⚠️ Các số **cụm** từng ghi ở đây (14 cụm/frame, 17 điểm/cụm) đo bằng **single-linkage**
+> (bán kính 0,5 m, `dense-min 5`) nên bị chaining làm sai. Paper dùng DBSCAN `minPts = 3`.
+> **Không dùng** các số đó làm mốc; phải đo lại theo recipe paper (ticket 29d).
+> Hình học dùng được (đo trên 939.803 điểm, không phụ thuộc clustering) nằm ở
+> `docs/plume-geometry-measurements.md`.
 
 ---
 
@@ -217,6 +221,13 @@ Năm điều kiện để được nói "thành công" — chốt trước, khô
 | 11-07 | giữ 50 km/h, **bỏ lọc vận tốc ego** | paper có kịch bản ego đứng yên; lọc ego làm val còn 0 frame |
 | 11-07 | eval set = val, `d ≤ 50 m` → 196 frame / 16 scene | trần cứng của val ở 50 km/h; tự chia lại train sẽ rò rỉ từ checkpoint pretrained |
 | 11-07 | không dùng scene highway | 0 scene highway trong val, 2 scene trên toàn dataset |
+| 11-10 | v2 mở lại wet-ground + attenuation + state (thay ADR-0002) | ADR-0004 |
+| 11-10 | `wfh` dùng **mm** ở cả `count` và `T`; sample `exp(0,1…1,2)` mỗi frame | paper §IV; xem `spec-v2-paper-faithful.md` §1 |
+| 11-11 | **bỏ** bảng `ring → elevation`, cast trên lưới tia đều 0,333° × 0,197° | `docs/plume-beam-table.md` mục ĐÍNH CHÍNH |
+| 11-11 | **không** đặt ngưỡng cắt cụm theo mét | p5 của `x` dao động **−40,6 … +3,7 m** giữa hai nửa scene ⇒ không phải hằng số; `n_max ∝ 1/d²` tự dập đuôi |
+| 11-11 | kích thước khối lấy từ `dee.cpp` (`v·Δt × 3,4 × 1,5`), paper không cho số; chiều cao đổi thành **5–92 % chiều cao box** | paper QA §1; đo 939.803 điểm |
+| 11-11 | SemanticSpray chia **2 vai** (cal / held-out) theo scene; detector vẫn train/eval trên nuScenes | 207 scene = 207 timestamp riêng ⇒ chia theo run; ADR-0003 |
+| 11-11 | confidence 3 bộ của paper (cal / train / test) áp vào dự án: tham số generator đo trên `cal`, báo cáo trên `held-out` | paper QA §5 |
 
 ---
 
@@ -232,13 +243,24 @@ Năm điều kiện để được nói "thành công" — chốt trước, khô
 | `docs/velocity-contract.md` | velocity ở frame nào; số đo eligible + đính chính nhãn val |
 | `docs/semantic-spray-stats.md` | thống kê spray thật để calibrate |
 | `docs/nuscenes-eligibility.md` | bảng đo eligibility đầy đủ (ticket 18) |
-| `docs/adr/0001..0003` | ba quyết định nền |
+| `docs/adr/0001..0004` | bốn quyết định nền (0002 đã bị 0004 thay) |
+| `docs/plume-v2-measurements.md` | số đo 0 GPU của v2 (tốc độ, beam, quỹ đạo, hình học frame) |
+| `docs/plume-geometry-measurements.md` | hình học plume thật vs mô phỏng theo 9 mức tốc độ |
+| `docs/paper-qa-notebooklm.md` | paper thật sự nói gì, tách khỏi cái `dee.cpp` tự đặt |
+| `docs/plume-v1-defects.md` | 8 lỗi cấu trúc của v1 (D1–D8) |
+| `docs/plume-beam-table.md` | bảng `ring → elevation` — **đã bị bác bỏ**, chỉ giữ làm phản chứng |
+| `docs/DOC-AUDIT-2026-11-11.md` | audit tài liệu: chỗ lệch, chỗ trùng, việc phải sửa |
 | `docs/kanban.html` | board tự sinh (`scripts/build_kanban.py`) |
 
 ---
 
 ## 10. Trạng thái ngắn
 
-Xong: 01, 02, 02b, 03, 04, 05, 06, 07, 08, 09, 10, 12, 14a, 14b, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24. Test: **94 passed, 4 skipped** local; **68 passed** trên kernel.
-Tiếp theo: **09** (e2e trên Kaggle) → **14** (baseline B0) → **10 → 11** (chạy 3 arm) → **13** (cổng kết luận).
-Chi tiết thứ tự và lý do: `STATUS.md`.
+Xong: 01–24 (v1, đã đóng) và **25, 26, 27a/b, 28a–d, 29a, 29b** (v2).
+Test: **239 passed, 4 skipped** (2026-11-11, laptop CPU).
+
+Đang làm: **29c** — sửa `intensity = 0`, bỏ trần 2.000, khối theo phân số chiều cao box, tối ưu
+`< 100 ms/frame`, marker `PLUME_RAYCAST`.
+Tiếp: **29d** (cổng: đo detection/cụm theo recipe paper trên split `cal` / `held-out`) → **29c nối
+`inject_plume_stateful`** → **30** (trần + intensity + ring) → **31** (nghiệm thu).
+Chỉ sau đó mới mở lại A/B trên Kaggle. Chi tiết thứ tự: `STATUS.md`.

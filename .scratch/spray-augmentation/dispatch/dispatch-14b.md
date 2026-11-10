@@ -2,7 +2,7 @@
 
 Repo: `/Users/huynguyen/projects/bevfusion-spray-pilot` · branch `main` · HEAD `211fce1`
 Đọc trước: `spray/denoise.py` (bạn vừa viết ở 14a), `docs/denoise-b0-params.md`,
-`.scratch/spray-augmentation/issues/14-denoise-baseline.md` (checkbox 1 đã tick kèm số đo của PM).
+`.scratch/spray-augmentation/issues/14a-denoise-baseline.md` (checkbox 1 đã tick kèm số đo của PM).
 
 ## Vì sao phải sửa — số đo, không phải ý kiến
 

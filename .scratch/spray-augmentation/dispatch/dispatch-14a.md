@@ -1,7 +1,7 @@
 # Ticket 14a — Arm B0: filter lọc spray (phần implement, chạy local)
 
 Repo: `/Users/huynguyen/projects/bevfusion-spray-pilot` · branch `main` · HEAD `bde2039`
-Đọc trước khi làm: `.scratch/spray-augmentation/issues/14-denoise-baseline.md`,
+Đọc trước khi làm: `.scratch/spray-augmentation/issues/14a-denoise-baseline.md`,
 `.scratch/spray-augmentation/spec.md` dòng 242 và dòng 274.
 
 ## Bối cảnh

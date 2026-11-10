@@ -1,16 +1,28 @@
 # BEVFusion spray pilot (MIT)
 
-Mục tiêu: cải thiện khả năng phát hiện của BEVFusion khi có **spray plume** từ xe phía trước, lúc xe đang chạy trên đường ướt. Đây không phải bài toán robustness dưới lỗi cảm biến.
+Mục tiêu: đo **BEVFusion (LiDAR + 6 camera) mất bao nhiêu mAP khi có spray plume** từ xe phía trước
+trên đường ướt, và **augmentation plume có làm giảm mức mất đó không**. Đây không phải bài toán
+robustness dưới lỗi cảm biến.
 
-Cách làm: một pilot nhỏ, train hai arm A/B trên cùng frame. Arm A train clean. Arm B train clean cộng spray plume. Đánh giá trên **held-out spray** bằng **proxy mAP**, số false positive và recall theo range. Thêm arm B0 (lọc spray rồi detect, không train) làm mốc so sánh. Nếu có tín hiệu, viết recipe để đội khác full train.
+Cách làm: train hai arm A/B trên cùng frame — A train sạch, B train sạch + plume — rồi đo paired
+trên cùng eval set; thêm arm B0 (lọc spray rồi detect, không train) làm mốc. Detection chạy trên
+**nuScenes**; **SemanticSpray chỉ dùng để hiệu chỉnh simulator** (`docs/adr/0003`).
 
-## Trạng thái
+## Trạng thái (2026-11-11)
 
-- Spec: `.scratch/spray-augmentation/spec.md` (v1.5, **`ready-for-agent`**; preconditions 1–6 pass).
-- ADR: `docs/adr/0001` pin MIT commit `da93b27`, `0002` plume-only-first, `0003` SemanticSpray chỉ để hiệu chỉnh thống kê.
-- Đã có code: `spray/plume.py` (sinh plume), `spray/plume_transform.py` (pipeline transform + `points_clean`), `spray/spray_stats.py` (thống kê spray thật), `proxy_eval/matcher.py` (proxy mAP/FP/recall), `proxy_eval/mit_adapter.py` (output MIT → evaluator). Test: **56 passed** (laptop CPU).
-- Ticket xong: 01–08, 12, 15–22. Ticket tiếp theo: 23 (chỉnh nhỏ) → 09 (e2e trên Kaggle) → 10 → 11 → 13; 14 và 24 song song. Board: `.scratch/spray-augmentation/STATUS.md`.
-- Bằng chứng Kaggle: `kaggle/smoke_test/evidence/` (ticket 02/04/06/07).
+- **Generator đang ở v2**, chưa quay lại A/B. v1 đã đóng sau khi audit tìm ra 8 lỗi cấu trúc
+  (`docs/plume-v1-defects.md`) và kết quả A/B của v1 là **null** với chẩn đoán rõ cơ chế
+  (`STATUS.md` mục "Dừng shift 2026-11-09").
+- Code hiện có: `spray/plume.py` (vỏ + khối sau đuôi), `plume_state.py` (sinh/trôi/tan cụm),
+  `plume_context.py`, `plume_transform.py` (pipeline + `points_clean`), `raycast.py` (cast beam,
+  `P_det`, attenuation, strongest-return), `beam_model.py`, `wet_ground.py` (mặc định tắt),
+  `spray_stats.py`, `proxy_eval/` (matcher + adapter output MIT).
+- Test: **239 passed, 4 skipped** trên laptop CPU (không cần GPU, không cần mmcv).
+- Đang làm **29c** (sửa `intensity = 0`, bỏ trần 2.000, khối theo phân số chiều cao box, hạ latency
+  < 100 ms/frame), sau đó **29d** là cổng nghiệm thu. Chi tiết: `.scratch/spray-augmentation/STATUS.md`.
+- Nguồn sự thật của tiến độ: `.scratch/spray-augmentation/STATUS.md`. Bản đồ tài liệu: `docs/PROJECT.md` §9.
+- ADR: `docs/adr/0001` pin MIT `da93b27`, `0002` plume-only (đã bị `0004` thay), `0003` SemanticSpray
+  chỉ để hiệu chỉnh, `0004` v2 mở wet-ground + attenuation + state.
 
 ## Cấu trúc
 
@@ -21,4 +33,5 @@ Cách làm: một pilot nhỏ, train hai arm A/B trên cùng frame. Arm A train 
 
 ## Legacy (local only)
 
-`kernel/`, `interactive/`, `results/phase-b1-nuscenes-mini/` là harness cũ chạy BEVFusion của OpenMMLab. Chúng được giữ local và không commit vào repo này. Kết quả ở đó không phải bằng chứng cho pilot và nằm ngoài phạm vi.
+`kernel/`, `interactive/`, `results/phase-b1-nuscenes-mini/` là harness cũ chạy BEVFusion của
+OpenMMLab. Giữ local, không commit, **không phải bằng chứng cho pilot** và nằm ngoài phạm vi.

@@ -8,14 +8,30 @@ Tag bằng chứng: `[PAPER]` Linnhoff et al. 2022 · `[CODE]` openMSL
 `sl-1-2-reflection-based-lidar-object-model` · `[ĐO]` đo trên máy này ·
 `[CHỌN]` quyết định của PM/user, không suy ra từ nguồn.
 
+> **Cập nhật 2026-11-11 — bốn điều chỉnh so với bản nháp này.** Nguồn: `docs/paper-qa-notebooklm.md`
+> (hỏi đáp nguyên văn trên PDF paper) và `docs/plume-geometry-measurements.md`.
+>
+> 1. **`P_det`**: paper dùng `n/n_max` với `n` = số detection đo được, `n_max` = số tia cắt ⇒
+>    lognormal Fig. 7 bốc **một lần mỗi cụm**, Bernoulli **mỗi tia**, nhân `P_t`. Code 29b đã đúng.
+> 2. **Không** đặt ngưỡng cắt cụm theo mét. Paper **không có** luật xoá nào (`age > 4T` là `[CODE]`);
+>    p5 của `x` dao động −40,6…+3,7 m giữa hai nửa scene nên không thể là hằng số. Đuôi tự tắt vì
+>    `n_max ∝ 1/d²` (cụm 0,3 m còn 3 ô góc ở ~61 m).
+> 3. **Chiều cao khối**: paper không cho; `dee.cpp` để `1,5 m`. Đo 939.803 điểm ⇒ phủ **5–92 % chiều
+>    cao box**. `3,4 m` bề ngang **giữ nguyên** (khớp `|y|` p95 thật 2,31 m).
+> 4. **Nghiệm thu tách hai vai**: `cal` để khớp tham số, `held-out` để báo cáo, chia theo scene
+>    (1 scene = 1 lần ghi). SemanticSpray **không** dùng để train/eval detector (ADR-0003).
+>
+> Ngoài ra `intensity` của detection sinh ra phải là **0** (`[PAPER]`), và `spray/config/beam_elevation.yaml`
+> **bị bác bỏ** — cast trên lưới tia đều.
+
 ---
 
 ## 0. Định nghĩa "theo paper" — 6 bước kiểm được
 
 | # | Cơ chế | Nguồn | v1 hiện tại | v2 |
 |---|---|---|---|---|
-| 0 | Wet ground: mặt đường ướt làm mất điểm phản xạ gương | `[PAPER]` §III-A dùng mô hình `[9]` | **không có** (ADR-0002 bỏ) | tích hợp `tools/wet_ground/` của `SysCV/LiDAR_snow_sim`, có công tắc |
-| 1 | Vùng phun sau đuôi xe, dài theo `v·Δt` | `[PAPER]` §III-C | hộp quanh tâm box | khối sau đuôi, dài `v·Δt`, `Δt = 0,1 s` `[CODE]` |
+| 0 | Wet ground: mặt đường ướt làm mất điểm phản xạ gương | `[PAPER]` §III-A dùng mô hình `[9]`; code `dee.cpp:305–380` (MPL-2.0) | **không có** (ADR-0002 bỏ) | **port** `dee.cpp` vào `spray/wet_ground.py` — không vendor `LiDAR_snow_sim` (CC BY-NC); mặc định tắt |
+| 1 | Vùng phun sau đuôi xe, dài theo `v·Δt` | `[CODE]` `dee.cpp:559–561` — paper §III-C chỉ nói "region behind" và **không cho kích thước** | hộp quanh tâm box | khối sau đuôi `v·Δt × 3,4 × (5–92 % chiều cao box)` `[CODE]`+`[ĐO]` |
 | 2 | Sinh cụm: `mean = (0,2·wfh_mm + 0,1)·(v_kmh − 50)` | `[CODE]` `profile_VLP32.hpp.in:32–34` | có (hằng số đúng) | giữ, chốt đơn vị `wfh` |
 | 3 | Vòng đời: `T`, drag `C`, `P_t = e^(−t/T)` | `[PAPER]` §III-C | **không có trạng thái thời gian** | có, state theo frame |
 | 4 | Ray casting beam × sphere, `P_det` lognormal | `[PAPER]` §III-C | **không có** (phát điểm trực tiếp) | có |

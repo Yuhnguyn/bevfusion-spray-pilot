@@ -1,12 +1,23 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-10 11:52 · **PM:** Hermes · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-11 · **PM:** Hermes · **Thi công:** CommandCode
 
 > **Quyết định 2026-11-10 (user chốt):** hướng **(c)** — khối nước **sinh từ `metadata.txt` +
 > `poses.txt`**, **nghiệm thu bằng nhãn spray thật** (`label == 2`, 24–44 điểm/frame).
 > `boxes` thành tham số optional (`None` ⇒ dùng metadata). Chi tiết: `spec-v2-paper-faithful.md` §2.
 > Việc kế tiếp sau restart: **ticket 25** (đo 0 GPU, không cần train).
 **Đọc file này trước khi mở bất kỳ ticket nào.** Ticket là chi tiết; file này là thứ tự và phạm vi.
+
+> **Quyết định 2026-11-11 (chốt, không mở lại):**
+> 1. **Không** đặt ngưỡng cắt cụm theo mét. p5 của `x` dao động **−40,6 … +3,7 m** giữa hai nửa
+>    scene (50: +2,76/−40,58; 70: −4,73/−9,79; 100: −6,45/−10,02; 130: −11,61/−4,79) ⇒ không phải
+>    hằng số. `n_max ∝ 1/d²` tự dập đuôi: cụm 0,3 m chỉ còn 3 ô góc ở ~61 m ⇒ dưới `minPts = 3`.
+> 2. Paper **không** cho kích thước vùng đặt cụm, **không** có luật xoá cụm, `P_det` là Bernoulli
+>    mỗi tia với lognormal bốc mỗi cụm. Ba thứ đó vì vậy mang nhãn `[CODE]`/`[CHỌN]`, không `[PAPER]`.
+> 3. Kích thước khối giữ `v·Δt × 3,4 m`; **chiều cao đổi thành 5–92 % chiều cao box** (đo 939.803 điểm).
+> 4. SemanticSpray chia **2 vai** `cal` / `held-out` theo scene (1 scene = 1 timestamp = 1 lần ghi);
+>    detector vẫn train/eval trên nuScenes. Không dùng chung scene giữa hai vai.
+> 5. Nguồn paper đã đối chiếu: `docs/paper-qa-notebooklm.md` (hỏi đáp nguyên văn qua NotebookLM).
 
 ## Mục tiêu một câu
 
@@ -139,8 +150,8 @@ tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng ho
 | 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | **done** | 3 file; **200 passed, 4 skipped** (+8 test); `inject_plume` không đổi chữ ký. Nghiệm thu: `issues/26-plume-context-contract.md` §PM |
 | 27 | Bước 0 — wet ground (port `dee.cpp`, không vendor CC BY-NC) | **done** (27a/b) | **227 passed, 4 skipped**; frame thật `points_in=14576 attenuated=2821`; `points_clean` giữ sạch (PM kiểm); mặc định tắt. Nghiệm thu: `issues/27-wet-ground.md` §PM |
 | 28 | Bước 1–3 — vùng sau đuôi, sinh cụm, vòng đời | **done** (28a/b/c) | **217 passed, 4 skipped**. Vệt trong tầm **73,7 m @130 km/h** (trước 7,3 m); marker `PLUME_STATE` 7 khoá; D6 đã sửa. Còn tồn sang 30/31: trần 2.000 cắt 45–82 %, điểm/cụm lệch 6× so với paper. Nghiệm thu: `issues/28-plume-volume-lifetime.md` §PM |
-| 29 | Bước 4–5 — ray casting, attenuation, strongest return | **29b done, 29c next** | `spray/raycast.py` + 7 test (**239 passed, 4 skipped**); 2 cảnh báo: bảng beam 29a SAI (xem `docs/plume-beam-table.md` §ĐÍNH CHÍNH), tốc độ 266–476 ms/frame chưa đạt |
-| 30 | Intensity, ring, seed theo epoch, cap | blocked by 29 | `issues/30-intensity-ring-seed-cap.md` |
+| 29 | Bước 4–5 — ray casting, attenuation, strongest return | **29b done, 29c next** | `spray/raycast.py` + 7 test (**239 passed, 4 skipped**); 29a **bị bác bỏ** → lưới tia đều; latency 266–476 ms chưa đạt; 4 việc còn lại: `issues/29-ray-casting-attenuation.md` §29c |
+| 30 | Intensity, ring, seed theo epoch, ngân sách điểm | blocked by 29c | `issues/30-intensity-ring-seed-cap.md` |
 | 31 | Nghiệm thu thống kê + render + audit độc lập | blocked by 25–30 | `issues/31-acceptance-v2.md` |
 
 ### Quyết định 2026-11-10: v2 đi phương án đầy đủ
@@ -156,11 +167,22 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 
 | Bước | Ticket | Trạng thái |
 |---|---|---|
-| 1 | **25** đo 0 GPU | ✅ **done 2026-11-10** — chặn 26–31 đã gỡ |
-| 2 | **26 → 27 → 28 → 29 → 30** | ⏭ **next = 26** — hình học → wet ground → động học → ray casting → trường dữ liệu |
-| 3 | **31** nghiệm thu + render + audit | trước khi train lại |
-| 4 | A/B `plume-only` vs `plume+wet` | chỉ sau 31, cần GPU |
-| 5 | **13** gate review | dùng kết quả null của 11 + chẩn đoán 11-i |
+| 1 | **25** đo 0 GPU | ✅ done 2026-11-10 |
+| 2 | **26 → 27 → 28 → 29a → 29b** | ✅ done 2026-11-11 |
+| 3 | **29d** cổng split + đo lại thống kê | ⏭ **làm ngay** — chặn mọi con số tham số |
+| 4 | **29c** 4 lỗi ray casting | ⏭ song song được với 29d |
+| 5 | **30** trường dữ liệu + **31** nghiệm thu | sau 29c |
+| 6 | A/B `plume-only` vs `plume+wet` trên Kaggle | chỉ sau 31, cần GPU |
+| 7 | **13** gate review | dùng kết quả null của 11 + chẩn đoán 11-i |
+
+### 29 tách nhỏ
+
+| Mã | Nội dung | Trạng thái |
+|---|---|---|
+| 29a | bảng `ring → elevation` | **bị bác bỏ** — thay bằng lưới tia đều 0,333° × 0,197° |
+| 29b | `raycast.py`: cast beam × cầu, `P_det`, attenuation, strongest-return | done |
+| **29c** | `intensity = 0`; bỏ trần 2.000; khối cao 5–92 % chiều cao box; < 100 ms + marker `PLUME_RAYCAST` | **next** |
+| **29d** | cổng: split `cal`/`held-out`, đo lại toàn bộ thống kê, 7 tiêu chí đóng băng | **next** |
 
 ## Critical path
 
@@ -172,7 +194,7 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 ## Quyết định đã chốt — không mở lại
 
 - Pin MIT BEVFusion `da93b27`; không dùng HEAD. (`docs/adr/0001-mit-bevfusion-pin.md`)
-- v1 chỉ plume, không mô phỏng wet-ground/attenuation. (`docs/adr/0002-plume-only-first.md`)
+- ~~v1 chỉ plume, không wet-ground/attenuation~~ → **thay bởi ADR-0004 (2026-11-10)**: v2 mở wet-ground (mặc định tắt) + attenuation + state. (`docs/adr/0002` → `0004`)
 - Lý do **định lượng** để bỏ attenuation ở v1: hệ số tắt hiệu dụng **0,04 m⁻¹** = `exp(−2×0,02×d)`
   [PAPER §III] × quãng xuyên thực tế 0,5–0,8 m (1–2 cụm r = 0,3 m) → intensity còn **98,0–96,9%** → dưới
   ngưỡng lượng tử hoá intensity của nuScenes. Chỉ đáng làm nếu chuyển sang regime fully-watered của paper

@@ -2,7 +2,7 @@
 
 **Type:** task
 **Status:** needs-triage
-**Blocked by:** 25–30
+**Blocked by:** 25–30 (gồm 29c, 29d)
 **Chủ:** PM (Hermes) chạy audit; CommandCode chỉ sửa lỗi phát hiện.
 
 ## Việc phải làm
@@ -20,7 +20,7 @@
 - [ ] `ring` phủ 0–31, median 4 ± 1.
 - [ ] `intensity` p50 = 0, p90 = 1, p99 = 3 ± 1.
 - [ ] Ảnh BEV: plume nằm sau đuôi, không xuyên thân xe.
-- [ ] `pytest -q tests/` ≥ 192 passed / 4 skipped.
+- [ ] `pytest -q tests/` ≥ **239** passed / 4 skipped.
 - [ ] Biên bản nghiệm thu ghi trong ticket này: số đo, nguồn, phần chưa khớp.
 
 ## Cấm

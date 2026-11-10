@@ -47,7 +47,7 @@ PHASES = [
         "id": "P2",
         "name": "Đo lường & đối chứng",
         "desc": "Adapter evaluator, config A/B, arm lọc spray B0, eligibility.",
-        "tickets": ["06", "10", "14", "18"],
+        "tickets": ["06", "10", "14a", "14b", "18"],
     },
     {
         "id": "P3",
@@ -66,6 +66,12 @@ PHASES = [
         "name": "Tham chiếu",
         "desc": "Thống kê spray thật để kiểm tra simulator (không dùng để train/eval).",
         "tickets": ["12"],
+    },
+    {
+        "id": "P7",
+        "name": "Simulator v2 (theo paper)",
+        "desc": "Context, wet ground, state theo thời gian, ray casting, nghiệm thu.",
+        "tickets": ["25", "26", "27", "28", "29", "30", "31"],
     },
     {
         "id": "P6",

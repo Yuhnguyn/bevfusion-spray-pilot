@@ -1,6 +1,6 @@
 # ADR-0002: v1 chỉ có plume trên LiDAR, không wet-ground
 
-Status: Accepted (2026-01)
+Status: **Superseded by ADR-0004** (2026-11-10) · ban đầu Accepted (2026-01)
 
 ## Context
 

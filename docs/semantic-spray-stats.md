@@ -1,5 +1,12 @@
 # SemanticSpray statistics
 
+> ⚠️ **Số về cụm trong file này không dùng làm mốc** (2026-11-11). Clustering ở đây là
+> **single-linkage, bán kính 0,5 m, `dense-min 5`** — chaining gộp cụm nên số cụm và
+> điểm/cụm là **cận trên**, không so được với DBSCAN `minPts = 3` của paper.
+> Số dùng được: điểm/scan, số điểm spray/frame, tỉ lệ intensity = 0, hình học theo cự ly
+> (không phụ thuộc clustering) ở `docs/plume-geometry-measurements.md`.
+> Đo lại theo recipe paper: ticket 29d.
+
 Sinh bởi `scripts/semantic_spray_stats.py`. Chỉ dùng để so thống kê
 simulator; dataset này không dùng để train/eval BEVFusion (lý do: `docs/adr/0003`).
 
@@ -17,12 +24,11 @@ tự không?
 
 ## Đo hình học plume theo cự ly (ticket 16)
 
-Số đo hình học theo bucket cự ly, cùng sample **2.070 frame** và clustering
-single-linkage radius **0,5 m** như trên, ở `docs/plume-geometry-vs-real.md`.
-Bucket **>50 m** có **0 dense cluster** `[ĐO]`, nên một sample mở rộng
-**207 scene × 20 frame = 4.140 frame** đã được chạy lại; bảng của sample mở
-rộng ở `docs/plume-geometry-vs-real-expanded.md`. Bucket >50 m vẫn **0**
-cluster trong sample mở rộng `[ĐO]`.
+Số đo hình học theo bucket cự ly, sample **2.070 frame**, clustering single-linkage
+radius **0,5 m**: `docs/plume-geometry-vs-real.md`. Muốn mẫu lớn hơn thì chạy lại với
+`--frames-per-scene 20 --geometry-out <file>`; bản mở rộng 4.140 frame từng được commit
+nhưng đã **xoá** vì trùng nội dung và cùng khuyết điểm phương pháp.
+Bucket **>50 m** có **0 dense cluster** ở cả hai cỡ mẫu `[ĐO]`.
 
 ## Sample
 

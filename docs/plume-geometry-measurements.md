@@ -73,7 +73,29 @@ với thật **7,1–9,5°**, và càng sai khi tốc độ tăng.
 
 Ba luật, mỗi luật lấy từ một số đo ở mục A. Không đổi `T`, không đổi `P_det`, không đổi `C`.
 
-**(1) Cắt cụm khi đã ra khỏi vùng thật có spray: `x < −15 m`** (p5 của nhãn thật).
+**(1) KHÔNG cắt cụm theo mét — để `n_max` tự dập đuôi.**
+
+Bản đầu của mục này đề xuất cắt cụm khi `x < −15 m`. **Đề xuất đó đã bị bác bỏ** bằng phép đo
+sau: tách scene chẵn/lẻ (hai tập không giao nhau), cùng mức tốc độ, đo lại p5 của `x`.
+
+| km/h | p5 nửa A (m) | p5 nửa B (m) | lệch |
+|---:|---:|---:|---:|
+| 50 | +2,76 | −40,58 | 43,4 |
+| 70 | −4,73 | −9,79 | 5,1 |
+| 100 | −6,45 | −10,02 | 3,6 |
+| 130 | −11,61 | −4,79 | 6,8 |
+
+p5 dao động **−40,6 … +3,7 m** ⇒ không phải hằng số, không được dùng làm ngưỡng. Đo trên
+**toàn bộ 24 scene mỗi mức** thì đuôi rất nhọn (130 km/h, n = 95.453 điểm): `[−20,−15)` có 693 điểm,
+quá `−20 m` chỉ còn **62 điểm = 0,065 %**, xa nhất **−35 m**.
+
+Cơ chế đúng để đuôi tự tắt: `n_max ∝ 1/d²`. Cụm bán kính 0,3 m có `n_max = 28` ô góc ở 20 m,
+`n_max = 3` ở **~61 m**, `< 1` ở 200 m ⇒ dưới `minPts = 3` thì không thành cluster spray. Đây là
+lý do **không** cần luật cắt, và cũng là lý do con số "cụm ở 91 m" không phải lỗi mô hình: nó là
+số đo trên **vị trí cụm**, không phải trên **detection**.
+
+Bảng dưới đây là kết quả **khi thử** cắt ở `−15 m` — giữ lại làm bằng chứng, **không dùng** làm
+thông số:
 
 | km/h | cụm sống | range med | p95 | elevation med | x p5 / med / p95 | % sau cảm biến | `\|y\|` p95 |
 |---:|---:|---:|---:|---:|---|---:|---:|
@@ -112,10 +134,15 @@ tức `1,91/0,333 ≈ 5,7` mức elevation × `1,91/0,197 ≈ 9,7` bước phư�
 **807–1.555 điểm/frame** mà nhãn thật có. Trần `max_injected_points = 2000` (lỗi D7)
 **không còn là nút cổ chai** khi hình học đã đúng.
 
-## E. Điều chỉnh lại điều PM nói trước đó
+## E. Ba chỗ PM nói sai, và số đúng
 
-PM từng đề "nâng khối lên **1,1–1,9 m**". Con số đó suy từ `8·tan(8°)` ở một cự ly duy
-nhất, chỉ là **dải trung vị**, và không chuyển được sang xe khác. Số đúng — đo trực tiếp
-trên 939.803 điểm — là **5 %–92 % chiều cao box**, kiểm lại bằng elevation median
-(bảng mục C(2)). PM cũng từng đề cắt cụm khi `x < 0`; số đo ở mục A cho thấy **62–93 %
-spray thật nằm ở `x < 0`**, nên ngưỡng đúng là **`x < −15 m`**, không phải `x < 0`.
+1. PM từng đề "nâng khối lên **1,1–1,9 m**". Con số đó suy từ `8·tan(8°)` ở **một** cự ly, chỉ là
+   dải trung vị, không chuyển được sang xe khác. Số đúng — đo trực tiếp trên 939.803 điểm — là
+   **5 %–92 % chiều cao box** (0,13–2,41 m với van 2,62 m), kiểm lại bằng elevation median (mục C(2)).
+2. PM từng đề cắt cụm khi `x < 0`. Số đo mục A bác bỏ: **62–93 %** spray thật nằm ở `x < 0`
+   (median `x ≈ −5 m`), nên `x < 0` là xoá đúng phần lớn nhất của plume.
+3. PM sau đó đề cắt ở `x < −15 m`. Cũng **sai**: p5 giữa hai nửa scene dao động
+   **−40,6 … +3,7 m** (mục C(1)). Kết luận cuối: **không cắt theo mét**; `n_max ∝ 1/d²` tự dập đuôi.
+
+Bài học ghi vào playbook: một ngưỡng rút từ **một mẫu nhỏ** phải được kiểm lại trên **hai tập
+scene không giao nhau** trước khi ghi vào tài liệu. Nếu không, nó là overfit chứ không phải số đo.

@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Measure SemanticSpray plume geometry versus range.
 
+WARNING (2026-11-11): the clustering here is **single-linkage, radius 0.5 m,
+dense >= 5 points**, which is NOT the paper's recipe (DBSCAN, minPts=3).
+Chaining over-merges clusters, so the cluster counts and points-per-cluster
+numbers below are **upper-bound artifacts**, not calibration targets. The
+per-range geometry that does not depend on clustering is measured separately
+in ``docs/plume-geometry-measurements.md``.
+
 The script reads the extracted SemanticSpray dataset, clusters label-2 (noise)
 points with the same single-linkage rule used for the simulator comparison
 (radius 0.5 m, dense cluster >= 5 points), and reports per-range geometry.
