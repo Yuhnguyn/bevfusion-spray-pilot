@@ -3,7 +3,7 @@ Repo: /Users/huynguyen/projects/bevfusion-spray-pilot
 Đọc theo thứ tự:
 1. .scratch/spray-augmentation/STATUS.md (mục "Thứ tự hiện tại")
 2. .scratch/spray-augmentation/issues/16-plume-geometry-research.md  ← ticket, là nguồn đúng
-3. scripts/semantic_spray_stats.py + docs/semantic-spray-stats.md (script và số cũ, để không phá cái đã có)
+3. scripts/semantic_spray_stats.py + docs/measurements/semantic-spray-stats.md (script và số cũ, để không phá cái đã có)
 
 ## Nhiệm vụ
 
@@ -17,7 +17,7 @@ Ba câu phải trả lời bằng số: `median n_points` theo bucket cự ly; `
 - Python: `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python` (conda in crash report là nhiễu, bỏ qua).
 - Dữ liệu: `data/SemanticSprayDataset` (16 GB, đã có local, KHÔNG tải lại, KHÔNG commit).
 - Giữ nguyên sample cũ (207 scene × 10 frame = 2.070 frame) và clustering single-linkage r=0,5 m,
-  dense ≥5 điểm, để còn so được với `docs/semantic-spray-stats.md`.
+  dense ≥5 điểm, để còn so được với `docs/measurements/semantic-spray-stats.md`.
 - **Nếu bucket nào có < 30 cụm** thì mở rộng sample (ví dụ 20 frame/scene, hoặc thêm group scene),
   chạy lại, và **báo cả hai** (sample cũ + sample mở rộng) chứ không lặng lẽ đổi sample.
 - Script phải chạy lại được bằng MỘT lệnh, có cờ chọn sample, ghi cờ đó vào output.

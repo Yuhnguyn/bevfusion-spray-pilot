@@ -64,7 +64,7 @@ Velocity thiếu, không hữu hạn, hoặc tốc độ dưới ngưỡng → s
 > trainval**: 850 scene / **34.149** keyframe (`kaggle/eligibility`, `n_samples_total=34149`). val split
 > thật chỉ có **150 scene / 6.019 frame**. Hàng đối chứng tái lập đúng số cũ (957 box / 698 frame so với
 > 952/697, lệch +0,53%), nên phép đo là đúng — chỉ nhãn "val" là sai. Số tương ứng trên **val**:
-> **169 box / 117 frame / 13 scene**. Nguồn: `docs/nuscenes-eligibility.md`,
+> **169 box / 117 frame / 13 scene**. Nguồn: `docs/reference/nuscenes-eligibility.md`,
 > `kaggle/smoke_test/evidence/eligibility.json`.
 
 Quét toàn bộ trainval (34.149 keyframe, 850 scene; bảng cũ ghi nhầm thành "34.029 val frame"):

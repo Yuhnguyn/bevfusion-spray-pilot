@@ -21,7 +21,7 @@ dữ liệu thật để trả lời. Nếu dữ liệu nói 17 là đúng thì 
 
 ## Đo trên cái gì
 
-Mở rộng `scripts/semantic_spray_stats.py` — script đã có, đang sinh `docs/semantic-spray-stats.md`;
+Mở rộng `scripts/semantic_spray_stats.py` — script đã có, đang sinh `docs/measurements/semantic-spray-stats.md`;
 sample hiện tại: 207 scene × 10 frame = 2.070 frame, clustering single-linkage r = 0,5 m,
 dense cluster ≥ 5 điểm, đọc trực tiếp `velodyne/*.bin` (có cả kênh `ring`).
 
@@ -48,8 +48,8 @@ Gom theo bucket cự ly: **0–5 / 5–10 / 10–20 / 20–30 / 30–50 / >50 m*
 
 ## Ra cái gì
 
-- Section mới trong `docs/semantic-spray-stats.md`. Nếu dài hơn 40 dòng thì tách
-  `docs/plume-geometry-vs-real.md` và link từ file cũ.
+- Section mới trong `docs/measurements/semantic-spray-stats.md`. Nếu dài hơn 40 dòng thì tách
+  `docs/measurements/plume-geometry-vs-real.md` và link từ file cũ.
 - Gồm 3 bảng (mỗi bucket: `n_clusters`, `median n_points`, `p25/p75`, `median r_extent`,
   `median r_range`, `median r_range/r_extent`, `median n_rings`).
 - Script chạy lại được bằng **một lệnh**, có cờ chọn sample, ghi rõ trong docstring.

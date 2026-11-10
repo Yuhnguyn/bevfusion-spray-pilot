@@ -132,7 +132,7 @@ Ví dụ: 50 → 2; 72 → `t=0,275` → 3,65 → **4**; 90 → 5; 130 → 8.
 của tốc độ, lớp xe và độ dày màng nước; Fig. 4 vẽ mean clusters/timestep + đường tuyến tính xấp xỉ (đo cho
 VW Crafter, tới ~30 cụm/scan). Repo dùng đúng **dạng hàm** đó nhưng hằng số 2 và 8 là lựa chọn của repo, neo
 sao cho ở dải giữa khớp **median 5 cụm dày mỗi frame** đo trên SemanticSpray. Nói cách khác: dạng hàm theo
-paper, hằng số theo dữ liệu mình có. (Xem `docs/plume-model-provenance.md`.)
+paper, hằng số theo dữ liệu mình có. (Xem `docs/history/plume-model-provenance.md`.)
 
 **(d) Số điểm mỗi cụm và bán kính — phân bố lognormal**
 

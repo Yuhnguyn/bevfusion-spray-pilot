@@ -51,7 +51,7 @@ Hệ quả: **velocity đo trực tiếp từ `metadata.txt`**, không cần `nu
 
 ## Tiêu chí nghiệm thu
 
-- [ ] 4 script (item 1, 2, 3, 5) chạy được, exit 0, mỗi script in bảng số ra `docs/plume-v2-measurements.md`.
+- [ ] 4 script (item 1, 2, 3, 5) chạy được, exit 0, mỗi script in bảng số ra `docs/measurements/plume-v2-measurements.md`.
 - [ ] Mỗi số trong doc có tag `[ĐO]` và tên script sinh ra nó.
 - [ ] Bảng tốc độ nêu rõ: bao nhiêu frame sẽ **không** kích hoạt spray (< 50 km/h) — đây là
       ràng buộc trần dữ liệu, phải biết trước khi làm bước 2.
@@ -76,7 +76,7 @@ validation cuối (EXIT=130, `Terminated.`) **sau khi** đã ghi xong file; PM t
 | Kiểm | Lệnh | Kết quả |
 |---|---|---|
 | 4 script chạy được | `/opt/anaconda3/bin/python scripts/{measure_speeds,measure_beam_angles,measure_ego_motion,verify_frame_geometry}.py` | cả 4 **EXIT=0** |
-| Idempotent | chạy 2 lượt, `shasum docs/plume-v2-measurements.md` | `3085a237…` **giống hệt** 2 lượt |
+| Idempotent | chạy 2 lượt, `shasum docs/measurements/plume-v2-measurements.md` | `3085a237…` **giống hệt** 2 lượt |
 | Cấu trúc doc | marker `BEGIN/END` | **5 section**: 4 script + `conclusion` |
 | Test | `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/` | **192 passed, 4 skipped** (không đổi baseline) |
 | Phạm vi | `git status --porcelain` | chỉ file mới: 5 script + doc + `docs/figs/ego-motion/`; **không** chạm `spray/`, `mit/`, `tests/` |

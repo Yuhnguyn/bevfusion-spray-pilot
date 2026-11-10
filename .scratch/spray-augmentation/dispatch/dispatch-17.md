@@ -3,7 +3,7 @@ Repo: /Users/huynguyen/projects/bevfusion-spray-pilot
 Đọc theo thứ tự:
 1. .scratch/spray-augmentation/STATUS.md
 2. .scratch/spray-augmentation/issues/17-plume-geometry-from-measurement.md  ← ticket, nguồn đúng
-3. docs/plume-geometry-vs-real.md  ← số đo mà ticket dựa vào
+3. docs/measurements/plume-geometry-vs-real.md  ← số đo mà ticket dựa vào
 
 ## Nhiệm vụ
 

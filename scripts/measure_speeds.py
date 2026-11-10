@@ -3,7 +3,7 @@
 
 Ticket 25, item 1. Reads all 207 ``metadata.txt`` files (header + one CSV row
 each), never ``poses.txt`` for velocity. Writes the ``measure_speeds.py``
-section of ``docs/plume-v2-measurements.md`` and prints it to stdout.
+section of ``docs/measurements/plume-v2-measurements.md`` and prints it to stdout.
 """
 from __future__ import annotations
 

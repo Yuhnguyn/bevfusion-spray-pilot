@@ -2,7 +2,7 @@
 
 **Type:** task
 **Status:** ready-for-agent
-**Blocked by:** — (ticket 16 đã xong, commit `08f6715`, `docs/plume-geometry-vs-real.md`)
+**Blocked by:** — (ticket 16 đã xong, commit `08f6715`, `docs/measurements/plume-geometry-vs-real.md`)
 **Chủ:** CommandCode. PM: Hermes.
 
 ## Số của ticket 16 — và nó bác bỏ giả thuyết của bản ticket cũ
@@ -76,14 +76,14 @@ offset   = offset − (1 − S) · (offset·u) · u
   bucket gần (<5 m) sẽ **tăng** (kỳ vọng 30 > 17), cụm xa **giảm** (10 < 17). Phải báo số theo **một
   kịch bản cố định**: 3 box ở 12 / 22 / 38 m, 80 km/h, seed 0–4, cùng frame — bảng trước → sau cho từng
   seed — và giải thích chiều tăng/giảm theo bucket.
-- `docs/plume-model-provenance.md` cập nhật 3 dòng: count theo cự ly `[ĐO]`, hệ số bẹp `S` hiệu dụng +
+- `docs/history/plume-model-provenance.md` cập nhật 3 dòng: count theo cự ly `[ĐO]`, hệ số bẹp `S` hiệu dụng +
   công thức 0,64 `[ĐO/CHỌN]`, radius giữ 0,30 + lý do cận trên.
 - Commit: `feat(plume): range-dependent cluster density and radial thinning per ticket 16`
 
 ### 3. KHÔNG đổi `cluster_radius_median_m`
 
 Giữ **0,30**. Số đo 0,755 m là **cận trên** vì single-linkage nối chuỗi các cụm gần nhau
-(`docs/plume-geometry-vs-real.md` §Caveats), còn paper Fig. 5 cho đúng 0,30. Ghi lý do này vào
+(`docs/measurements/plume-geometry-vs-real.md` §Caveats), còn paper Fig. 5 cho đúng 0,30. Ghi lý do này vào
 docstring của `PlumeConfig`.
 
 ## Không làm

@@ -13,7 +13,7 @@
 
 ## Comments
 
-- Report: `docs/semantic-spray-stats.md`, sinh bởi `scripts/semantic_spray_stats.py`
+- Report: `docs/measurements/semantic-spray-stats.md`, sinh bởi `scripts/semantic_spray_stats.py`
   trên 207 scenes / 2070 frames (10 frame đều mỗi scene).
 - Code: `spray/spray_stats.py` (single-linkage clustering, dense cluster >= 5 điểm),
   test trong `tests/test_spray_stats.py`.

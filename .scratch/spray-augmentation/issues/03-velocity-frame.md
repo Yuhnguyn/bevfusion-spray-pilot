@@ -6,7 +6,7 @@
 
 **Status:** done
 
-Bằng chứng: `docs/velocity-contract.md` (commit `47fc600`). Velocity ở LiDAR frame của keyframe hiện tại,
+Bằng chứng: `docs/reference/velocity-contract.md` (commit `47fc600`). Velocity ở LiDAR frame của keyframe hiện tại,
 đi qua `nuscenes_converter.py:264–268` → `nuscenes_dataset.py:305–309` → `lidar_box3d.py:152–154`.
 Plume phải chèn sau `GlobalRotScaleTrans` + `RandomFlip3D`; box `ObjectPaste` set velocity = 0.
 

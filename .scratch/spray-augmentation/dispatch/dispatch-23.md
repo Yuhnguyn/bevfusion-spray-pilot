@@ -4,7 +4,7 @@ Bạn làm ticket 23 trong repo /Users/huynguyen/projects/bevfusion-spray-pilot 
 1. AGENTS.md (nếu có) — quy ước repo.
 2. .scratch/spray-augmentation/issues/23-radius-cap-and-naming.md — NGUỒN ĐÚNG, 4 mục.
 3. spray/plume.py (phần PlumeConfig + hàm sinh cụm).
-4. docs/plume-model-provenance.md (để biết chèn mục mới vào đâu).
+4. docs/history/plume-model-provenance.md (để biết chèn mục mới vào đâu).
 
 PHẠM VI — chỉ 4 mục trong ticket, không làm thêm:
 
@@ -13,9 +13,9 @@ PHẠM VI — chỉ 4 mục trong ticket, không làm thêm:
 2. Đổi tên field/cột 5 `time_lag` → `ring` trong spray/plume.py (cả chỗ khai báo và chỗ gán).
    Giá trị vẫn 0.0. Comment ghi: "điểm tổng hợp gán ring 0; không dùng cho occlusion".
    Sau khi sửa, `grep -rn time_lag spray/` phải rỗng.
-3. docs/plume-model-provenance.md: thêm đúng 2 mục (a) và (b) như ticket mô tả, kèm nhãn
+3. docs/history/plume-model-provenance.md: thêm đúng 2 mục (a) và (b) như ticket mô tả, kèm nhãn
    [CHỌN] cho (a) và [CODE] cho (b). Không viết lại các mục đang có.
-4. docs/plume-model-provenance.md: thêm mục hạn chế "self-spray chưa mô phỏng" như ticket mô tả.
+4. docs/history/plume-model-provenance.md: thêm mục hạn chế "self-spray chưa mô phỏng" như ticket mô tả.
 
 RÀNG BUỘC:
 - KHÔNG đổi bất kỳ tham số nào khác của PlumeConfig (points_per_cluster_median, cluster_radius_median_m,

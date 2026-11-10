@@ -14,8 +14,8 @@ Skill: tdd — `/Users/huynguyen/.agents/skills/tdd` (1 skill duy nhất)
   Đo v1: gap dọc quỹ đạo p50 = **3,32 m**.
 - `spray/plume.py:397` — `_inside_box(points, box, margin)` unpack `cx, cy, cz, width, length, height, yaw = box[:7]`
   rồi dùng `width/2` cho trục **dọc yaw** ⇒ **lỗi D6**: hộp khử xoay 90° so với xe thật
-  (`docs/plume-v1-defects.md` §D6). Quy ước đúng theo dữ liệu thật: `size3D.x` = **chiều dài**, đo trên
-  SemanticSpray `x = 6,83 m` vs `y = 2,42 m` (`docs/plume-v2-measurements.md` §4).
+  (`docs/history/plume-v1-defects.md` §D6). Quy ước đúng theo dữ liệu thật: `size3D.x` = **chiều dài**, đo trên
+  SemanticSpray `x = 6,83 m` vs `y = 2,42 m` (`docs/measurements/plume-v2-measurements.md` §4).
 - `mit/bevfusion/tools/data_converter/nuscenes_converter.py:250` ghi `dims = b.wlh` ⇒ **9 cột** hiện hành là
   `(x, y, z, w, l, h, yaw, vx, vy)` với `w` = **ngang**, `l` = **dọc yaw**. Cùng file `:507` đổi `wlh → lhw`
   (chỗ khác) — repo không thống nhất; brief này **chốt một quy ước** như trên.

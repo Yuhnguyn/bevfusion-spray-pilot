@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build docs/kanban.html from the issue tracker.
+"""Build docs/board/kanban.html from the issue tracker.
 
 Run from the repo root:  python3 scripts/build_kanban.py
 
@@ -25,7 +25,7 @@ SCRATCH = ROOT / ".scratch" / "spray-augmentation"
 ISSUES = SCRATCH / "issues"
 STATUS = SCRATCH / "STATUS.md"
 SPEC = SCRATCH / "spec.md"
-OUT = ROOT / "docs" / "kanban.html"
+OUT = ROOT / "docs" / "board" / "kanban.html"
 TEMPLATE = Path(__file__).parent / "kanban_template.html"
 
 # Phase grouping only — progress and every ticket field come from the sources

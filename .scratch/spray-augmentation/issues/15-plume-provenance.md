@@ -11,7 +11,7 @@ PM từng nói "số cụm tăng theo tốc độ không có trong paper Linnhof
 nước (Fig. 4, đo cho VW Crafter). Code hiện tại đúng là theo cấu trúc đó, chỉ khác hằng số. Docstring
 trong `spray/plume.py` đang xếp `clusters_at_speed_bounds` vào nhóm "[CHỌN]" không nguồn, gây hiểu sai.
 
-Bản đồ nguồn đầy đủ: `docs/plume-model-provenance.md` (đã viết, là nguồn đúng).
+Bản đồ nguồn đầy đủ: `docs/history/plume-model-provenance.md` (đã viết, là nguồn đúng).
 
 ## Việc phải làm
 
@@ -20,7 +20,7 @@ Bản đồ nguồn đầy đủ: `docs/plume-model-provenance.md` (đã viết,
    - Ghi rõ: **dạng hàm tuyến tính theo tốc độ lấy từ Linnhoff §III + Fig. 4**; hằng số (2→8) neo theo
      SemanticSpray median 5 dense clusters/frame.
    - Ghi rõ hai chiều bị gộp ở v1: lớp xe, độ dày màng nước.
-   - Thêm dòng `Xem docs/plume-model-provenance.md` ở đầu docstring.
+   - Thêm dòng `Xem docs/history/plume-model-provenance.md` ở đầu docstring.
 2. Không sửa bất kỳ giá trị số nào, không sửa logic, không đổi test.
 3. Chạy `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/` — phải vẫn 33 passed.
 4. Commit: `docs(plume): correct provenance of cluster count (Linnhoff Fig. 4), link provenance map`.
@@ -35,4 +35,4 @@ Bản đồ nguồn đầy đủ: `docs/plume-model-provenance.md` (đã viết,
 
 - Không parameterize theo lớp xe / màng nước (đó là ticket riêng nếu PM quyết định tiến gần paper).
 - Không thêm attenuation/occlusion (ADR-0002, để v2).
-- Không sửa `docs/plume-model-provenance.md` trừ khi phát hiện sai số — báo PM trước.
+- Không sửa `docs/history/plume-model-provenance.md` trừ khi phát hiện sai số — báo PM trước.

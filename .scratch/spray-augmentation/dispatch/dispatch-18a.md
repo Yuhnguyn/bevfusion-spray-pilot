@@ -33,7 +33,7 @@ Không tự đặt biến thể khác.
 
 ## Không làm ở lượt này
 
-- KHÔNG viết `docs/nuscenes-eligibility.md`. Bảng phải lấy từ output thật của kernel.
+- KHÔNG viết `docs/reference/nuscenes-eligibility.md`. Bảng phải lấy từ output thật của kernel.
   Không được gõ một con số nào chưa chạy.
 - KHÔNG chờ kernel. KHÔNG `kaggle kernels status` trong vòng lặp. KHÔNG process nền. KHÔNG poller.
   Push xong là dừng, báo lại, thoát. PM tự poll.

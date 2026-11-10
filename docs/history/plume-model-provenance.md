@@ -13,7 +13,7 @@ xem dòng "số cụm" trong bảng dưới. Đừng lặp lại lỗi này.
 Nguồn viết tắt: **[PAPER]** = Linnhoff et al., *Simulating Road Spray Effects in Automotive Lidar Sensor
 Models*, arXiv 2212.08558 (§ và hình ghi kèm). **[CODE]** = code tham chiếu đã publish
 (`openMSL/sl-1-2-reflection-based-lidar-object-model`, MPL-2.0; số dòng ở §Code tham chiếu).
-**[ĐO]** = đo trên SemanticSpray release local (`docs/semantic-spray-stats.md`).
+**[ĐO]** = đo trên SemanticSpray release local (`docs/measurements/semantic-spray-stats.md`).
 **[CHỌN]** = quyết định của repo, không có nguồn ngoài.
 
 | Tham số trong code | Giá trị | Nguồn | Vị trí chính xác | Trạng thái |
@@ -22,7 +22,7 @@ Models*, arXiv 2212.08558 (§ và hình ghi kèm). **[CODE]** = code tham chiế
 | `water_film_height_m` | 0,001 m (1 mm) | [CHỌN] | OSI không cho default; dataset không khai báo độ ướt | **giả định** — phải ghi rõ ở mọi báo cáo |
 | số cụm | `mean = (0,2*wfh + 0,1) * (v_kmh - 50)` (sinh mỗi chu kỳ 0,1 s); số cụm/frame = `round(mean × K)` | [CODE] | `dee.cpp:509–512`; profile `num_clusters_velocity_offset_kmh = 50.0`; `K` từ lifetime (ticket 22) | **port đúng** — offset là **50 km/h**, không phải 40; `K ≈ 2,51` không phải tham số bịa |
 | lifetime | `T = wfh*0,02*(v_kmh - 50) + 0,2` s; cụm sống với `p = exp(-age/T)`, xoá khi `age > 4T`. Generator per-frame dùng trạng thái dừng `K = Σ_{k=0}^{4T/Δt} exp(-k·Δt/T)`, `Δt = 0,1 s` | [CODE] | `dee.cpp:530` (T), `:262` (p), `:446` (xoá); `Δt` từ profile `update_cycle_time` | **port đúng** — số cụm/frame = `round(mean × K)`, không còn dropout per-frame (ticket 22). `T = 0,2 s` chỉ đúng ở `v = 50 km/h` |
-| `_POINTS_MEDIAN_BY_RANGE` (thay cho hằng số 17) | 30 / 20 / 14 / 10 / 10 cho cự ly **0–5 / 5–10 / 10–20 / 20–30 / >30 m** (sigma 0,67; bounds 3–200) | [ĐO] | ticket 16, `docs/plume-geometry-vs-real.md`: median `n_points` theo cự ly, n=11.607 cụm (base) và 23.989 (expanded). Median **gộp = 17,0** — đúng bằng hằng số cũ — nhưng giảm **3,0×** từ 0–5 m xuống 20–30 m | **thay thế** hằng số 17; `>30 m` là **ngoại xuy phẳng**, không có cụm dày nào đo được ngoài 50 m |
+| `_POINTS_MEDIAN_BY_RANGE` (thay cho hằng số 17) | 30 / 20 / 14 / 10 / 10 cho cự ly **0–5 / 5–10 / 10–20 / 20–30 / >30 m** (sigma 0,67; bounds 3–200) | [ĐO] | ticket 16, `docs/measurements/plume-geometry-vs-real.md`: median `n_points` theo cự ly, n=11.607 cụm (base) và 23.989 (expanded). Median **gộp = 17,0** — đúng bằng hằng số cũ — nhưng giảm **3,0×** từ 0–5 m xuống 20–30 m | **thay thế** hằng số 17; `>30 m` là **ngoại xuy phẳng**, không có cụm dày nào đo được ngoài 50 m |
 | `radial_squash` | 0,885 | [ĐO] để calibrate, [CHỌN] dạng ellipsoid | ticket 16: median **per-cluster** `r_range/r_extent` = **1,28**. Công thức liên tục cho khối cầu đặc: S = 1,28/2 = 0,64; nhưng với ~17 điểm rời rạc, S = 0,64 chỉ ra **0,98** → hiệu chỉnh thực nghiệm (quét S trên ≥900 cụm) chọn **0,885** để khớp đúng thống kê đo | **mới** (ticket 17) |
 | `cluster_radius_median_m` | 0,30 (sigma 0,8) | [PAPER] | Fig. 5: lognormal μ=−1,2 σ=0,8 → median 0,30 m | **giữ nguyên** — ticket 16 đo median `r_extent` = **0,755 m**, nhưng đó là **cận trên**: single-linkage trên `(x,y)` nối chuỗi các cụm gần nhau, và 0,755 m ≈ 2,5× giá trị paper. Đổi theo số đo sẽ phóng to cụm mà không có căn cứ |
 | vị trí cụm | sau xe dẫn đường, cách 1–10 m | [PAPER] định tính | §III: cụm đặt **uniform trong vùng sau mỗi vật thể đang di chuyển**, không spawn ngẫu nhiên trong scene | **đơn giản hoá** |

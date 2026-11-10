@@ -27,7 +27,7 @@ Nội dung chính, tóm tắt (chi tiết trong ticket, ticket là nguồn đún
 - KHÔNG để `pip install` đổi numpy. Mọi lệnh pip phải có `--no-deps` hoặc gói thuần Python.
 - KHÔNG chờ kernel, KHÔNG poller, KHÔNG process nền. Push xong là dừng.
 - Nếu bạn thấy định nghĩa trong ticket mâu thuẫn: DỪNG, báo PM.
-- Không gõ số nào chưa chạy. Không viết `docs/nuscenes-eligibility.md` ở lượt này.
+- Không gõ số nào chưa chạy. Không viết `docs/reference/nuscenes-eligibility.md` ở lượt này.
 
 ## Test + commit
 

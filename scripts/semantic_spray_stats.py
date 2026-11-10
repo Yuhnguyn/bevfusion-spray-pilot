@@ -6,7 +6,7 @@ dense >= 5 points**, which is NOT the paper's recipe (DBSCAN, minPts=3).
 Chaining over-merges clusters, so the cluster counts and points-per-cluster
 numbers below are **upper-bound artifacts**, not calibration targets. The
 per-range geometry that does not depend on clustering is measured separately
-in ``docs/plume-geometry-measurements.md``.
+in ``docs/measurements/plume-geometry-measurements.md``.
 
 The script reads the extracted SemanticSpray dataset, clusters label-2 (noise)
 points with the same single-linkage rule used for the simulator comparison
@@ -14,11 +14,11 @@ points with the same single-linkage rule used for the simulator comparison
 
 Two reports can be produced:
 
-* geometry report (default): ``docs/plume-geometry-vs-real.md`` with
+* geometry report (default): ``docs/measurements/plume-geometry-vs-real.md`` with
   ``n_points``, ``r_extent``, ``r_range``, ``r_range / r_extent``, ``n_rings``
   and ``ring_span`` per distance bucket;
 * legacy summary report (opt-in via ``--basic-out``): the older
-  ``docs/semantic-spray-stats.md`` content rendered by
+  ``docs/measurements/semantic-spray-stats.md`` content rendered by
   ``spray.spray_stats.render_markdown``.
 
 One-command reproduction of the committed geometry report (2,070 frames):
@@ -28,7 +28,7 @@ One-command reproduction of the committed geometry report (2,070 frames):
 To widen the sample when a distance bucket has fewer than 30 clusters:
     ... scripts/semantic_spray_stats.py \
         --frames-per-scene 20 --label "expanded-20-fps" \
-        --geometry-out docs/plume-geometry-vs-real-expanded.md
+        --geometry-out docs/measurements/plume-geometry-vs-real.md
 
 Sample flags are recorded verbatim in the generated report, so a table can
 always be traced back to the frames that produced it.
@@ -312,7 +312,7 @@ def render_geometry_markdown(
         f"- clusters: **{summary['all_clusters']}** (mọi kích thước), "
         f"**{summary['dense_clusters']}** dense (>= {summary['dense_min']} điểm)",
         "- clustering: single-linkage trên `(x, y)`, radius "
-        f"**{summary['radius_m']} m** (giữ nguyên như `docs/semantic-spray-stats.md`)",
+        f"**{summary['radius_m']} m** (giữ nguyên như `docs/measurements/semantic-spray-stats.md`)",
         "",
         "## Định nghĩa đo",
         "",
@@ -379,7 +379,7 @@ def render_geometry_markdown(
         "  cluster có thể bị nối chuỗi. `r_extent` và `r_range` vì vậy là cận trên",
         "  của hình học plume đơn lẻ; `n_rings` cũng bị ảnh hưởng cùng chiều.",
         "- `d_sensor` là norm 3D của centroid, không phải khoảng cách ngang",
-        "  (`hypot(x, y)`) đã dùng trong `docs/semantic-spray-stats.md`.",
+        "  (`hypot(x, y)`) đã dùng trong `docs/measurements/semantic-spray-stats.md`.",
         "- Script chỉ đo, không đề xuất hay sửa tham số generator (ticket 17).",
         "",
     ]
@@ -546,7 +546,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--geometry-out",
-        default=os.path.join(REPO, "docs", "plume-geometry-vs-real.md"),
+        default=os.path.join(REPO, "docs", "measurements", "plume-geometry-vs-real.md"),
     )
     parser.add_argument(
         "--basic-out",

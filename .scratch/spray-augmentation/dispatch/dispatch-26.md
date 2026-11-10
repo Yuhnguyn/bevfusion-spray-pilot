@@ -5,7 +5,7 @@ Skill: tdd — `/Users/huynguyen/.agents/skills/tdd` (1 skill duy nhất)
 
 Ticket gốc: `.scratch/spray-augmentation/issues/26-plume-context-contract.md` — đọc trước.
 Đặc tả: `.scratch/spray-augmentation/spec-v2-paper-faithful.md` §2 (hợp đồng dữ liệu) và §1 (`wfh` = **mm**).
-Số đo nền: `docs/plume-v2-measurements.md` (ticket 25, xong).
+Số đo nền: `docs/measurements/plume-v2-measurements.md` (ticket 25, xong).
 
 ## Hiện trạng (PM đã kiểm)
 

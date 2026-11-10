@@ -1,10 +1,10 @@
-# 24: `docs/kanban.html` phải sinh từ nguồn thật, không hard-code
+# 24: `docs/board/kanban.html` phải sinh từ nguồn thật, không hard-code
 
 ## Vấn đề [ĐO 2026-11-07]
 
 `scripts/build_kanban.py` chứa **nguyên khối metadata ticket viết cứng** (dòng 60–200: `TICKETS = [...]`
 với status/checklist/next/evidence cho từng ticket). Chạy lại script **không** cập nhật gì — nó chỉ render
-lại đúng khối cũ ra `docs/kanban.html`.
+lại đúng khối cũ ra `docs/board/kanban.html`.
 
 Hệ quả đã kiểm:
 
@@ -40,7 +40,7 @@ Board này từng được publish thành artifact công khai ⇒ người ngoà
 ## Xong khi
 
 - [ ] `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python scripts/build_kanban.py` chạy < 2 s, không lỗi
-- [ ] `grep -c "17-plume-shell-geometry" docs/kanban.html` = **0**
+- [ ] `grep -c "17-plume-shell-geometry" docs/board/kanban.html` = **0**
 - [ ] board có đủ **24** ticket; 08/16/17/19/20/21/22 hiện `done` kèm SHA
 - [ ] P6 hiện `100%`, P1 hiện đúng số (09 ready, không phải blocked)
 - [ ] sửa 1 dòng trong `STATUS.md` rồi chạy lại → board đổi theo **mà không sửa script**

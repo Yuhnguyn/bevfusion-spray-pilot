@@ -8,7 +8,7 @@ ADR-0002 (2026-11-04) chốt: v1 chỉ có plume, không wet-ground, không atte
 cả hai có tác động **đo được** nhỏ hơn ngưỡng nhiễu của phép đo, và vì A/B cần đúng một biến
 thay đổi.
 
-Sau khi audit generator v1 (`docs/plume-v1-defects.md`) và đo lại, ba lý do đó đổi:
+Sau khi audit generator v1 (`docs/history/plume-v1-defects.md`) và đo lại, ba lý do đó đổi:
 
 | Cơ chế | Lúc ADR-0002 | Bây giờ |
 |---|---|---|

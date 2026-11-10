@@ -2,7 +2,7 @@
 """Shared helpers for the ticket-25 zero-GPU measurements.
 
 Only numpy + stdlib. The four measurement scripts each own one marker section
-in ``docs/plume-v2-measurements.md``; this module provides the file I/O and the
+in ``docs/measurements/plume-v2-measurements.md``; this module provides the file I/O and the
 dataset readers so a re-run produces byte-identical sections.
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 DATASET = REPO / "data" / "SemanticSprayDataset"
-DOC = REPO / "docs" / "plume-v2-measurements.md"
+DOC = REPO / "docs" / "measurements" / "plume-v2-measurements.md"
 GROUPS = ("Crafter_dynamic", "Golf_dynamic")
 
 VLP32C_MANUAL_URL = (

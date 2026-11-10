@@ -22,7 +22,7 @@ test của agent; mọi con số phải có nhãn [PAPER]/[CODE]/[ĐO]/[CHỌN].
 
 ## Bẫy đã gặp (đừng lặp lại)
 
-- `.scratch/spray-augmentation/spec.md` và `docs/walkthrough-tickets.md` §3 là **v1** — đừng lấy
+- `.scratch/spray-augmentation/history/spec-v1.md` và `docs/history/walkthrough-tickets.md` §3 là **v1** — đừng lấy
   công thức từ đó.
 - `spray/config/beam_elevation.yaml` sinh từ bảng đã **bị bác bỏ**; xoá ở 29c.
 - Số cụm/điểm-cụm của v1 (17,06 cụm/frame) đo bằng **single-linkage** ⇒ không dùng làm mốc.

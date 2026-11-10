@@ -7,7 +7,7 @@
 
 ## Căn cứ
 
-Ba lỗi còn lại của v1 (`docs/plume-v1-defects.md` D7, D8 và mục "còn phải xác minh") đều nằm ở
+Ba lỗi còn lại của v1 (`docs/history/plume-v1-defects.md` D7, D8 và mục "còn phải xác minh") đều nằm ở
 **trường dữ liệu** của điểm được chèn, không ở hình học:
 
 - **D7 — trần global `max_injected_points = 2000`.** Cắt 45–82 % ở frame dày, không tương quan với

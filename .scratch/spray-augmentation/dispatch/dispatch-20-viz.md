@@ -5,7 +5,7 @@ Repo: /Users/huynguyen/projects/bevfusion-spray-pilot
 2. `.scratch/spray-augmentation/issues/20-visualize-plume.md` ← **nguồn đúng, 6 đầu ra**
 3. `spray/plume.py` (generator: `PlumeConfig`, `inject_plume`) + `spray/plume_transform.py`
 4. `scripts/semantic_spray_stats.py` ← **dùng lại parser label của file này**, không tự viết lại
-5. `docs/plume-geometry-vs-real.md` (số đo thật của ticket 16 — ảnh phải khớp số nào)
+5. `docs/measurements/plume-geometry-vs-real.md` (số đo thật của ticket 16 — ảnh phải khớp số nào)
 
 Baseline test hiện tại là **56 passed** (đã qua ticket 21–22), không phải 49.
 
@@ -106,4 +106,4 @@ Mỗi mục 1 dòng nói **chứng minh gì** và **KHÔNG chứng minh gì**.
 1. danh sách file, số điểm/cụm từng panel, tên sequence dùng cho clip A
 2. **phát hiện bằng mắt**: plume lơ lửng / đè box / ngược hướng / quá thưa?
 3. camera clip A: 76 frame encode ra **bao nhiêu giây**, và số điểm spray mỗi frame có biến thiên không
-4. số liệu mỗi panel có khớp `docs/plume-geometry-vs-real.md` không (lệch thì ghi lệch bao nhiêu)
+4. số liệu mỗi panel có khớp `docs/measurements/plume-geometry-vs-real.md` không (lệch thì ghi lệch bao nhiêu)

@@ -4,7 +4,7 @@ Repo: /Users/huynguyen/projects/bevfusion-spray-pilot
 1. `AGENTS.md`
 2. `.scratch/spray-augmentation/issues/21-port-reference-mechanisms.md` ← **nguồn đúng, làm đúng ticket này**
 3. `spray/plume.py` (generator hiện tại) + `tests/test_plume.py`
-4. `docs/plume-geometry-vs-real.md` (số đo ticket 16 — bảng điểm/cụm theo cự ly)
+4. `docs/measurements/plume-geometry-vs-real.md` (số đo ticket 16 — bảng điểm/cụm theo cự ly)
 
 ## Bối cảnh một câu
 

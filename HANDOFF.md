@@ -12,7 +12,7 @@ File này nói: đang ở đâu, làm gì tiếp, và dựng lại máy mới tr
 2. `.scratch/spray-augmentation/STATUS.md` — board + mục **"Dừng shift 2026-11-09 22:45"**.
 3. `docs/PROJECT.md` §4 — cơ chế generator **v2** (đừng đọc `walkthrough-tickets.md` §3, đó là v1).
 4. `.scratch/spray-augmentation/issues/11-mini-ab-run.md` — kết quả null của v1 + chẩn đoán (11-h, 11-i).
-5. Khi cần số: `docs/plume-geometry-measurements.md`, `docs/paper-qa-notebooklm.md`.
+5. Khi cần số: `docs/measurements/plume-geometry-measurements.md`, `docs/reference/paper-qa-notebooklm.md`.
 
 Không đọc lại toàn repo. Không đọc log `/tmp` trừ khi ticket yêu cầu.
 
@@ -39,7 +39,7 @@ khi hộp sát ngưỡng IoU 0,5 bị lật. Toàn bộ delta −0,0031 ≈ **6 
 ## 3. Việc tiếp theo — simulator v2 (cập nhật 2026-11-11)
 
 **Không train lại trước khi generator xong 29c + 29d.** Audit 2026-11-10 tìm ra 8 lỗi cấu trúc của v1
-(`docs/plume-v1-defects.md`, clip `docs/figs/plume/v1-audit/compare.mp4`). Trạng thái từng lỗi:
+(`docs/history/plume-v1-defects.md`, clip `docs/figs/plume/v1-audit/compare.mp4`). Trạng thái từng lỗi:
 D1–D6 **đã sửa** ở ticket 26–28; D7 (trần 2.000 điểm) và D8 (intensity) **còn ở 29c**.
 
 | # | Lỗi | Mức |
@@ -50,7 +50,7 @@ D1–D6 **đã sửa** ở ticket 26–28; D7 (trần 2.000 điểm) và D8 (int
 | D4 | stateless mỗi frame ⇒ không có vệt/lifetime/drag | P1 |
 | D5 | thiếu visibility / occlusion / attenuation / thay return yếu | P1 |
 
-**Việc 0 GPU — đã xong ở ticket 25** (`docs/plume-v2-measurements.md`, nghiệm thu
+**Việc 0 GPU — đã xong ở ticket 25** (`docs/measurements/plume-v2-measurements.md`, nghiệm thu
 `issues/25-measure-zero-gpu.md` §PM). Năm phát hiện đổi thiết kế:
 
 1. `poses.txt` (207/207 scene) **không có tịnh tiến** → tốc độ ego chỉ lấy từ `metadata.txt`.
@@ -169,15 +169,16 @@ xong; `kernel_card.py <log>` in card nén; `quota_watch.sh` xem quota.
 
 | thứ | đường dẫn |
 |---|---|
+| **Bản đồ tài liệu** | `docs/README.md` — mỗi thư mục một vai: reference / measurements / history / audit |
 | Board + trạng thái | `.scratch/spray-augmentation/STATUS.md` |
 | Ticket | `.scratch/spray-augmentation/issues/*.md` |
 | Brief giao việc (45 file) | `.scratch/spray-augmentation/dispatch/` |
 | Script hỗ trợ Kaggle | `.scratch/hermes-tools/` |
-| Persona PM (SOUL + skill + memory) | `.scratch/hermes-pm/` |
+| Persona PM (SOUL + skill + memory) | `.scratch/hermes-pm/` (**local only**, đã bỏ khỏi git) |
 | Quyết định + khác biệt paper | `docs/PROJECT.md` §5, `docs/adr/` |
-| Kanban HTML | `docs/kanban.html` (sinh bằng `scripts/build_kanban.py`) |
-| Provenance plume | `docs/plume-model-provenance.md` |
-| Audit generator v1 (5 lỗi) | `docs/plume-v1-defects.md` |
+| Kanban HTML | `docs/board/kanban.html` (sinh bằng `scripts/build_kanban.py`) |
+| Provenance plume | `docs/history/plume-model-provenance.md` |
+| Audit generator v1 (5 lỗi) | `docs/history/plume-v1-defects.md` |
 | Clip + ảnh so sánh generator | `docs/figs/plume/v1-audit/` |
 | Ảnh/clip plume | `docs/figs/plume/` |
 | Code kernel | `kaggle/train/{main.py,smoke.py,ab_run.py,ab_eval.py}` |

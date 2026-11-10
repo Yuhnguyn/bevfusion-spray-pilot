@@ -7,7 +7,7 @@ Bạn làm ticket 24 trong repo /Users/huynguyen/projects/bevfusion-spray-pilot 
 4. .scratch/spray-augmentation/STATUS.md — nguồn sự thật mới (bảng ticket + cột Bằng chứng / next).
 5. .scratch/spray-augmentation/issues/*.md — xem cấu trúc checkbox "## Xong khi" / "## Nghiệm thu".
 
-MỤC TIÊU: `docs/kanban.html` phải sinh từ STATUS.md + checkbox trong issues/*.md, KHÔNG hard-code.
+MỤC TIÊU: `docs/board/kanban.html` phải sinh từ STATUS.md + checkbox trong issues/*.md, KHÔNG hard-code.
 
 YÊU CẦU CỤ THỂ:
 1. Parse bảng markdown của STATUS.md (mục "## Bảng ticket"): lấy #, Việc, Trạng thái, Bằng chứng / next.
@@ -26,11 +26,11 @@ RÀNG BUỘC:
 - Chỉ stdlib (script hiện tại chỉ dùng stdlib). Không thêm dependency.
 - KHÔNG sửa STATUS.md, KHÔNG sửa trạng thái ticket nào, KHÔNG sửa file trong issues/.
 - Không đụng spray/, tests/, mit/, third_party/.
-- Không commit docs/kanban.html cũ đang stale trước khi sửa script.
+- Không commit docs/board/kanban.html cũ đang stale trước khi sửa script.
 
 KIỂM TRA TRƯỚC KHI COMMIT:
 - CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python scripts/build_kanban.py  → chạy < 2 s, không lỗi.
-- grep -c "17-plume-shell-geometry" docs/kanban.html  → 0
+- grep -c "17-plume-shell-geometry" docs/board/kanban.html  → 0
 - Board phải có đủ 25 ticket (01, 02, 02b, 03…24); 08/16/17/19/20/21/22 hiện done kèm SHA.
 - P6 hiện 100%; ticket 09 hiện ready (không phải blocked).
 - TEST QUAN TRỌNG: PM sẽ sửa 1 nhãn trong STATUS.md rồi chạy lại; board phải đổi theo mà không sửa script.

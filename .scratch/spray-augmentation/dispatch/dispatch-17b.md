@@ -22,7 +22,7 @@ Repo: /Users/huynguyen/projects/bevfusion-spray-pilot
 - **Không đổi** `cluster_radius_median_m` = 0,30. Không đổi ngưỡng 50 km/h, `clusters_at_speed_bounds`,
   vị trí đặt cụm, `max_injected_points`.
 - Không thêm beam grid / ray casting / P_det / attenuation.
-- Chỉ sửa: `spray/plume.py`, `tests/test_plume.py`, `docs/plume-model-provenance.md`.
+- Chỉ sửa: `spray/plume.py`, `tests/test_plume.py`, `docs/history/plume-model-provenance.md`.
 - 33 test cũ phải còn xanh, không được sửa chúng. Tổng **≥ 35 passed**.
 - Không sửa `docs/knowledge-base.html`.
 

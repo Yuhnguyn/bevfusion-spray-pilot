@@ -11,7 +11,7 @@ trên cùng eval set; thêm arm B0 (lọc spray rồi detect, không train) làm
 ## Trạng thái (2026-11-11)
 
 - **Generator đang ở v2**, chưa quay lại A/B. v1 đã đóng sau khi audit tìm ra 8 lỗi cấu trúc
-  (`docs/plume-v1-defects.md`) và kết quả A/B của v1 là **null** với chẩn đoán rõ cơ chế
+  (`docs/history/plume-v1-defects.md`) và kết quả A/B của v1 là **null** với chẩn đoán rõ cơ chế
   (`STATUS.md` mục "Dừng shift 2026-11-09").
 - Code hiện có: `spray/plume.py` (vỏ + khối sau đuôi), `plume_state.py` (sinh/trôi/tan cụm),
   `plume_context.py`, `plume_transform.py` (pipeline + `points_clean`), `raycast.py` (cast beam,
@@ -20,7 +20,8 @@ trên cùng eval set; thêm arm B0 (lọc spray rồi detect, không train) làm
 - Test: **239 passed, 4 skipped** trên laptop CPU (không cần GPU, không cần mmcv).
 - Đang làm **29c** (sửa `intensity = 0`, bỏ trần 2.000, khối theo phân số chiều cao box, hạ latency
   < 100 ms/frame), sau đó **29d** là cổng nghiệm thu. Chi tiết: `.scratch/spray-augmentation/STATUS.md`.
-- Nguồn sự thật của tiến độ: `.scratch/spray-augmentation/STATUS.md`. Bản đồ tài liệu: `docs/PROJECT.md` §9.
+- Nguồn sự thật của tiến độ: `.scratch/spray-augmentation/STATUS.md`.
+- Bản đồ tài liệu: **`docs/README.md`** (reference / measurements / history / audit); cửa vào: `docs/PROJECT.md`.
 - ADR: `docs/adr/0001` pin MIT `da93b27`, `0002` plume-only (đã bị `0004` thay), `0003` SemanticSpray
   chỉ để hiệu chỉnh, `0004` v2 mở wet-ground + attenuation + state.
 

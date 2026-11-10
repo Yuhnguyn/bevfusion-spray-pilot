@@ -14,7 +14,7 @@ generator gắn nhãn `[CODE]`.
 - frames có noise label: **2034**
 - noise points: **873457**
 - clusters: **35305** (mọi kích thước), **11607** dense (>= 5 điểm)
-- clustering: single-linkage trên `(x, y)`, radius **0.5 m** (giữ nguyên như `docs/semantic-spray-stats.md`)
+- clustering: single-linkage trên `(x, y)`, radius **0.5 m** (giữ nguyên như `docs/measurements/semantic-spray-stats.md`)
 
 ## Định nghĩa đo
 
@@ -87,5 +87,5 @@ Toàn bộ **11607** dense clusters (mọi cự ly): median `n_points` = 17.0, m
   cluster có thể bị nối chuỗi. `r_extent` và `r_range` vì vậy là cận trên
   của hình học plume đơn lẻ; `n_rings` cũng bị ảnh hưởng cùng chiều.
 - `d_sensor` là norm 3D của centroid, không phải khoảng cách ngang
-  (`hypot(x, y)`) đã dùng trong `docs/semantic-spray-stats.md`.
+  (`hypot(x, y)`) đã dùng trong `docs/measurements/semantic-spray-stats.md`.
 - Script chỉ đo, không đề xuất hay sửa tham số generator (ticket 17).

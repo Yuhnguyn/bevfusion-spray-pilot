@@ -46,7 +46,7 @@ chưa trả lời *vì sao can thiệp lại yếu đến thế*. Audit này đ�
 | Đo lại (PM) | neo đúng mặt đuôi `cx − L/2`, xe 4,6 m **@80 km/h, 60 seed**: p50 **3,32 m**, p90 **7,02 m**, xa nhất **8,23 m**. p90 khớp, **p50 lệch 0,7 m** ⇒ số 4,01 m không tái lập được, kết luận định tính không đổi |
 | Tham chiếu | volume dài `|v|·Δt` = **1,39 m @50 / 2,22 @80 / 2,78 @100 km/h**, neo tại `obj.pos − (L/2 + L_vol/2)` ⇒ **bắt đầu đúng mặt đuôi** (`dee.cpp:559–567`); tâm cụm uniform **trong volume đó** (`:516–518`) |
 | Mật độ (đo lại) | so theo **mét dài vệt** thay vì m³: v1 rải ~140 điểm trên **9 m** = **15,5 điểm/m**; tham chiếu dồn 159 điểm vào `v·Δt` ⇒ **16,9× loãng hơn @60 km/h · 4,7× @80 · 2,3× @100 · 1,4× @120**. Con số 3,6-vs-14,0 (2,3×) chỉ đúng ở 100 km/h |
-| Provenance | `docs/plume-model-provenance.md:22` dán nhãn `[PAPER]` cho "cách 1–10 m", nhưng paper chỉ nói **định tính** ⇒ phải đổi thành `[CHỌN]` khi v2 chốt |
+| Provenance | `docs/history/plume-model-provenance.md:22` dán nhãn `[PAPER]` cho "cách 1–10 m", nhưng paper chỉ nói **định tính** ⇒ phải đổi thành `[CHỌN]` khi v2 chốt |
 
 ### D3 — Tự triệt tiêu liều: **14–63 %** điểm rơi vào thân xe · **[P1, tiềm ẩn — phụ thuộc D1 + D6]**
 

@@ -1,4 +1,9 @@
-# Spec — Spray plume augmentation cho BEVFusion (MIT)
+# Spec v1 — Spray plume augmentation cho BEVFusion (MIT)
+
+> ⚠️ **LỊCH SỬ — không còn hiệu lực.** Spec đang dùng là `../spec-v2-paper-faithful.md`.
+> File này mô tả generator **v1** (không state, không ray casting, không wet-ground) và được giữ
+> để truy vết quyết định ban đầu. Nhiều mục đã bị thay: xem `docs/history/plume-v1-defects.md`
+> và `docs/PROJECT.md` §4–§5.
 
 Version: 1.5
 Status: ready-for-agent — preconditions 1–6 **PASS** 2026-11-05/07 (ticket 06 adapter + ticket 07 transform done)
@@ -135,7 +140,7 @@ LoadPointsFromFile → ... → GlobalRotScaleTrans → RandomFlip3D
   `DefaultFormatBundle3D` trong `mmdet3d/datasets/pipelines/formating.py` chỉ wrap `points` và `radar` →
   phải thêm `points_clean` tường minh.
 - **Velocity của box `ObjectPaste`:** box dán từ scene nguồn mang velocity của scene đó → set về 0 khi paste,
-  để plume không sinh ra từ box giả (đã ghi trong `docs/velocity-contract.md`).
+  để plume không sinh ra từ box giả (đã ghi trong `docs/reference/velocity-contract.md`).
 
 ### Plume injection — contract theo `spray/plume.py` (đã hiệu chỉnh)
 
@@ -303,7 +308,7 @@ Mọi tên dưới đây là **hợp đồng**, không phải gợi ý. Đổi t
 - nuScenes is CC BY-NC-SA; the Kaggle mirror has an "Unknown" license. Internal R&D only; verify structure and record provenance.
 - SemanticSpray (~16 GB sau giải nén; 31 GB trên đĩa vì giữ cả tar) chỉ dùng để so thống kê simulator
   và làm point-wise sanity check. Không dùng tổng số điểm của paper làm anchor: tổng trong paper lệch
-  80–150 lần so với bản release, xem `docs/semantic-spray-stats.md`. Citation đúng: Piroli et al.,
+  80–150 lần so với bản release, xem `docs/measurements/semantic-spray-stats.md`. Citation đúng: Piroli et al.,
   RA-L 2023, vol. 8, no. 7, pp. 4322–4329, DOI 10.1109/LRA.2023.3282382.
 - ADR đã ghi: `docs/adr/0001` (pin MIT commit), `0002` (plume-only-first), `0003` (SemanticSpray chỉ
   để hiệu chỉnh thống kê, không train/eval detection).

@@ -39,7 +39,7 @@ Bảng cũ trong docs (`1.330 → 1.057`, `−21%`) sinh bằng công thức tr�
 
 ## Việc 3 — sửa 3 câu sai trong docs (đã có số để thay)
 
-1. `docs/plume-model-provenance.md` + `STATUS.md` đang ghi **"occlusion là chỗ làm kết quả
+1. `docs/history/plume-model-provenance.md` + `STATUS.md` đang ghi **"occlusion là chỗ làm kết quả
    lạc quan nhất"** → **sai**, thay bằng số đọc từ `dee.cpp:250–300` + `add_max_detection` (:781):
    - mỗi tia cắt cụm mới sinh điểm spray với xác suất `min(1, lognormal(−2,3; 1,1))`,
      median **0,10**, trung bình sau chặn **≈0,19**;

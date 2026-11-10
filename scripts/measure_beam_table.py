@@ -5,7 +5,7 @@ Ticket 29a. The release's ring ids are real beam ids, but the manufacturer's
 VLP-32C table does not apply: the data was clipped vertically and the ring ids
 were renumbered ``0..N-1``. This script measures the angles from the data and
 writes ``spray/config/beam_elevation.yaml``; it never edits the manufacturer's
-table to fit (see ``docs/plume-beam-table.md``).
+table to fit (see ``docs/history/plume-beam-table.md``).
 
 Robustness rules measured in that document:
 

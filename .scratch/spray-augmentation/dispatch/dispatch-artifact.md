@@ -14,9 +14,9 @@ tại đã **cũ** — nó được tạo trước khi ticket 16/17/18 xong. Dù
 
 1. `.scratch/spray-augmentation/STATUS.md`
 2. `docs/PROJECT.md`
-3. `docs/plume-geometry-vs-real.md` (số đo ticket 16)
-4. `docs/nuscenes-eligibility.md` (số ticket 18)
-5. `docs/plume-model-provenance.md`
+3. `docs/measurements/plume-geometry-vs-real.md` (số đo ticket 16)
+4. `docs/reference/nuscenes-eligibility.md` (số ticket 18)
+5. `docs/history/plume-model-provenance.md`
 6. `git log --oneline -8` (5 commit mới: `08f6715`, `55c3cb2`, `5d7c478`, `af0ec1e`, `722dcf6`, `8b03d6a`)
 
 ## Nội dung phải phản ánh (đây là thay đổi so với bản cũ)

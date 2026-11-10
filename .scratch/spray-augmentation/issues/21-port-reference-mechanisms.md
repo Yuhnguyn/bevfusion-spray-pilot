@@ -63,7 +63,7 @@ spray thật 17,06 — thiếu Y×"). **KHÔNG tự nâng số cụm để khớ
 - `STATUS.md`: xoá/đính chính dòng non-goal *"code GitLab của Linnhoff chưa publish"* → đã publish trên
   GitHub openMSL, MPL-2.0, cite file + dòng. Thêm giới hạn: v1 **không** có occlusion, **không** drag,
   **không** ray-sphere/beam.
-- `docs/plume-model-provenance.md`: thêm mục "Code tham chiếu" với bảng 5 dòng ở trên (giá trị thật + dòng code),
+- `docs/history/plume-model-provenance.md`: thêm mục "Code tham chiếu" với bảng 5 dòng ở trên (giá trị thật + dòng code),
   và mục "v1 khác code thật chỗ nào" (3 dòng: occlusion, drag, beam).
 - Ghi rõ: occlusion là chỗ làm kết quả lạc quan nhất — model thật **che** detection có sẵn, v1 chỉ **thêm** điểm.
 

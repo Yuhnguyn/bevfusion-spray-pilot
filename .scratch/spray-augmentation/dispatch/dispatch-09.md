@@ -3,7 +3,7 @@
 Repo: `/Users/huynguyen/projects/bevfusion-spray-pilot` · branch `main`
 Đọc trước: `.scratch/spray-augmentation/issues/09-pipeline-e2e-test.md`,
 `spray/plume_transform.py`, `spray/model_routing.py`, `spray/pipeline.py`, `spray/denoise.py` (vừa thêm),
-`.scratch/spray-augmentation/spec.md` dòng 271.
+`.scratch/spray-augmentation/history/spec-v1.md` dòng 271.
 
 ## Vì sao phải chạy trên Kaggle
 

@@ -31,15 +31,15 @@ _UPDATE_CYCLE_TIME_S = 0.1
 class PlumeConfig:
     """Tham số sinh plume.
 
-    Xem docs/plume-model-provenance.md
+    Xem docs/history/plume-model-provenance.md
 
-    Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/semantic-spray-stats.md,
+    Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/measurements/semantic-spray-stats.md,
     docs/adr/0003):
 
     - Cơ chế port từ code tham chiếu đã publish của Linnhoff et al. 2022
       (openMSL/sl-1-2, MPL-2.0): kích hoạt trên 40 km/h, số cụm
       `(0,2*wfh + 0,1) * (v_kmh - 50)`, lifetime `T = wfh*0,02*(v_kmh - 50) + 0,2`.
-      Chi tiết giá trị + số dòng: docs/plume-model-provenance.md.
+      Chi tiết giá trị + số dòng: docs/history/plume-model-provenance.md.
     - Đo trên SemanticSpray (bản release local): số điểm/cụm median **theo cự ly**
       (`_POINTS_MEDIAN_BY_RANGE`, ticket 16) và bề dày theo tia
       `r_range/r_extent = 1,28` (ticket 16, hiệu chỉnh bằng `radial_squash`).
@@ -48,7 +48,7 @@ class PlumeConfig:
 
     `cluster_radius_median_m` giữ 0,30 dù ticket 16 đo median `r_extent` = 0,755 m:
     con số 0,755 là **cận trên** vì single-linkage trên `(x, y)` nối chuỗi các cụm
-    gần nhau (`docs/plume-geometry-vs-real.md` §Caveats), còn profile tham chiếu
+    gần nhau (`docs/measurements/plume-geometry-vs-real.md` §Caveats), còn profile tham chiếu
     cho lognormal μ=-1,2 σ=0,8 → median 0,30.
     """
 

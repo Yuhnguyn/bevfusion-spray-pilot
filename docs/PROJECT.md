@@ -59,7 +59,7 @@ nuscenes_infos_{train,val}.pkl
    ▼ proxy_eval/matcher.py     TP/FP/FN → AP từng class → mAP
 ```
 
-Sơ đồ chi tiết từng bước + công thức: `docs/walkthrough-tickets.md` §0–§3.
+Sơ đồ chi tiết từng bước + công thức: `docs/history/walkthrough-tickets.md` §0–§3.
 
 ---
 
@@ -95,7 +95,7 @@ so được với `minPts = 3` của paper.
 
 ## 5. Khác biệt so với paper — và căn cứ để chọn như vậy
 
-Chi tiết từng tham số: `docs/plume-model-provenance.md`. Mục này là **bảng quyết định**: mỗi chỗ repo làm khác
+Chi tiết từng tham số: `docs/history/plume-model-provenance.md`. Mục này là **bảng quyết định**: mỗi chỗ repo làm khác
 paper đều phải trả lời được "dựa vào đâu".
 
 ### 5.1 Thứ tự ưu tiên nguồn (khi hai nguồn lệch nhau)
@@ -103,7 +103,7 @@ paper đều phải trả lời được "dựa vào đâu".
 1. **Code publish của paper** (`openMSL/sl-1-2`, MPL-2.0) — paper viết bằng lời và có chỗ viết tắt; code là
    bản chạy được, đọc được từng dòng. Ví dụ: "loại xe" có trong paper nhưng **không** có trong code.
 2. **Số đo trên dữ liệu của chính mình** — dùng khi paper/code không nói, hoặc nói về cảm biến & xe của họ
-   (VW Golf/Crafter, VLP-32C) chứ không phải nuScenes. Nguồn: ticket 16, `docs/semantic-spray-stats.md`.
+   (VW Golf/Crafter, VLP-32C) chứ không phải nuScenes. Nguồn: ticket 16, `docs/measurements/semantic-spray-stats.md`.
 3. **Quyết định của repo** — không có nguồn ngoài, nhưng phải ghi lý do **và** điều kiện mở lại (ADR-0002
    ghi phần bị cắt là "v2", không phải "không bao giờ").
 
@@ -138,7 +138,7 @@ thay đổi giữa hai arm, nên phép so sánh paired còn hiệu lực"*.
   (2) `intensity` đang xuất sai giá trị (phải **0**) → (3) self-spray của ego chưa có → (4) occlusion.
 - Dòng **10** (vị trí + chiều cao cụm) **không còn mù**: đã đo trên **939.803 điểm** — chiều cao
   6 / 58 / 90 % chiều cao box, `|y|` p95 **2,31 m**, `x` trải **−35 … +25 m**. Xem
-  `docs/plume-geometry-measurements.md`.
+  `docs/measurements/plume-geometry-measurements.md`.
 - Dòng **11** (`wfh`) đã chốt: `exp(0,1…1,2) mm` mỗi frame, dùng **mm** cho cả `count` và `T`
   (user, 2026-11-10). Hệ quả `T(130) = 1,8 s` ⇒ vệt `v·T = 65 m`; xem `spec-v2-paper-faithful.md` §1.
 - Ba thứ paper **không** cho nên là quyết định của mình, phải ghi đúng nhãn: kích thước khối
@@ -170,7 +170,7 @@ Eligibility — box vehicle ≥50 km/h, **phía trước** (`x>0`), không lọc
 - Hàng đối chứng tái lập bảng cũ: **957 box / 698 frame** so với 952/697 (+0,53%) → định nghĩa mới tương
   đương định nghĩa cũ. Bảng cũ ghi "34.029 val frame" là **nhầm nhãn**: đó là toàn bộ trainval.
 
-### SemanticSpray [ĐO, `docs/semantic-spray-stats.md`]
+### SemanticSpray [ĐO, `docs/measurements/semantic-spray-stats.md`]
 
 207 scene (mẫu 2.070 frame / 17.419 scan): **28.546 điểm/scan**, spray median **144 điểm/frame**,
 **82 % điểm intensity = 0**, spray chỉ chiếm **0,25–0,5 %** số điểm mỗi scan.
@@ -180,7 +180,7 @@ Chỉ dùng để calibrate — không train/eval trên đó (ADR-0003).
 > (bán kính 0,5 m, `dense-min 5`) nên bị chaining làm sai. Paper dùng DBSCAN `minPts = 3`.
 > **Không dùng** các số đó làm mốc; phải đo lại theo recipe paper (ticket 29d).
 > Hình học dùng được (đo trên 939.803 điểm, không phụ thuộc clustering) nằm ở
-> `docs/plume-geometry-measurements.md`.
+> `docs/measurements/plume-geometry-measurements.md`.
 
 ---
 
@@ -205,7 +205,7 @@ Hai chi tiết bắt buộc khi đo:
 - **Bootstrap theo scene**, không theo frame: mỗi scene 40 keyframe gần giống nhau.
 
 Năm điều kiện để được nói "thành công" — chốt trước, không sửa sau khi thấy số: xem
-`.scratch/spray-augmentation/STATUS.md` và `docs/walkthrough-tickets.md` §9 (5 điều kiện).
+`.scratch/spray-augmentation/STATUS.md` và `docs/history/walkthrough-tickets.md` §9 (5 điều kiện).
 
 ---
 
@@ -223,7 +223,7 @@ Năm điều kiện để được nói "thành công" — chốt trước, khô
 | 11-07 | không dùng scene highway | 0 scene highway trong val, 2 scene trên toàn dataset |
 | 11-10 | v2 mở lại wet-ground + attenuation + state (thay ADR-0002) | ADR-0004 |
 | 11-10 | `wfh` dùng **mm** ở cả `count` và `T`; sample `exp(0,1…1,2)` mỗi frame | paper §IV; xem `spec-v2-paper-faithful.md` §1 |
-| 11-11 | **bỏ** bảng `ring → elevation`, cast trên lưới tia đều 0,333° × 0,197° | `docs/plume-beam-table.md` mục ĐÍNH CHÍNH |
+| 11-11 | **bỏ** bảng `ring → elevation`, cast trên lưới tia đều 0,333° × 0,197° | `docs/history/plume-beam-table.md` mục ĐÍNH CHÍNH |
 | 11-11 | **không** đặt ngưỡng cắt cụm theo mét | p5 của `x` dao động **−40,6 … +3,7 m** giữa hai nửa scene ⇒ không phải hằng số; `n_max ∝ 1/d²` tự dập đuôi |
 | 11-11 | kích thước khối lấy từ `dee.cpp` (`v·Δt × 3,4 × 1,5`), paper không cho số; chiều cao đổi thành **5–92 % chiều cao box** | paper QA §1; đo 939.803 điểm |
 | 11-11 | SemanticSpray chia **2 vai** (cal / held-out) theo scene; detector vẫn train/eval trên nuScenes | 207 scene = 207 timestamp riêng ⇒ chia theo run; ADR-0003 |
@@ -233,24 +233,21 @@ Năm điều kiện để được nói "thành công" — chốt trước, khô
 
 ## 9. Bản đồ tài liệu
 
-| file | nội dung |
+Toàn bộ chi tiết + đường đi cho từng việc: **`docs/README.md`**. Tóm tắt theo vai:
+
+| Nhóm | Chứa gì |
 |---|---|
-| `HANDOFF.md` | trạng thái + môi trường + chạy tiếp ở máy khác |
-| `.scratch/spray-augmentation/STATUS.md` | **board**: ticket, thứ tự, quyết định đã chốt, rubric nghiệm thu |
-| `.scratch/spray-augmentation/spec.md` | spec implementation-ready (interface contract, DoD từng ticket) |
-| `docs/walkthrough-tickets.md` | giải thích từng ticket, công thức từng bước, chỗ dễ sai |
-| `docs/plume-model-provenance.md` | từng tham số `PlumeConfig` lấy từ đâu |
-| `docs/velocity-contract.md` | velocity ở frame nào; số đo eligible + đính chính nhãn val |
-| `docs/semantic-spray-stats.md` | thống kê spray thật để calibrate |
-| `docs/nuscenes-eligibility.md` | bảng đo eligibility đầy đủ (ticket 18) |
-| `docs/adr/0001..0004` | bốn quyết định nền (0002 đã bị 0004 thay) |
-| `docs/plume-v2-measurements.md` | số đo 0 GPU của v2 (tốc độ, beam, quỹ đạo, hình học frame) |
-| `docs/plume-geometry-measurements.md` | hình học plume thật vs mô phỏng theo 9 mức tốc độ |
-| `docs/paper-qa-notebooklm.md` | paper thật sự nói gì, tách khỏi cái `dee.cpp` tự đặt |
-| `docs/plume-v1-defects.md` | 8 lỗi cấu trúc của v1 (D1–D8) |
-| `docs/plume-beam-table.md` | bảng `ring → elevation` — **đã bị bác bỏ**, chỉ giữ làm phản chứng |
-| `docs/DOC-AUDIT-2026-11-11.md` | audit tài liệu: chỗ lệch, chỗ trùng, việc phải sửa |
-| `docs/kanban.html` | board tự sinh (`scripts/build_kanban.py`) |
+| `docs/PROJECT.md` | file này — cửa vào duy nhất |
+| `docs/reference/` | hợp đồng đang dùng: `velocity-contract`, `nuscenes-eligibility`, `paper-qa-notebooklm` |
+| `docs/measurements/` | **số `[ĐO]` đang dùng**: `plume-v2-measurements`, `plume-geometry-measurements`, `semantic-spray-stats`, `plume-geometry-vs-real` |
+| `docs/history/` | v1 và thứ đã bị bác bỏ: `plume-v1-defects`, `plume-beam-table`, `plume-model-provenance`, `walkthrough-tickets`, `denoise-b0-params`, `knowledge-base.html` |
+| `docs/audit/` | `DOC-AUDIT-2026-11-11.md` — biên bản rà soát |
+| `docs/adr/` | `0001` pin MIT · `0002` plume-only (đã bị `0004` thay) · `0003` SemanticSpray chỉ calibrate · `0004` v2 mở 3 cơ chế |
+| `docs/board/kanban.html` | board render từ `STATUS.md` (`scripts/build_kanban.py`) |
+| `docs/agents/` | quy ước cho agent: tracker, nhãn triage, domain |
+
+Luật: file trong `measurements/` do script sinh — sửa script rồi chạy lại; file trong `history/`
+**không được trích dẫn** trong báo cáo.
 
 ---
 

@@ -27,7 +27,7 @@ import numpy as np
 class PlumeConfig:
     """Tham số sinh plume.
 
-    Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/semantic-spray-stats.md,
+    Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/measurements/semantic-spray-stats.md,
     docs/adr/0003):
 
     - Hiệu chỉnh theo Linnhoff et al. 2022 (arXiv 2212.08558): ngưỡng tốc độ

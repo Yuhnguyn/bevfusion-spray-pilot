@@ -8,8 +8,8 @@ Tag bằng chứng: `[PAPER]` Linnhoff et al. 2022 · `[CODE]` openMSL
 `sl-1-2-reflection-based-lidar-object-model` · `[ĐO]` đo trên máy này ·
 `[CHỌN]` quyết định của PM/user, không suy ra từ nguồn.
 
-> **Cập nhật 2026-11-11 — bốn điều chỉnh so với bản nháp này.** Nguồn: `docs/paper-qa-notebooklm.md`
-> (hỏi đáp nguyên văn trên PDF paper) và `docs/plume-geometry-measurements.md`.
+> **Cập nhật 2026-11-11 — bốn điều chỉnh so với bản nháp này.** Nguồn: `docs/reference/paper-qa-notebooklm.md`
+> (hỏi đáp nguyên văn trên PDF paper) và `docs/measurements/plume-geometry-measurements.md`.
 >
 > 1. **`P_det`**: paper dùng `n/n_max` với `n` = số detection đo được, `n_max` = số tia cắt ⇒
 >    lognormal Fig. 7 bốc **một lần mỗi cụm**, Bernoulli **mỗi tia**, nhân `P_t`. Code 29b đã đúng.

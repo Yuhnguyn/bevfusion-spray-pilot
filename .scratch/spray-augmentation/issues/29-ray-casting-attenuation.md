@@ -9,7 +9,7 @@
 
 | Hạng mục | Trạng thái |
 |---|---|
-| 29a — bảng `ring → elevation` | **BỊ BÁC BỎ.** ring id không phải beam id trên bản release này. Quyết định thay thế: cast trên lưới tia đều **0,333° × 0,197307°**, FOV −4,06…+5,88° ⇒ ~30 × 1.826 ≈ 54.800 tia. `docs/plume-beam-table.md` §ĐÍNH CHÍNH. `spray/config/beam_elevation.yaml` **phải xoá** |
+| 29a — bảng `ring → elevation` | **BỊ BÁC BỎ.** ring id không phải beam id trên bản release này. Quyết định thay thế: cast trên lưới tia đều **0,333° × 0,197307°**, FOV −4,06…+5,88° ⇒ ~30 × 1.826 ≈ 54.800 tia. `docs/history/plume-beam-table.md` §ĐÍNH CHÍNH. `spray/config/beam_elevation.yaml` **phải xoá** |
 | 29b — `spray/raycast.py` | Xong: cast beam × cầu, `P_det = n/n_max`, attenuation `e^(−2·0,02·L)`, strongest-return mỗi beam. 239 passed, 4 skipped |
 | Latency | **266–476 ms/frame** với 100 cụm (~2,4 ms/cụm) ⇒ 4–7 s/frame ở 1.794 cụm @130 km/h |
 | `intensity` | Xuất **72–166** trên thang 255 (`raycast.py:256–261`) |

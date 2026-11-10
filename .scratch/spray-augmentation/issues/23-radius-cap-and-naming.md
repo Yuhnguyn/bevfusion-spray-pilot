@@ -17,7 +17,7 @@ Không đổi hành vi sinh plume đáng kể. Mỗi mục kèm lý do + số.
 - Giá trị vẫn là `0.0` nhưng phải đổi tên field + comment: "điểm tổng hợp gán ring 0; không dùng
   cho occlusion". Không đổi số test.
 
-## 3. Ghi 2 điều vào `docs/plume-model-provenance.md`
+## 3. Ghi 2 điều vào `docs/history/plume-model-provenance.md`
 
 **(a) `K` là cận dưới nhẹ so với code gốc.** Code rút `T ~ N(T; 0,2)` (std bằng chính mean) ⇒
 15,9% cụm có `T ≤ 0` (chết ngay chu kỳ đầu) nhưng đuôi `T` lớn sống lâu hơn tuyến tính, nên

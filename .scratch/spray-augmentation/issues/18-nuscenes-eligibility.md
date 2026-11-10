@@ -7,7 +7,7 @@
 
 ## Vì sao có ticket này
 
-`docs/velocity-contract.md` (2026-11-05) đã quét: **≥50 km/h và front ≤30 m → 697 frame (2,0%)**.
+`docs/reference/velocity-contract.md` (2026-11-05) đã quét: **≥50 km/h và front ≤30 m → 697 frame (2,0%)**.
 Con số đó không dùng được để chốt eval set, vì **bốn** lý do — hai cái phát hiện sau khi đọc log v1:
 
 1. **Không có vận tốc ego.** Paper §III-C chỉ augment khi *"ego-velocity exceeds 60 km/h"*. Filter cũ
@@ -96,7 +96,7 @@ Báo **ba** mức, mỗi mức đủ `#boxes / #frames / #scenes / frames-per-sc
 ## Xong khi
 
 - Kernel `COMPLETE` (không phải ERROR), log có `TICKET18_OK`.
-- `docs/nuscenes-eligibility.md` có đủ 5 bảng trên, **mọi ô có số thật**, gắn `[ĐO]`.
+- `docs/reference/nuscenes-eligibility.md` có đủ 5 bảng trên, **mọi ô có số thật**, gắn `[ĐO]`.
 - `kaggle/smoke_test/evidence/eligibility.json` — bản rút gọn (bỏ mảng `frames` chi tiết nếu > 5 MB),
   commit vào `evidence/`.
 - Trả lời được **3 câu, mỗi câu một con số**: (a) bảng cũ 34.029 là split nào; (b) val split còn bao

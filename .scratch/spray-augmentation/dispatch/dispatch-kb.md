@@ -3,8 +3,8 @@ Repo: /Users/huynguyen/projects/bevfusion-spray-pilot
 Đọc theo thứ tự:
 1. docs/knowledge-base.html  ← file bạn cần sửa ("Sổ tay dự án — Spray plume cho BEVFusion")
 2. docs/PROJECT.md           ← trạng thái mới nhất của dự án
-3. docs/plume-geometry-vs-real.md  ← số đo hình học plume thật (ticket 16)
-4. docs/nuscenes-eligibility.md    ← số frame/scene dùng được để eval (ticket 18)
+3. docs/measurements/plume-geometry-vs-real.md  ← số đo hình học plume thật (ticket 16)
+4. docs/reference/nuscenes-eligibility.md    ← số frame/scene dùng được để eval (ticket 18)
 5. spray/plume.py            ← generator SAU khi ticket 17 sửa xong (đọc code, không đoán)
 6. .scratch/spray-augmentation/STATUS.md
 
@@ -34,10 +34,10 @@ giản dị cho người không chuyên, cấu trúc 10 mục hiện có, và t�
 - Cập nhật mục "Đang ở đâu" theo `STATUS.md` (16, 18, 15 đã xong; 17 vừa xong; tiếp theo 08 → 09 → 10 → 11).
 - Thêm vào mục "Con số nào đáng tin" (hoặc mục phù hợp) 3 số mới, kèm nhãn nguồn:
   - trần của val để eval: **196 frame / 16 scene** (val, box ≥50 km/h phía trước, d ≤ 50 m, không lọc ego)
-    `[ĐO: docs/nuscenes-eligibility.md]`
+    `[ĐO: docs/reference/nuscenes-eligibility.md]`
   - hình học cụm thật: `r_range/r_extent` = **1,28**, median điểm/cụm = **17,0**, giảm **3,0×** theo cự ly
-    `[ĐO: docs/plume-geometry-vs-real.md]`
-  - 850 scene / 34.149 keyframe (trainval), val = 150 / 6.019 `[ĐO: docs/nuscenes-eligibility.md]`
+    `[ĐO: docs/measurements/plume-geometry-vs-real.md]`
+  - 850 scene / 34.149 keyframe (trainval), val = 150 / 6.019 `[ĐO: docs/reference/nuscenes-eligibility.md]`
 - Nếu văn phong chỗ nào còn nói "sẽ sửa"/"chưa đo" mà thực tế đã xong: chuyển sang thì quá khứ + số.
 
 ## Ràng buộc

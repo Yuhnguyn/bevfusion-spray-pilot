@@ -7,7 +7,7 @@
 **Status:** ready-for-agent
 
 - [x] Chọn filter: **DROR** (bán kính thích nghi theo cự ly), `k=8`, `alpha=0,03`; tham số ghi trong
-  `docs/denoise-b0-params.md`. **[CHỌN]** — paper không công bố tham số của họ.
+  `docs/history/denoise-b0-params.md`. **[CHỌN]** — paper không công bố tham số của họ.
   *PM đo 2026-11-07:* ROR cố định `r=0,5 m, k=8` xoá **100%** điểm trên mặt phẳng ở 50 m (88,7% giữ ở 40 m,
   100% ở 10–20 m) trên lưới tia HDL-32E ⇒ B0 sẽ là "người rơm". DROR `alpha=0,03` giữ **100%** ở 10/20/40/50 m,
   vẫn bỏ điểm cô lập và vẫn giữ cụm spray dày 14 điểm @25 m. [ĐO]

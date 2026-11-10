@@ -1,7 +1,7 @@
 # Ticket 14b — Arm B0: đổi từ ROR cố định sang DROR (bán kính theo cự ly)
 
 Repo: `/Users/huynguyen/projects/bevfusion-spray-pilot` · branch `main` · HEAD `211fce1`
-Đọc trước: `spray/denoise.py` (bạn vừa viết ở 14a), `docs/denoise-b0-params.md`,
+Đọc trước: `spray/denoise.py` (bạn vừa viết ở 14a), `docs/history/denoise-b0-params.md`,
 `.scratch/spray-augmentation/issues/14a-denoise-baseline.md` (checkbox 1 đã tick kèm số đo của PM).
 
 ## Vì sao phải sửa — số đo, không phải ý kiến
@@ -37,14 +37,14 @@ giữ **100%** ở cả 10/20/40/50 m, vẫn bỏ điểm cô lập, vẫn giữ
      **≥ 95%** điểm ở 50 m được giữ. Đây là test chống tái phát cho đúng lỗi PM đo được.
    - `test_dror_removes_isolated_points` — cụm dày 30 điểm @10 m + 1 điểm lạc cách 5 m ⇒ điểm lạc bị bỏ.
    - `test_dror_keeps_dense_cluster_at_25m` — cụm 14 điểm bán kính 0,3 m @25 m (giống cụm spray thật) ⇒ giữ hết.
-4. **Cập nhật `docs/denoise-b0-params.md`**: DROR `k=8, alpha=0,03` là filter của B0; dán **bảng số ở trên**
+4. **Cập nhật `docs/history/denoise-b0-params.md`**: DROR `k=8, alpha=0,03` là filter của B0; dán **bảng số ở trên**
    (nhãn `[ĐO]`); giữ đoạn ROR như "đã thử và bị loại vì..."; ghi thời gian/frame mới đo được của DROR.
 
 ## Ràng buộc
 
 - KHÔNG sửa `ror_filter` hành vi, KHÔNG sửa test cũ, KHÔNG đụng `spray/plume*.py`, `mit/**`, `third_party/**`.
 - KHÔNG thêm dependency. KHÔNG bật background process.
-- Chỉ `git add` đúng 2 file: `spray/denoise.py`, `tests/test_denoise.py`, và file doc (`docs/denoise-b0-params.md`).
+- Chỉ `git add` đúng 2 file: `spray/denoise.py`, `tests/test_denoise.py`, và file doc (`docs/history/denoise-b0-params.md`).
 
 ## Nghiệm thu (tự chạy, dán output)
 

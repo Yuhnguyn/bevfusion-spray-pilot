@@ -10,7 +10,7 @@ from spray.beam_model import (
     ray_sphere_intersect,
 )
 
-# Rows measured by the PM in docs/plume-beam-table.md ("Đo 1"), in degrees.
+# Rows measured by the PM in docs/history/plume-beam-table.md ("Đo 1"), in degrees.
 DOC_ELEVATION_DEG = {1: -2.50, 14: -0.08}
 
 

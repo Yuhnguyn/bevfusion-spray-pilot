@@ -33,7 +33,7 @@ Chưa có 4 phép đo dưới đây thì mọi tham số v2 là phỏng đoán, 
 ## Việc phải làm
 
 Tạo 4 script trong `scripts/`. Mỗi script: chạy được từ root repo, exit 0, in bảng markdown ra stdout **và**
-ghi section của mình vào `docs/plume-v2-measurements.md` theo đúng cặp marker
+ghi section của mình vào `docs/measurements/plume-v2-measurements.md` theo đúng cặp marker
 `<!-- BEGIN <tên-script> -->` … `<!-- END <tên-script> -->` (chạy lại phải **thay** section cũ, không nối thêm).
 Mọi con số in ra kèm tag `[ĐO]` và tên script sinh ra nó. Không thêm dependency ngoài `numpy` (+ `csv`, `json`,
 `statistics`, `pathlib` của stdlib).
@@ -77,7 +77,7 @@ Mọi con số in ra kèm tag `[ĐO]` và tên script sinh ra nó. Không thêm 
 Item 4 của ticket (verify_constants) đã chốt 2026-11-10 và ghi vào `spec-v2-paper-faithful.md` §1. Không mở lại.
 
 ### Kết luận bắt buộc ở cuối doc
-`docs/plume-v2-measurements.md` phải có mục **"Kết luận cho v2"** gồm đúng 4 dòng, mỗi dòng 1 số:
+`docs/measurements/plume-v2-measurements.md` phải có mục **"Kết luận cho v2"** gồm đúng 4 dòng, mỗi dòng 1 số:
 - % frame không kích hoạt spray (`object_velocity < 50`) → trần dữ liệu.
 - Cột 4 của `velodyne` là gì → ray casting có dùng được ring thật hay phải tính elevation từ toạ độ.
 - Đơn vị `wfh`: mm hay m — **kèm phép tính số** đối chiếu Fig. 11b (24 cụm @130 km/h) cho cả hai giả thuyết:
@@ -88,7 +88,7 @@ Item 4 của ticket (verify_constants) đã chốt 2026-11-10 và ghi vào `spec
 ## Tiêu chí nghiệm thu
 
 - [ ] 4 script chạy được, exit 0, chạy lại 2 lần cho ra doc **giống nhau** (idempotent, không nối section).
-- [ ] `docs/plume-v2-measurements.md` có 4 section theo marker + mục "Kết luận cho v2" đủ 4 dòng số.
+- [ ] `docs/measurements/plume-v2-measurements.md` có 4 section theo marker + mục "Kết luận cho v2" đủ 4 dòng số.
 - [ ] Mỗi số có tag `[ĐO]`/`[PAPER]`/`[CHỌN]` và tên script sinh ra nó.
 - [ ] Bảng tốc độ nêu rõ **số frame và % frame không kích hoạt spray**.
 - [ ] Kết luận đơn vị `wfh` có phép tính số, không phải suy luận.

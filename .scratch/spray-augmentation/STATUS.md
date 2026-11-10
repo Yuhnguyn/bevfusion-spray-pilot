@@ -17,7 +17,7 @@
 > 3. Kích thước khối giữ `v·Δt × 3,4 m`; **chiều cao đổi thành 5–92 % chiều cao box** (đo 939.803 điểm).
 > 4. SemanticSpray chia **2 vai** `cal` / `held-out` theo scene (1 scene = 1 timestamp = 1 lần ghi);
 >    detector vẫn train/eval trên nuScenes. Không dùng chung scene giữa hai vai.
-> 5. Nguồn paper đã đối chiếu: `docs/paper-qa-notebooklm.md` (hỏi đáp nguyên văn qua NotebookLM).
+> 5. Nguồn paper đã đối chiếu: `docs/reference/paper-qa-notebooklm.md` (hỏi đáp nguyên văn qua NotebookLM).
 
 ## Mục tiêu một câu
 
@@ -88,9 +88,9 @@ Sau khi đọc **code tham chiếu đã publish** (`openMSL/.../DetectionEnviron
 **Kiểm chứng độc lập (2026-11-10):** PM đo lại cả 5 lỗi trên generator thật (20–60 seed) và tải `dee.cpp` bản gốc
 đối chiếu: **D1/D4/D5 đúng**, **D2 sai p50 (4,01 → 3,32 m)**, **D3 sai bản chất** (`rejected_box` thật 0,03–2,1 %,
 không phải 13,9–63,1 % — đã sửa trong bảng trên). Thêm **D7** (trần 2000 điểm global) và **D8** (seed đông cứng
-qua epoch + `intensity = 0`); **D6** (thứ tự `w`/`l` của box production) còn là câu hỏi mở. Chi tiết: `docs/plume-v1-defects.md` §7.
+qua epoch + `intensity = 0`); **D6** (thứ tự `w`/`l` của box production) còn là câu hỏi mở. Chi tiết: `docs/history/plume-v1-defects.md` §7.
 
-**Chi tiết + bảng tham số v2 + tiêu chí nghiệm thu:** `docs/plume-v1-defects.md`.
+**Chi tiết + bảng tham số v2 + tiêu chí nghiệm thu:** `docs/history/plume-v1-defects.md`.
 **Bằng chứng trực quan:** `docs/figs/plume/v1-audit/compare.mp4` (10 s) và `compare_still.png`.
 **Issue GitHub:** [#1](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/1) z · [#2](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/2) neo · [#3](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/3) rejected_box · [#4](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/4) stateless · [#5](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/5) tương tác phép đo · [#6](https://github.com/Yuhnguyn/bevfusion-spray-pilot/issues/6) umbrella Ticket 25.
 **Kết luận:** null của ticket 11 là **hệ quả của thiết kế can thiệp**, không phải của augmentation; sửa
@@ -98,7 +98,7 @@ generator trước, train lại sau. Ba việc phải làm trước khi sửa co
 
 ## Đo 0 GPU xong (ticket 25) — 5 phát hiện đổi thiết kế v2
 
-Chi tiết + bảng số: `docs/plume-v2-measurements.md` (5 section, sinh bởi 4 script, idempotent).
+Chi tiết + bảng số: `docs/measurements/plume-v2-measurements.md` (5 section, sinh bởi 4 script, idempotent).
 Nghiệm thu: `issues/25-measure-zero-gpu.md` §PM nghiệm thu.
 
 | # | Phát hiện `[ĐO]` | Hệ quả cho ticket 26–31 |
@@ -123,7 +123,7 @@ tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng ho
 | 01 | Working copy MIT + pin `da93b27` | **done** | `mit/PIN.md` |
 | 02 | Smoke test checkpoint + 1 sample | **done** | 582/582, forward 0,6 s, mọi stage finite |
 | 02b | Sửa môi trường Kaggle, chạy lại smoke test | **done** | v15 ALL_PASS |
-| 03 | Velocity frame + ObjectPaste | **done** | `docs/velocity-contract.md` |
+| 03 | Velocity frame + ObjectPaste | **done** | `docs/reference/velocity-contract.md` |
 | 04 | Dataset gate trên Kaggle | **done** | infos 120/120, load 1 sample |
 | 05 | Evaluator core + synthetic tests | **done** | `proxy_eval/matcher.py`, 8 test |
 | 06 | Adapter evaluator cho output MIT | **done** | mAP 0,298 (P 0,512 / R 0,524) |
@@ -132,11 +132,11 @@ tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng ho
 | 09 | End-to-end pipeline test | **done** `c66e867` | kernel `68 passed, 0 skipped`, `E2E_OK`; 2 stream + matrix roundtrip |
 | 10 | Train/eval config A/B | **done** `fcaa4f9` + `2ed78b3` | probe `PROBE_OK`: ckpt 0 missing, trainable 9,08M/40,80M, chỉ camera frozen, 0,25 GB param state |
 | 11 | Mini A/B run + report | **done** `88770b5` | Train v9 (2×2.000 bước) → eval v13: `interaction=-0,0031`, CI95 [−0,0140; 0,0017] ⇒ **null**. Chẩn đoán 11-i: dịch tâm 3 mm, 6 hộp lật/3.609 GT. Sửa lỗi: `84ce10b` (parse splits), `4ac0a57` (CUDA tensor). 192 passed |
-| 12 | SemanticSpray statistics | **done** | `docs/semantic-spray-stats.md` |
+| 12 | SemanticSpray statistics | **done** | `docs/measurements/semantic-spray-stats.md` |
 | 13 | Gate review sau mini A/B | **next** | Dùng kết quả null + chẩn đoán 11-i; quyết định hướng đi trước khi làm tiếp |
 | 14a | B0: module lọc | **done** `ed92cf8` | `spray/denoise.py` · `ror_filter` · 60 passed |
 | 14b | B0: DROR thích nghi theo cự ly | **done** `60092a1` | `dror_filter(alpha=0,03)` giữ 100% điểm ở 10/20/40/50 m; 23 ms/2.272 điểm |
-| 15 | Provenance của `PlumeConfig` | **done** `bc0da86`+`d1bf9bf` | `docs/plume-model-provenance.md` |
+| 15 | Provenance của `PlumeConfig` | **done** `bc0da86`+`d1bf9bf` | `docs/history/plume-model-provenance.md` |
 | 16 | Đo hình học plume thật theo cự ly | **done** `08f6715` | 17,06 cụm/frame; 30/20/14/10/10 điểm/cụm |
 | 17 | Sửa generator theo số đo của 16 | **done** `5d7c478` | count theo cự ly; bẹp `S = 0,885` |
 | 18 | Quét lại eligibility nuScenes | **done** | eval set: 196 frame / 16 scene |
@@ -146,7 +146,7 @@ tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng ho
 | 22 | Sửa lỗi tính hai lần + docs | **done** `75d210c` | `K = 2,51`; 8 cụm @80 km/h; 56 test |
 | 23 | Trần bán kính 1,0 m + tên cột 5 + docs `K`/`T` | **done** `da996ff` | chạm trần đo thật 6,51%; 57 test |
 | 24 | `build_kanban.py` sinh board từ nguồn thật | **done** `8da032a` | bỏ hard-code; 25 ticket, 18 done, nguồn STATUS.md |
-| 25 | Đo 0 GPU: tốc độ ego/xe dẫn, beam angles, quỹ đạo, hằng số | **done** | 4 script + `docs/plume-v2-measurements.md` (5 section, idempotent sha `3085a237`); 192 passed, 4 skipped. Nghiệm thu: `issues/25-measure-zero-gpu.md` §PM |
+| 25 | Đo 0 GPU: tốc độ ego/xe dẫn, beam angles, quỹ đạo, hằng số | **done** | 4 script + `docs/measurements/plume-v2-measurements.md` (5 section, idempotent sha `3085a237`); 192 passed, 4 skipped. Nghiệm thu: `issues/25-measure-zero-gpu.md` §PM |
 | 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | **done** | 3 file; **200 passed, 4 skipped** (+8 test); `inject_plume` không đổi chữ ký. Nghiệm thu: `issues/26-plume-context-contract.md` §PM |
 | 27 | Bước 0 — wet ground (port `dee.cpp`, không vendor CC BY-NC) | **done** (27a/b) | **227 passed, 4 skipped**; frame thật `points_in=14576 attenuated=2821`; `points_clean` giữ sạch (PM kiểm); mặc định tắt. Nghiệm thu: `issues/27-wet-ground.md` §PM |
 | 28 | Bước 1–3 — vùng sau đuôi, sinh cụm, vòng đời | **done** (28a/b/c) | **217 passed, 4 skipped**. Vệt trong tầm **73,7 m @130 km/h** (trước 7,3 m); marker `PLUME_STATE` 7 khoá; D6 đã sửa. Còn tồn sang 30/31: trần 2.000 cắt 45–82 %, điểm/cụm lệch 6× so với paper. Nghiệm thu: `issues/28-plume-volume-lifetime.md` §PM |
@@ -174,6 +174,11 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 | 5 | **30** trường dữ liệu + **31** nghiệm thu | sau 29c |
 | 6 | A/B `plume-only` vs `plume+wet` trên Kaggle | chỉ sau 31, cần GPU |
 | 7 | **13** gate review | dùng kết quả null của 11 + chẩn đoán 11-i |
+
+### File lịch sử (đừng đọc để làm việc)
+
+`history/spec-v1.md` (spec v1.5), `issues/01–24` (v1), `dispatch/` (nhật ký giao việc). Spec hiện hành:
+`spec-v2-paper-faithful.md`. Bản đồ tài liệu: `docs/README.md`.
 
 ### 29 tách nhỏ
 
@@ -209,11 +214,11 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
   (`docs/adr/0003-semantic-spray-eval-only.md`)
 - Velocity của box đã ở LiDAR frame của keyframe hiện tại; plume phải chèn **sau** `GlobalRotScaleTrans`
   và `RandomFlip3D`, **trước** `PointShuffle`; box do `ObjectPaste` set velocity = 0.
-  (`docs/velocity-contract.md`)
+  (`docs/reference/velocity-contract.md`)
 - Ba arm: A = clean baseline, B = có plume, B0 = lọc spray rồi detect.
 - **Eval set (chốt 2026-11-07, ticket 18):** val split, box vehicle ≥50 km/h **phía trước** (`x>0`),
   `d ≤ 50 m`, **không lọc vận tốc ego** → **196 frame / 16 scene**; báo per-range 0–30 m (117 frame) và
-  30–50 m (79 frame). Nguồn: `docs/nuscenes-eligibility.md`.
+  30–50 m (79 frame). Nguồn: `docs/reference/nuscenes-eligibility.md`.
   - **Bỏ lọc ego** vì paper §III-A có kịch bản ego **đứng yên** (xe khác chạy ngang vẫn sinh plume);
     lọc ego ≥50 km/h làm val còn **0 frame**.
   - **Không dùng scene highway**: 0 scene highway trong val, chỉ 2 scene trên toàn bộ nuScenes.
@@ -223,7 +228,7 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
     **không** phải "augment vô dụng".
 - **Số cũ 34.029 frame / 697 frame / 2,0% là toàn bộ trainval** (850 scene / 34.149 keyframe), không phải
   val split (150 / 6.019). Hàng đối chứng tái lập đúng (957 box / 698 frame, +0,53%) nên phép đo cũ đúng,
-  chỉ nhãn sai. Đã đính chính `docs/velocity-contract.md`.
+  chỉ nhãn sai. Đã đính chính `docs/reference/velocity-contract.md`.
 - Kết quả dương trên plume tổng hợp là **cận trên lạc quan**, không chứng minh giúp spray thật. Camera
   branch nhận `points_clean` nên lợi ích nếu có chỉ đến từ LiDAR.
 - **`water_film_height` tính bằng MÉT.** `T = wfh·0,02·(v−50) + 0,2` với `wfh = 0,001 m` ⇒ số hạng tốc

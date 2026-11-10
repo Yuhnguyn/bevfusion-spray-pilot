@@ -57,7 +57,7 @@ không dùng mean**.
 `[ĐO]` Bản release không có các beam dưới và trên: `z` toàn frame chỉ `−6,68 … +6,53 m` trong khi tầm xa
 130 m. Một scan VLP-32C đầy đủ có beam `−25°` thì ở 130 m phải có `z ≈ −60 m`. Vậy dữ liệu đã bị cắt theo
 phương thẳng đứng (hoặc cấu hình cảm biến khác), và ring id được **đánh lại** `0…19` cho các beam còn lại —
-đó là lý do so cùng ID với bảng VLP-32C lệch median 3,49° (`docs/plume-v2-measurements.md` §2) trong khi
+đó là lý do so cùng ID với bảng VLP-32C lệch median 3,49° (`docs/measurements/plume-v2-measurements.md` §2) trong khi
 bảng đo lại ổn định.
 
 ## Hệ quả cho ticket 29 (ray casting)

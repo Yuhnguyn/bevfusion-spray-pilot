@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 
 DATASET = Path("data/SemanticSprayDataset")
-BOX_HEIGHT_M = 2.6206  # [ĐO] docs/plume-v2-measurements.md, van of Crafter_dynamic
+BOX_HEIGHT_M = 2.6206  # [ĐO] docs/measurements/plume-v2-measurements.md, van of Crafter_dynamic
 SPEEDS_KMH = (50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0, 130.0)
 
 

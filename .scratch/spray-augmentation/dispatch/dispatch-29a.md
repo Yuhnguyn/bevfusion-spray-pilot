@@ -5,7 +5,7 @@ Skill: không
 
 ## Hiện trạng (PM đã kiểm)
 
-- `docs/plume-beam-table.md` (PM đo 2026-11-11): ring id **là** beam id thật (azimuth span 359,8°, elevation
+- `docs/history/plume-beam-table.md` (PM đo 2026-11-11): ring id **là** beam id thật (azimuth span 359,8°, elevation
   std 0,26–0,59° trong frame); bản release chỉ còn **20 beam** trong dải ~**−3,91° … +0,51°**; ring id đánh lại
   `0…19`. Bảng góc **của hãng KHÔNG dùng được** (lệch median 3,49°).
 - Ring 0 chứa outlier tới `+52°` ⇒ bảng phải tính bằng **median trong IQR**, không dùng mean.
@@ -43,13 +43,13 @@ Skill: không
 - `ray_sphere_intersect(dirs (K,3), center (3,), radius: float) -> (t0, t1)`: phương trình
   `a = dir·dir`, `b = 2·(-center)·dir`, `c = center·center − r²`; trả `t0,t1 = (−b ∓ √disc)/(2a)` khi
   `disc ≥ 0` và `t0 > 0`; ngược lại `nan`. Vector hoá, thuần numpy.
-- Ghi docstring: nguồn bảng là `docs/plume-beam-table.md`, **không** dùng bảng nhà sản xuất; ring id dùng làm
+- Ghi docstring: nguồn bảng là `docs/history/plume-beam-table.md`, **không** dùng bảng nhà sản xuất; ring id dùng làm
   chỉ số beam, góc lấy từ bảng đo.
 
 ### 3. `tests/test_beam_model.py` (mới) — 5 test
 
 1. Nạp bảng: `len(elevation_deg) >= 18`, mọi giá trị trong `[-6°, +3°]`, và **khớp** bảng trong
-   `docs/plume-beam-table.md` ở ring 1 và ring 14 (sai số ≤ 0,3°).
+   `docs/history/plume-beam-table.md` ở ring 1 và ring 14 (sai số ≤ 0,3°).
 2. `azimuth_step_deg` trong khoảng `[0,05°, 1,0°]` và `build_beams` cho `N = round(360/step)` cột, `M = len(elev)`.
 3. `ray_sphere_intersect`: cầu bán kính 0,3 m tại `(10, 0, 0)`, tia `+x` ⇒ `t0 ≈ 9,7`, `t1 ≈ 10,3`
    (dung sai 1e-6).

@@ -2,7 +2,7 @@
 
 Repo: `/Users/huynguyen/projects/bevfusion-spray-pilot` · branch `main` · HEAD `bde2039`
 Đọc trước khi làm: `.scratch/spray-augmentation/issues/14a-denoise-baseline.md`,
-`.scratch/spray-augmentation/spec.md` dòng 242 và dòng 274.
+`.scratch/spray-augmentation/history/spec-v1.md` dòng 242 và dòng 274.
 
 ## Bối cảnh
 
@@ -29,7 +29,7 @@ Ticket 14 **chỉ làm phần implement + test** ở đây. Bảng A/B/B0 và ph
    - `test_ror_keeps_dense_structures` — 2 cụm dày cách nhau 3 m → cả hai giữ, `frac_removed == 0`.
    - Thêm 1 test biên: rỗng, 1 điểm, và kiểm shape/dtype/thứ tự cột.
 
-3. **Tạo `docs/denoise-b0-params.md`** (≤ 20 dòng) ghi đúng:
+3. **Tạo `docs/history/denoise-b0-params.md`** (≤ 20 dòng) ghi đúng:
    - `k = 8`, `r = 0,5 m` là **[CHỌN]** — paper không cho tham số của họ.
    - Paper chỉ báo kết quả: DROR precision **50,68% / recall 64,24%**, DSOR 51,57% / 56,58% **[PAPER]**.
    - Vì sao ROR chứ không DROR: DROR cần khoảng cách tới cảm biến + hệ số α (thêm 2 tham số, không có nguồn),

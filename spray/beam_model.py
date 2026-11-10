@@ -1,6 +1,6 @@
 """LiDAR beam geometry for the spray ray-casting step.
 
-The elevation angle of a ring comes from ``docs/plume-beam-table.md``, measured
+The elevation angle of a ring comes from ``docs/history/plume-beam-table.md``, measured
 on SemanticSpray itself. The manufacturer's VLP-32C table must **not** be used:
 the release was clipped vertically and its ring ids were renumbered ``0..N-1``,
 so matching ids against the manual is off by 3.49 deg median. Ring id is used
