@@ -43,3 +43,30 @@ beam, (b) không bao giờ làm mất tín hiệu của vật thật phía sau.
 - Không sinh detection ngoài tia beam để "cho dày".
 - Không tắt attenuation để test xanh.
 - Không đổi `P_det`, `0,02 m⁻¹`, `σ` của lognormal.
+
+---
+
+## PM nghiệm thu 29b — 2026-11-11 (`spray/raycast.py`, chưa nối pipeline)
+
+**Trạng thái: done, kèm 2 cảnh báo.**
+
+| Kiểm | Kết quả `[ĐO]` |
+|---|---|
+| `pytest -q tests/` | **239 passed, 4 skipped** (232 + 7 test raycast) |
+| File | `spray/raycast.py` (473 dòng), `tests/test_raycast.py` (214 dòng) |
+| Detection nằm trên tia | sai số elevation lớn nhất **1,78e-15°** (yêu cầu < 1e-5) |
+| Strongest return hoạt động | probe 100 cụm: **359** điểm thật bị plume che, **1** detection thua điểm thật |
+| Attenuation | **631** điểm thật bị giảm intensity, tổng `L` = **2.229,9 m** |
+
+**Cảnh báo 1 — bảng beam đầu vào sai (lỗi của PM).** `spray/config/beam_elevation.yaml` (20 beam) là kết quả
+bộ lọc sai trong 29a; xem `docs/plume-beam-table.md` §ĐÍNH CHÍNH. `raycast_frame` nhận `table` qua tham số nên
+**code không phải sửa** khi thay nguồn tia, nhưng **không được chạy với bảng này trong eval**.
+
+**Cảnh báo 2 — tốc độ chưa đạt.** Đo trên frame thật `000010`, 100 cụm: **266–476 ms/frame** (yêu cầu
+< 50 ms). Phân rã: `0 cụm` = **25,3 ms** (ánh xạ điểm→beam), mỗi cụm ≈ **2,4 ms**. Với ~1.794 cụm sống ở
+130 km/h ⇒ 4–7 s/frame ⇒ 196 frame eval ≈ 13–20 phút. Chuyển sang tập tia lấy từ điểm thật (29c) làm thay đổi
+chi phí; **tối ưu là tiêu chí bắt buộc của 29c**, không phải "nice to have".
+
+**Số per-cluster hiện tại:** 626 detection / 100 cụm = **6,3/cụm**, cao hơn số thật đo từ nhãn (**2,75/cụm**,
+47 điểm / 17 cụm). Chưa kết luận vì hình học probe (cụm rải 3–40 m, ±6° azimuth) khác plume thật; 29c phải đo
+lại trên hình học thật trước khi đụng bất kỳ hằng số nào.

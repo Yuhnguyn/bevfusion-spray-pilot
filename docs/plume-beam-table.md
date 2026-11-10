@@ -113,3 +113,25 @@ Bỏ (không phải beam, < 90% số frame có ≥ 100 điểm): 20, 21, 22, 23,
 Beam: 20 (M = 20)
 azimuth_step_deg = 0.197307
 Elapsed: 10.37 s
+
+---
+
+## ⚠️ ĐÍNH CHÍNH 2026-11-11 — bảng ring→elevation bị BÁC BỎ, không dùng để cast
+
+Phần "Bảng sinh tự động" ở trên (20 beam, `spray/config/beam_elevation.yaml`) **không dùng được**.
+Nó là kết quả của một bộ lọc sai trong `scripts/measure_beam_table.py`: chỉ giữ ring có ≥100 điểm ở ≥90 %
+số frame, nên **cắt đúng nhóm ring 21–26 hướng lên** — nhóm nhìn thấy plume.
+
+Bốn phép đo bác bỏ `[ĐO]`:
+
+| Đo | Số | Nghĩa |
+|---|---:|---|
+| Cột ring: số giá trị | **0…31** (32) như VLP-32C | bộ lọc "≥100 điểm" mới là thứ tạo ra con số 20 |
+| Điểm mỗi ring, 38 frame scene `0000` | ring 0–18: 10.900–67.330 · 19–20: 1.158–4.884 · 21–26: 355–947 · **27–31: 0–13** | release chỉ có ~27 ring hoạt động, 5 ring gần như không có điểm |
+| Ring 8–20 (13 ring) elevation median | nằm gọn trong **0,33°** (−0,28…−0,03°) | không lidar nào có 13 tia cách nhau 0,025° ⇒ ring id không phải chỉ số tia |
+| Ring 0 | cự ly p5/p50/p95 = **1,13/4,38/5,40 m**, có điểm tới **+49°** ở ~1,5 m; 3.419 điểm > +1° mang ring 0 có range median **1,50 m** | ring 0 = tia −4° **lẫn nhiễu cự ly gần** (nước bắn/thân xe), không phải một tia sạch |
+
+**Hệ quả:** không dựng được lưới beam từ ring id trên release này. Đường đã chốt: lấy **hướng của điểm thật
+trong frame làm tập tia** (mật độ góc đo được, tự mang theo độ nghiêng xe), thực hiện ở ticket 29c.
+
+`scripts/measure_beam_table.py` được giữ lại **như bằng chứng phản chứng**, không dùng trong pipeline.
