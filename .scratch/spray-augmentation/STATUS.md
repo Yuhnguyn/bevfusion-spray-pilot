@@ -137,8 +137,8 @@ tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng ho
 | 24 | `build_kanban.py` sinh board từ nguồn thật | **done** `8da032a` | bỏ hard-code; 25 ticket, 18 done, nguồn STATUS.md |
 | 25 | Đo 0 GPU: tốc độ ego/xe dẫn, beam angles, quỹ đạo, hằng số | **done** | 4 script + `docs/plume-v2-measurements.md` (5 section, idempotent sha `3085a237`); 192 passed, 4 skipped. Nghiệm thu: `issues/25-measure-zero-gpu.md` §PM |
 | 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | **done** | 3 file; **200 passed, 4 skipped** (+8 test); `inject_plume` không đổi chữ ký. Nghiệm thu: `issues/26-plume-context-contract.md` §PM |
-| 27 | Bước 0 — wet ground (tái dùng `SysCV/LiDAR_snow_sim`) | **next** | `issues/27-wet-ground.md` |
-| 28 | Bước 1–3 — vùng sau đuôi, sinh cụm, vòng đời | **28a done, 28b next** | `spray/plume_state.py` + 7 test (**207 passed, 4 skipped**); hai vai tốc độ đã vào code. 28b: khối sau đuôi + marker + gap. Nghiệm thu: `issues/28-...md` §PM 28a |
+| 27 | Bước 0 — wet ground (port `dee.cpp`, không vendor CC BY-NC) | **next (27a)** | `issues/27-wet-ground.md` |
+| 28 | Bước 1–3 — vùng sau đuôi, sinh cụm, vòng đời | **done** (28a/b/c) | **217 passed, 4 skipped**. Vệt trong tầm **73,7 m @130 km/h** (trước 7,3 m); marker `PLUME_STATE` 7 khoá; D6 đã sửa. Còn tồn sang 30/31: trần 2.000 cắt 45–82 %, điểm/cụm lệch 6× so với paper. Nghiệm thu: `issues/28-plume-volume-lifetime.md` §PM |
 | 29 | Bước 4–5 — ray casting, attenuation, strongest return | blocked by 27, 28 | `issues/29-ray-casting-attenuation.md` |
 | 30 | Intensity, ring, seed theo epoch, cap | blocked by 29 | `issues/30-intensity-ring-seed-cap.md` |
 | 31 | Nghiệm thu thống kê + render + audit độc lập | blocked by 25–30 | `issues/31-acceptance-v2.md` |

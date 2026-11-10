@@ -120,3 +120,35 @@ thiếu sót trong brief của PM, không phải agent vượt phạm vi.
   (code gốc: `transform_position_from_world_to_sensor_coordinates`). Vì ego cũng chạy 130 km/h, giọt giảm tốc
   trong ground ⇒ trong ego chúng trôi ngược ~36 m/s ⇒ vệt dài `v·T`.
 - **Quyết định trước đó của PM (`v_rel` cho advection, commit `aae6ac1`) là SAI** ở đúng điểm này. Sửa ở 28c.
+
+---
+
+## PM nghiệm thu 28c — 2026-11-11 (advection về hệ ground)
+
+**Trạng thái: done.** Lần giao đầu treo ở `model_request_start` 12 phút rồi bị kill (EXIT=130, log 410 byte,
+**không viết gì**); giao lại lần 2 `--max-turns 60` → exit 0.
+
+| Kiểm | Kết quả `[ĐO]` |
+|---|---|
+| `pytest -q tests/` | **217 passed, 4 skipped** (213 + 4 test mới) |
+| File đổi | `plume_state.py` (+90), `plume.py` (+7), `tests/test_plume_lifetime.py` (+93) — đúng phạm vi |
+| Code | `spawn`: `base_vel = object_velocity_ego_mps + [ego_speed,0,0]`, fallback `[object_speed_mps,0,0]`; `advance(dt, ego_velocity)`: drag trong hệ ground (`v_air = v − W`), vị trí cập nhật `pos += (v_ground − v_ego)·dt`; `inject_plume_stateful` truyền `[context.ego_speed_mps,0,0]` |
+| Guard mới (ngoài brief, PM chấp thuận) | `drag` bốc ngẫu nhiên dương từ `N(−0,12; 0,04)` sẽ làm `v' = +c·v²` phân kỳ (|v_air|² ~ 10³) → bỏ qua bước cập nhật khi `drag > 0`; mọi mẫu âm giữ nguyên công thức |
+
+**PM đo lại bằng đúng probe cũ** (110 frame, 1 box @23,2 m, `wfh = 1,0 mm`):
+
+| v | `alive` | trong tầm ±54 m | điểm tiêm | `capped` | **span_x trong tầm** |
+|---:|---:|---:|---:|---:|---:|
+| 80 km/h | 297 | 292 | 2.000 | 3.713 | **72,6 m** (trước: —) |
+| 130 km/h | 1.781 | 688 | 2.000 | 8.969 | **73,7 m** (trước: **7,3 m**) |
+
+⇒ Vệt đã hình thành đúng cỡ `v·T` bị chặn bởi tầm cảm biến 54 m; tiêu chí `span_x ≥ 40 m` **đạt**.
+
+**Còn tồn (sang ticket 30/31, không sửa ở đây):**
+1. **Trần `max_injected_points = 2000` cắt 45 % (80 km/h) đến 82 % (130 km/h)** số điểm plume mỗi frame, cắt
+   ngẫu nhiên theo điểm nên xé lẻ cụm. Cần quyết: cắt theo **cụm** thay vì theo điểm, hoặc nâng trần, hoặc hạ
+   số điểm/cụm.
+2. **Số điểm mỗi cụm không nhất quán giữa hai nguồn:** bảng `_POINTS_MEDIAN_BY_RANGE` (10–30 điểm/cụm) đo từ
+   *connected component* trong spray thật, còn mô hình paper cho ~**2,5 detection/cụm**. Với 688 cụm trong tầm
+   @130 km/h: theo paper ≈ 1.700 điểm, theo bảng ta ≈ 10.300 điểm — lệch ~6×. Ticket 31 phải chốt theo phép đo
+   nào (so với spray thật của SemanticSpray: 47 điểm/frame ở 50 km/h).

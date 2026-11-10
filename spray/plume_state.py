@@ -4,15 +4,30 @@ The v1 generator rebuilds the plume from scratch every frame, so no cluster has
 an age and there is no trail behind the lead vehicle. This module keeps the
 clusters alive across frames.
 
-Two speeds, two roles (decision logged 2026-11-10):
+Frames of reference (corrected in ticket 28c):
+
+- clusters carry their velocity in the **ground frame**, not relative to the
+  ego. The paper sets the object velocity as the initial cluster velocity and
+  the reference implementation advects in world coordinates, rendering into
+  the sensor frame only afterwards (``dee.cpp:396-426``, ``:250``).
+- drag acts in the ground frame: ``v_air = v_ground - wind``.
+- positions live in the **ego frame**: ``pos += (vel - ego_velocity) * dt``.
+  The ego is what the LiDAR sees, so this is the render frame.
+
+What makes the trail long is the drag, not the relative speed: ``|v_air|^2``
+for a cluster moving at road speed is of order 1300 m^2/s^2, so ``-0.12 * |air|^2``
+removes tens of m/s within the first cycles. A cluster spawned while ego and
+lead vehicle move at the same speed ends up ~0 relative velocity at birth and
+then falls far behind in the ego frame.
+
+Two speeds, two roles:
 
 - ``v_abs`` = ``context.object_speed_mps``, the lead vehicle's speed over the
   road. It drives the number of clusters spawned per cycle and the lifetime
   ``T``: the amount of water thrown up scales with the wet road the tyres cross
   every second.
-- ``v_rel`` = ``object_speed_mps - ego_speed_mps``, the relative speed. It is
-  the initial cluster velocity and the velocity advected by drag: what is seen
-  moving in the point cloud is motion in the ego frame.
+- the ground velocity is ``object_velocity_ego_mps + [ego_speed, 0, 0]``: the
+  object's own velocity carried into the ground frame by the ego's motion.
 
 ``wfh_mm`` is in millimetres for both the cluster count and ``T``. Passing
 metres by mistake gives a different count on purpose (pinned by a test).
@@ -87,7 +102,12 @@ class PlumeStateConfig:
 
 @dataclass
 class SprayCluster:
-    """One cluster with its own position, velocity and age."""
+    """One cluster with its own position, velocity and age.
+
+    ``pos`` is in the ego (sensor) frame, the frame the LiDAR renders in.
+    ``vel`` is in the **ground frame** (m/s): drag and wind live there, and
+    the ego velocity is subtracted only when integrating ``pos``.
+    """
 
     pos: np.ndarray
     vel: np.ndarray
@@ -190,10 +210,13 @@ class PlumeState:
         """Spawn this cycle's clusters for one object.
 
         ``n`` and ``T`` use ``v_abs`` (``object_speed_mps``). The initial
-        velocity uses ``context.object_velocity_ego_mps`` when the caller
-        supplied it; otherwise it falls back to ``v_rel`` along ``+x`` and the
-        cluster is flagged ``velocity_assumed``. ``age`` starts one cycle
-        behind so the cluster is inactive on its birth frame.
+        velocity is the **ground** velocity: ``object_velocity_ego_mps`` plus
+        the ego velocity ``[ego_speed_mps, 0, 0]``. When the caller did not
+        supply the object velocity, it falls back to the object moving along
+        ``+x`` in the ego frame at spawn time, so ``v_ground =
+        [object_speed_mps, 0, 0]``, and the cluster is flagged
+        ``velocity_assumed``. ``age`` starts one cycle behind so the cluster
+        is inactive on its birth frame.
 
         ``center`` and ``extents`` describe the spray block (centre and half
         sizes in metres); positions are uniform inside it. Passing ``None``
@@ -210,17 +233,21 @@ class PlumeState:
             self._counters = PlumeCounters()
 
         v_abs_kmh = context.object_speed_mps * 3.6
-        v_rel = context.object_speed_mps - context.ego_speed_mps
         count = cluster_count_for_speed_abs(v_abs_kmh, context.wfh_mm)
         mean_ttl = lifetime_mean_s(v_abs_kmh, context.wfh_mm)
         origin = np.asarray(context.sensor_origin, dtype=np.float64)
 
+        ego_velocity = np.array(
+            [context.ego_speed_mps, 0.0, 0.0], dtype=np.float64
+        )
         velocity = context.object_velocity_ego_mps
         if velocity is None:
-            base_vel = np.array([v_rel, 0.0, 0.0], dtype=np.float64)
+            base_vel = np.array(
+                [context.object_speed_mps, 0.0, 0.0], dtype=np.float64
+            )
             velocity_assumed = True
         else:
-            base_vel = np.asarray(velocity, dtype=np.float64).copy()
+            base_vel = np.asarray(velocity, dtype=np.float64) + ego_velocity
             velocity_assumed = False
 
         if (center is None) != (extents is None):
@@ -271,21 +298,42 @@ class PlumeState:
         self._counters.alive = self._total_alive()
         return created
 
-    def advance(self, dt: float) -> None:
-        """Advect every cluster with drag and wind, then age it by ``dt``."""
+    def advance(
+        self, dt: float, ego_velocity: np.ndarray | None = None
+    ) -> None:
+        """Advect every cluster with drag and wind, then age it by ``dt``.
+
+        Drag is applied in the ground frame (``vel`` is a ground velocity).
+        Positions are integrated in the ego frame, so the ego velocity is
+        subtracted there: a cluster keeping its ground speed falls behind at
+        ``|vel - ego_velocity|``. ``ego_velocity`` defaults to zero so callers
+        that do not model ego motion get the 28a behaviour.
+
+        Drag may only dissipate air speed. At road speed ``|v_air|^2`` is of
+        order 1000 m^2/s^2, so the rare positive draw from ``N(-0.12, 0.04)``
+        would otherwise grow as ``v' = +c*v^2`` and reach inf inside one
+        cluster lifetime. The guard skips the update in that case; for every
+        dissipative draw the formula is unchanged.
+        """
         wind = self.wind
+        if ego_velocity is None:
+            ego_velocity = np.zeros(3, dtype=np.float64)
+        else:
+            ego_velocity = np.asarray(ego_velocity, dtype=np.float64)
         for clusters in self._clusters.values():
             for cluster in clusters:
                 air = cluster.vel - wind
                 air_speed = float(np.linalg.norm(air))
                 if air_speed > 0.0:
-                    cluster.vel = cluster.vel + (
-                        cluster.drag
-                        * (air / air_speed)
-                        * (air_speed**2)
-                        * dt
-                    )
-                cluster.pos = cluster.pos + cluster.vel * dt
+                    speed_after = air_speed + cluster.drag * air_speed**2 * dt
+                    if speed_after < air_speed:
+                        cluster.vel = cluster.vel + (
+                            cluster.drag
+                            * (air / air_speed)
+                            * (air_speed**2)
+                            * dt
+                        )
+                cluster.pos = cluster.pos + (cluster.vel - ego_velocity) * dt
                 cluster.age += dt
         self._counters.alive = self._total_alive()
 

@@ -337,6 +337,9 @@ def inject_plume_stateful(
     Each call advances and prunes the existing clusters once, then spawns this
     frame's clusters inside a block behind every box:
 
+    - clusters carry a ground-frame velocity, so the ego velocity
+      ``[ego_speed_mps, 0, 0]`` is passed to ``advance`` and only the position
+      integration happens in the ego frame;
     - block length ``|v_abs| * dt``, width 3.4 m, height 1.5 m;
     - block centre ``box_pos - (L_box/2 + L_block/2) * [cos yaw, sin yaw]``;
     - block bottom on the box bottom, so ``z_centre = z_box - h_box/2 + 0.75``.
@@ -352,7 +355,9 @@ def inject_plume_stateful(
     rng = _rng(seed, token or context.scene_token)
     stats = PlumeStats()
 
-    state.advance(dt)
+    state.advance(
+        dt, ego_velocity=np.array([context.ego_speed_mps, 0.0, 0.0])
+    )
     expired = state.prune()
 
     block_length = abs(float(context.object_speed_mps)) * dt

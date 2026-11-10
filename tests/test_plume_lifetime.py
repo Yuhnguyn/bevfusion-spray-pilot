@@ -163,3 +163,96 @@ def test_spawn_is_deterministic_by_rng_seed():
     assert first.shape == second.shape == other.shape
     assert np.array_equal(first, second)
     assert not np.array_equal(first, other)
+
+
+def test_spawn_velocity_is_ground_velocity():
+    state = PlumeState()
+    ego_speed = 130.0 / 3.6
+
+    clusters = state.spawn(
+        _context(), object_id=5, rng=np.random.default_rng(0)
+    )
+    for cluster in clusters:
+        # No object velocity supplied: the object runs along +x in the ego
+        # frame at spawn, so the ground velocity is the road speed.
+        assert cluster.vel[0] == pytest.approx(ego_speed, abs=1e-9)
+        assert cluster.velocity_assumed is True
+
+    explicit = PlumeState()
+    clusters = explicit.spawn(
+        _context(object_velocity_ego_mps=np.array([0.0, 0.0, 0.0])),
+        object_id=5,
+        rng=np.random.default_rng(0),
+    )
+    for cluster in clusters:
+        # Same speed as the ego -> ground velocity is the ego velocity.
+        assert cluster.vel[0] == pytest.approx(ego_speed, abs=1e-9)
+        assert cluster.velocity_assumed is False
+
+
+def test_cluster_drifts_backwards_in_the_ego_frame():
+    state = PlumeState()
+    config = PlumeStateConfig(
+        lifetime_sigma_s=0.0, drag_mean=-0.12, drag_std=0.0
+    )
+    clusters = state.spawn(
+        _context(),
+        object_id=5,
+        rng=np.random.default_rng(0),
+        dt=0.1,
+        center=np.array([16.0, 0.0, 0.34]),
+        extents=np.array([1.8, 1.7, 0.75]),
+        config=config,
+    )
+    assert clusters
+
+    ego_velocity = np.array([130.0 / 3.6, 0.0, 0.0])
+    x = np.array([cluster.pos[0] for cluster in clusters])
+    for _ in range(4):
+        state.advance(0.1, ego_velocity=ego_velocity)
+        following = np.array([cluster.pos[0] for cluster in clusters])
+        assert np.all(np.abs(following) < np.abs(x) - 0.5)
+        x = following
+
+
+def test_drag_uses_ground_velocity_when_ego_and_object_match_speed():
+    state = PlumeState()
+    config = PlumeStateConfig(
+        lifetime_sigma_s=0.0,
+        drag_mean=-0.12,
+        drag_std=0.0,
+        wind_speed_mps=0.0,
+    )
+    clusters = state.spawn(
+        _context(), object_id=6, rng=np.random.default_rng(1), config=config
+    )
+    road_speed = 130.0 / 3.6
+    assert all(
+        cluster.vel[0] == pytest.approx(road_speed) for cluster in clusters
+    )
+
+    state.advance(0.1, ego_velocity=np.array([road_speed, 0.0, 0.0]))
+
+    # Relative speed is zero at birth, yet the ground velocity must decay.
+    for cluster in clusters:
+        assert cluster.vel[0] < road_speed - 1.0
+        assert cluster.pos[0] < -1.0
+
+
+def test_positive_drag_sample_never_accelerates_a_cluster():
+    state = PlumeState()
+    config = PlumeStateConfig(
+        lifetime_sigma_s=0.0, drag_mean=0.12, drag_std=0.0
+    )
+    clusters = state.spawn(
+        _context(), object_id=7, rng=np.random.default_rng(2), config=config
+    )
+    before = [cluster.vel.copy() for cluster in clusters]
+
+    for _ in range(5):
+        state.advance(0.1)
+
+    for initial, cluster in zip(before, clusters):
+        assert np.isfinite(cluster.vel).all()
+        assert np.isfinite(cluster.pos).all()
+        assert cluster.vel[0] == pytest.approx(initial[0])
