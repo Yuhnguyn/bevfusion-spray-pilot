@@ -64,3 +64,35 @@ Hai điểm của ticket không khớp thực tế, PM đã kiểm bằng máy v
    của Hahner. ⇒ `stats` đổi thành `points_in / attenuated / boosted / mean_ratio`.
 3. Ticket tách làm **27a** (module `spray/wet_ground.py` + test + khoá YAML, chưa nối pipeline) và **27b**
    (nối vào `inject_plume_stateful`, marker trong log eval).
+
+---
+
+## PM nghiệm thu 27a — 2026-11-11
+
+**Trạng thái: done.** CommandCode `--max-turns 60`, exit 0.
+
+| Kiểm | Kết quả `[ĐO]` |
+|---|---|
+| `pytest -q tests/` | **223 passed, 4 skipped** (218 + 5 test mới) |
+| `pytest -q tests/test_wet_ground.py` | 5 passed |
+| File | `spray/wet_ground.py` (231 dòng), `tests/test_wet_ground.py` (135), `spray/config/wet_ground_default.yaml` (mới) |
+| Không dependency mới | `grep scipy/sklearn/matplotlib` trong module: 0 hit |
+| Frame thật | `WET_GROUND_STATS points_in=14576 attenuated=2821 boosted=11755 mean_ratio=0.914` |
+
+**PM tự kiểm công thức** (probe riêng, 3 điểm trong cửa sổ `y`):
+`wfh = 0` → tỉ lệ intensity còn lại **đúng 0,300** (= hằng 0,3 của code gốc, khớp tuyệt đối);
+`wfh = 0,25 mm` → 0,165; `wfh = 1,0 mm` → 0,030 (điểm sáng) và 0,008 (điểm tối). Chiều tác động đúng:
+**nhiều nước hơn ⇒ tối hơn**.
+
+**Hai điểm PM ghi nhận:**
+
+1. **Brief của PM sai một kỳ vọng:** tôi viết "wfh tăng ⇒ `mean_ratio` tăng". Thực tế ngược lại, và agent làm
+   đúng vật lý (nước dày ⇒ truyền qua ít hơn), đồng thời ghi rõ trong docstring. Test kiểm chiều **giảm**.
+   Lỗi ở brief, không ở code.
+2. **YAML tách file riêng thay vì thêm khối vào `plume_default.yaml`** (ngoài brief, PM chấp thuận):
+   `plume_default.yaml` là bản sao khít của các field `PlumeConfig` và được truyền thẳng vào
+   `PlumeConfig(**config)`, nên một khối lạ ở top-level sẽ làm vỡ `test_plume_config_yaml.py` và constructor.
+   Agent tạo `spray/config/wet_ground_default.yaml` + ghi lý do trong header. Đúng hơn brief.
+
+**Còn lại cho 27b:** nối `apply_wet_ground` vào `inject_plume_stateful` (thứ tự: wet ground trên
+`points_clean` → rồi mới thêm plume), bật/tắt qua config, và kiểm `mean_ratio` trong log eval thật.
