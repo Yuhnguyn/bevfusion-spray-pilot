@@ -151,4 +151,22 @@ thiếu sót trong brief của PM, không phải agent vượt phạm vi.
 2. **Số điểm mỗi cụm không nhất quán giữa hai nguồn:** bảng `_POINTS_MEDIAN_BY_RANGE` (10–30 điểm/cụm) đo từ
    *connected component* trong spray thật, còn mô hình paper cho ~**2,5 detection/cụm**. Với 688 cụm trong tầm
    @130 km/h: theo paper ≈ 1.700 điểm, theo bảng ta ≈ 10.300 điểm — lệch ~6×. Ticket 31 phải chốt theo phép đo
-   nào (so với spray thật của SemanticSpray: 47 điểm/frame ở 50 km/h).
+   nào (so với spray thật của SemanticSpray: 47 điểm/frame ở 50 km/h). **Cả hai chỗ tồn này để sau ticket 29**,
+   vì ray casting làm số điểm/cụm "nở ra" từ số tia cắt qua mặt cầu — lúc đó không còn là tham số ta chọn.
+
+---
+
+## PM nghiệm thu 28d — 2026-11-11 (hằng cản `C = −0,15 m⁻¹` theo paper)
+
+**Trạng thái: done.** `[CHỌN 2026-11-10 — user]`: theo paper, `C` là **hằng số**, không lấy mẫu.
+
+| Kiểm | Kết quả `[ĐO]` |
+|---|---|
+| `pytest -q tests/` | **218 passed, 4 skipped** (+1 test) |
+| Hằng số | `DRAG_MEAN = -0.15`, `DRAG_STD = 0.0`; probe in `drag set = [-0.15]` trên 1.794 cụm ⇒ đúng hằng số |
+| File đổi | `plume_state.py`, `tests/test_plume_lifetime.py` — đúng phạm vi |
+| Probe 110 frame @130 km/h, `wfh = 1,0 mm` | `alive = 1.794`, trong tầm `591`, `span_x trong tầm = 73,4 m` (với −0,12 là 73,7 m), `capped = 9.127` |
+
+Ghi chú: đổi `C` từ −0,12 sang −0,15 chỉ làm vệt ngắn đi **0,3 m** — vì số hạng `|v|²` chi phối, không phải hằng
+số cản. Nghĩa là chọn `C` theo paper **không** phải đòn bẩy làm generator mạnh lên; đòn bẩy nằm ở ray casting
+(ticket 29) và ở việc bỏ cách phát điểm đều trong mặt cầu.

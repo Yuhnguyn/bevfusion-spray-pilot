@@ -15,7 +15,7 @@ Frames of reference (corrected in ticket 28c):
   The ego is what the LiDAR sees, so this is the render frame.
 
 What makes the trail long is the drag, not the relative speed: ``|v_air|^2``
-for a cluster moving at road speed is of order 1300 m^2/s^2, so ``-0.12 * |air|^2``
+for a cluster moving at road speed is of order 1300 m^2/s^2, so ``-0.15 * |air|^2``
 removes tens of m/s within the first cycles. A cluster spawned while ego and
 lead vehicle move at the same speed ends up ~0 relative velocity at birth and
 then falls far behind in the ego frame.
@@ -37,8 +37,11 @@ Sign conventions follow the reference implementation
 
 - clusters spawn with ``age = -dt`` so they are not active on their birth frame;
 - ``T ~ N(wfh_mm*0.02*(v_abs_kmh - 50) + 0.2, 0.2)``, clamped at zero;
-- drag ``N(-0.12, 0.04)`` acts as ``v += drag * v_air_hat * |v_air|^2 * dt``
-  with ``v_air = v_cluster - wind``;
+- drag uses the paper's constant coefficient ``C = -0.15 1/m`` [PAPER] arXiv
+  2212.08558, acting as ``v += C * v_air_hat * |v_air|^2 * dt`` with
+  ``v_air = v_cluster - wind``. The reference code (``dee.cpp:542``) draws
+  ``N(-0.12; 0.04)`` per cluster instead; we deliberately follow the paper and
+  default the sampling knobs to a constant.
 - a cluster is removed once ``age > 4*T``;
 - the displayed survival probability is ``P_t = exp(-age/T)``.
 """
@@ -65,10 +68,12 @@ MAX_AGE_FACTOR = 4.0
 RADIUS_MU = -1.2
 RADIUS_SIGMA = 0.8
 RADIUS_MAX_M = 1.0
-# [CODE] dee.cpp:540 and :542.
+# [CODE] dee.cpp:540.
 INITIAL_VZ_MAX_MPS = 5.0
-DRAG_MEAN = -0.12
-DRAG_STD = 0.04
+# [PAPER] arXiv 2212.08558, Sec. III-C: drag coefficient C = -0.15 1/m,
+# constant. See the module docstring for how this differs from dee.cpp:542.
+DRAG_MEAN = -0.15
+DRAG_STD = 0.0
 # [CODE] dee.cpp wind: 2 m/s from 208 deg in meteorological convention.
 WIND_SPEED_MPS = 2.0
 WIND_FROM_DEG = 208.0
@@ -85,7 +90,9 @@ class PlumeStateConfig:
     """Stochastic knobs of the cluster state, with reference defaults.
 
     The model constants live in the module; this config only lets tests and
-    the caller pin distributions (``sigma = 0``) or change the wind.
+    the caller pin distributions or change the wind. Drag defaults to the
+    paper's constant (``drag_std = 0``), but the knobs stay so a caller can
+    still sample it.
     """
 
     lifetime_sigma_s: float = LIFETIME_SIGMA_S
@@ -310,10 +317,11 @@ class PlumeState:
         that do not model ego motion get the 28a behaviour.
 
         Drag may only dissipate air speed. At road speed ``|v_air|^2`` is of
-        order 1000 m^2/s^2, so the rare positive draw from ``N(-0.12, 0.04)``
-        would otherwise grow as ``v' = +c*v^2`` and reach inf inside one
-        cluster lifetime. The guard skips the update in that case; for every
-        dissipative draw the formula is unchanged.
+        order 1000 m^2/s^2, so a positive ``drag`` (the default is the paper's
+        constant ``-0.15``, but the config can pin any value) would otherwise
+        grow as ``v' = +c*v^2`` and reach inf inside one cluster lifetime. The
+        guard skips the update in that case; for every dissipative value the
+        formula is unchanged.
         """
         wind = self.wind
         if ego_velocity is None:

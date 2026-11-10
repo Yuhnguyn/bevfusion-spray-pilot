@@ -129,6 +129,21 @@ interval 0,1−1,2 mm"). Ba mức nước cố định của paper là **0,5 / 0
 Hệ quả đã biết: plume có frame nhẹ (wfh 0,1 mm → 10 cụm/chu kỳ @130) và frame rất dày (wfh 1,2 mm → 28 cụm),
 nên trần `max_injected_points` sẽ cắt mạnh ở frame dày — phải báo `capped` trong marker và xử lý trần ở ticket 30.
 
+**Hằng cản `C`** `[CHỌN 2026-11-10 — user chốt]`: theo paper, `C = −0,15 m⁻¹` là **hằng số**, không lấy mẫu
+(code gốc `dee.cpp:542` dùng `N(−0,12; 0,04)`; ta cố ý theo paper). Đơn vị `1/m` vì `C·|v|²·Δt` phải ra `m/s`.
+Đo hệ quả: vệt @130 km/h đổi từ 73,7 m → **73,4 m** — hằng cản **không** phải đòn bẩy làm plume mạnh lên.
+
+**Cổng tốc độ ego > 60 km/h — HOÃN** `[CHỌN 2026-11-10 — user]`. Paper nêu điều kiện này ở tầng
+**data augmentation** (chỉ augment đường cao tốc/ngoại ô), khác với ngưỡng vật lý `object > 40 km/h` của model
+(`[CODE]` `dee.cpp:502`). Ta giữ ngưỡng vật lý, **chưa** thêm cổng ego. Lý do: nó chỉ quyết định *frame nào được
+augment*, tức thiết kế A/B, mà nghẽn hiện tại là **độ mạnh của generator**, không phải eval.
+Số để mở lại khi cần: eval set hiện 196 frame / 16 scene, CI95 nửa rộng **±0,008 mAP**; v1 đo delta −0,0031
+(6 hộp lật/3.609 GT) nên không phân giải được, nhưng hiệu ứng cỡ **2–3 mAP** thì eval hiện tại **đủ** phân giải.
+
+**Kịch bản của paper — dùng làm kiểm chứng thiết kế:** paper hiệu chỉnh ở hai kịch bản, *passing* (ego đứng yên,
+xe tạo bụi 50–130 km/h) và *following* (ego bám sau, cùng tốc độ). Suy ra: `v_rel` **không** phải biến sinh cụm —
+ở *passing* `v_rel = 130` mà ở *following* `v_rel = 0`, cả hai đều có spray. Chỉ `v_abs` giải thích được cả hai.
+
 **Số cụm — `mean` là phát mỗi time step** `[PAPER]`: paper hiệu chỉnh bằng "counting the number of clusters in a
 spray filter region behind the vehicle … divided by the length ratio of the spray region to the distance the
 object traveled during one scan" ⇒ Fig. 4 = "clusters generated … during one scan", ~24 @130 km/h fully covered.

@@ -112,10 +112,26 @@ def test_prune_removes_clusters_past_four_lifetimes():
     assert state.counters.alive == 0
 
 
+def test_default_drag_is_the_paper_constant():
+    state = PlumeState()
+    rng = np.random.default_rng(7)
+    clusters = []
+    for frame in range(20):
+        clusters.extend(
+            state.spawn(
+                _context(frame_index=frame), object_id=8, rng=rng
+            )
+        )
+
+    assert len(clusters) >= 20
+    for cluster in clusters:
+        assert cluster.drag == pytest.approx(-0.15)
+
+
 def test_drag_reduces_air_velocity_and_zero_drag_keeps_it():
     state = PlumeState()
     config = PlumeStateConfig(
-        lifetime_sigma_s=0.0, drag_mean=-0.12, drag_std=0.0
+        lifetime_sigma_s=0.0, drag_mean=-0.15, drag_std=0.0
     )
     clusters = state.spawn(
         _context(), object_id=3, rng=np.random.default_rng(5), config=config
@@ -193,7 +209,7 @@ def test_spawn_velocity_is_ground_velocity():
 def test_cluster_drifts_backwards_in_the_ego_frame():
     state = PlumeState()
     config = PlumeStateConfig(
-        lifetime_sigma_s=0.0, drag_mean=-0.12, drag_std=0.0
+        lifetime_sigma_s=0.0, drag_mean=-0.15, drag_std=0.0
     )
     clusters = state.spawn(
         _context(),
@@ -219,7 +235,7 @@ def test_drag_uses_ground_velocity_when_ego_and_object_match_speed():
     state = PlumeState()
     config = PlumeStateConfig(
         lifetime_sigma_s=0.0,
-        drag_mean=-0.12,
+        drag_mean=-0.15,
         drag_std=0.0,
         wind_speed_mps=0.0,
     )
