@@ -66,17 +66,32 @@ Tâm đặt tại `pos_box − (L_box/2 + L_khối/2)` theo yaw; `z` = đáy box
 **đầu ra** của ray casting. Docstring trong repo này ghi `K = 2,51` là chỗ dễ hiểu nhầm: nếu v2
 ép `K` thành hằng số thì ray casting vô nghĩa. **Bỏ `K` khỏi tham số sinh.**
 
-**Đơn vị `wfh` — chốt theo số:**
-- `wfh` tính bằng **mm**: `v=130` → `mean = (0,2·1+0,1)·80 = 24` cụm — khớp Fig. 11b (~30) `[PAPER]`.
-- `wfh` tính bằng **m** (OSI): `mean = (0,2·0,001+0,1)·80 = 8` cụm — **không khớp** Fig. 11b.
+**Đơn vị `wfh` — `[PAPER]` mm (user xác nhận 2026-11-10):**
+Trong paper, `wfh` tính bằng **mm**, và ba lớp nước `h` (moist / partially / fully) cũng là **mm**
+(moist 0,5 / partially 0,75 / fully 1,0). Không phải suy ra từ hình — đây là đơn vị paper dùng.
 
-Code đọc `surface_water_film()` của OSI `[CODE] dee.cpp:181`, mà OSI quy định đơn vị **mét**;
-nhưng repo **không kèm file scenario** nào đặt giá trị này (grep `surface_water_film` ngoài `.cpp/.hpp` → 0 hit),
-nên không kiểm được họ truyền `0,001` hay `1,0`.
+Kiểm chéo bằng số, khớp:
+- `wfh` tính bằng **mm**: `v=130` → `mean = (0,2·1+0,1)·80 = 24` cụm — khớp Fig. 11b (24 cụm @130).
+- `wfh` tính bằng **m**: `mean = (0,2·0,001+0,1)·80 = 8` cụm — **không khớp**.
 
-⇒ `[CHỌN]` v2 dùng **wfh tính bằng mm** trong công thức cụm, vì chỉ cách đó mới khớp Fig. 11b
-(24 cụm @130 km/h so với ~30 đọc từ hình). Ghi rõ trong config: `wfh_unit: mm`.
-Đây là **giả định kiểm được** — ticket 31 đối chiếu lại bằng số cụm thực sinh.
+**Hệ quả BẮT BUỘC xử lý — công thức `T` cũng ăn `wfh`, nên đơn vị đổi kết quả 9×:**
+`T = 0,02·wfh·(v − 50) + 0,2`. Đọc `wfh` theo mm (paper) thay vì mét (v1):
+
+| v (km/h) | 50 | 60 | 80 | 100 | 130 |
+|---|---:|---:|---:|---:|---:|
+| `T` với `wfh = 0,001 m` (v1) `[ĐO]` | 0,20 | 0,20 | 0,20 | 0,20 | 0,20 |
+| `T` với `wfh = 1 mm` (paper) `[ĐO]` | 0,20 | 0,40 | 0,80 | 1,20 | 1,80 |
+
+Với mm, `T` **phụ thuộc tốc độ** (1,8 s @130 ⇒ vệt dài `v·T = 65 m`, xoá khi `age > 4T` = 7,2 s);
+với mét, `T ≈ 0,20 s` ở mọi tốc độ và vệt gần như đứng yên. v1 vô tình chọn nhánh "mét" nên
+**không có vệt dài**. Đây là `[CHỌN]` cần user chốt trước ticket 28/30 (xem STATUS).
+
+Code tham chiếu đọc `surface_water_film()` của OSI `[CODE]` `dee.cpp:181`, mà OSI quy định đơn vị
+**mét**; repo **không kèm file scenario** nào đặt giá trị này (`grep surface_water_film` ngoài `.cpp/.hpp`
+→ 0 hit), nên **không kiểm được** họ truyền `0,001` hay `1,0`. Vì vậy "paper dùng mm" và "code OSI dùng mét"
+là hai dữ kiện cùng đúng — ta theo paper vì đó là chuẩn của dự án, và ghi rõ khác biệt này.
+
+Ghi trong config: `wfh_unit: mm`. Ticket 31 đối chiếu lại bằng số cụm **và** độ dài vệt thực sinh.
 
 ---
 

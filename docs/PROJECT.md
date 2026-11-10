@@ -138,9 +138,13 @@ thay đổi giữa hai arm, nên phép so sánh paired còn hiệu lực"*.
   bài toán fusion trên nuScenes*.
 - Repo **không tái lập** Linnhoff (thiếu ray casting + `P_det` + attenuation + occlusion). Hướng lạc quan đã
   xếp thứ tự: (1) camera branch sạch → (2) số cụm thiếu 2,13× → (3) lifetime → (4) drag → (5) occlusion.
-- **Chỗ phản biện sẽ đánh trước:** dòng **10** (vị trí cụm) và **11** (`wfh = 1 mm`) — hai con số [CHỌN]
-  quyết định plume nằm đâu và dày bao nhiêu, tức quyết định độ khó bài toán. Cả hai **đo được** bằng dữ liệu
-  đang có (tâm cụm đã có trong frame cảm biến, chỉ cần quy về frame box) — chưa làm, đã ghi nhận.
+- **Chỗ phản biện sẽ đánh trước:** còn **một** con số `[CHỌN]` là dòng **10** (vị trí cụm) — quyết định
+  plume nằm đâu, tức quyết định độ khó bài toán. Con số này **đo được** bằng dữ liệu đang có (tâm cụm đã có
+  trong frame cảm biến, chỉ cần quy về frame box) — chưa làm, đã ghi nhận.
+  Dòng **11** (`wfh = 1 mm`) **không còn là `[CHỌN]`**: paper dùng mm cho cả `wfh` và ba lớp `h`
+  (moist 0,5 / partially 0,75 / fully 1,0 mm) — user xác nhận 2026-11-10.
+  Nhưng đơn vị mm **kéo theo công thức `T`**: `T = 0,02·wfh·(v−50)+0,2` cho 1,8 s @130 km/h (vệt 65 m)
+  thay vì 0,20 s khi đọc theo mét. Chốt ở ticket 28/30, xem `spec-v2-paper-faithful.md` §1.
 
 ---
 

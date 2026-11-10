@@ -1,6 +1,6 @@
 # HANDOFF — Spray plume pilot (BEVFusion MIT)
 
-Cập nhật: **2026-11-10 00:30** · nhánh `main` · https://github.com/Yuhnguyn/bevfusion-spray-pilot
+Cập nhật: **2026-11-10 11:52** · nhánh `main` · https://github.com/Yuhnguyn/bevfusion-spray-pilot
 **Nguồn sự thật về tiến độ: `.scratch/spray-augmentation/STATUS.md`.**
 File này nói: đang ở đâu, làm gì tiếp, và dựng lại máy mới trong 5 phút.
 
@@ -49,8 +49,17 @@ clip: `docs/figs/plume/v1-audit/compare.mp4`):
 | D4 | stateless mỗi frame ⇒ không có vệt/lifetime/drag | P1 |
 | D5 | thiếu visibility / occlusion / attenuation / thay return yếu | P1 |
 
-**Ba việc trước khi sửa code (0 GPU):** audit CPU trên mini split (% frame có plume, liều/frame,
-% `rejected_box`, % frame xe ngược chiều) · đo `z` mặt đường trên 1 frame thật · rồi mới chốt spec.
+**Ba việc trước khi sửa code (0 GPU) — ĐÃ XONG ở ticket 25 (2026-11-10).** Số đo:
+`docs/plume-v2-measurements.md`; nghiệm thu: `issues/25-measure-zero-gpu.md` §PM. Năm phát hiện đổi thiết kế:
+
+1. `poses.txt` (207/207 scene) **không có tịnh tiến** → tốc độ ego chỉ lấy từ `metadata.txt`.
+2. `object_velocity == ego_velocity` 207/207; cự ly chỉ 20,0 / 30,0 m → ma trận thí nghiệm có kiểm soát.
+3. Box 3D thật chỉ ở **36/207 scene** ⇒ hướng (c) là bắt buộc; `size3D.x` = **chiều dài** (xác nhận D6).
+4. Cột 4 = ring id nhưng **không khớp** góc VLP-32C (median `3,49°`) → elevation phải tính từ toạ độ.
+5. `z` mặt đường SemanticSpray = **`−0,411 m`**, không phải `−1,84 m` của nuScenes.
+
+**Next = ticket 26** (`PlumeContext` + state theo scene). Còn một `[CHỌN]` phải chốt trước ticket 28:
+đơn vị `wfh` trong `T` — mét (v1) cho `0,20 s`, mm (paper) cho `1,80 s @130 km/h`.
 
 **Sau v2:** dose–response eval trên ckpt cũ (10×, 20×) + control camera-off (~1 h GPU) → chọn liều →
 train lại 2 arm 10.000 bước (~6,7 h). Ba hướng A/B/C cũ vẫn giữ nguyên thứ tự B → A → C, nhưng **chỉ

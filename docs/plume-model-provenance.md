@@ -96,10 +96,21 @@ mean) ⇒ **15,9%** cụm có `T ≤ 0` (chết ngay chu kỳ đầu), nhưng đ
 nên `E[K] = 2,76` so với `K = 2,51` khi `T` cố định (**+10%**). Ta chọn `T` cố định vì tái lập được —
 ghi rõ đây là sai lệch đã biết, không phải lỗi port.
 
-**(b) `water_film_height` tính bằng MÉT — [CODE].** `T = wfh·0,02·(v − 50) + 0,2` với `wfh = 0,001 m`
-⇒ số hạng tốc độ chỉ `0,0004 s` ⇒ `T ≈ 0,20 s` ở mọi tốc độ, `K ≈ 2,51` không đổi. Nếu hiểu `wfh = 1 mm`
-là số `1,0` thì `T(130 km/h) = 0,84 s` và `K ≈ 9` — **sai 3,6×**. Phải ghi đơn vị để người đọc không
-nhân sai.
+**(b) `water_film_height` tính bằng MÉT — [CODE]; paper tính bằng MM — [PAPER].**
+Đính chính 2026-11-10 (user xác nhận): paper dùng **mm** cho `wfh` và cho ba lớp `h`
+(moist 0,5 / partially 0,75 / fully 1,0 mm). Câu "tính bằng MÉT" dưới đây là **cách code OSI truyền giá trị**,
+không phải đơn vị paper. Hệ quả: cùng một `wfh` cho **hai kết quả khác nhau tuỳ đơn vị**, vì cả công thức
+số cụm và công thức thời gian sống đều nhân với `wfh`.
+
+| v (km/h) | 50 | 60 | 80 | 100 | 130 |
+|---|---:|---:|---:|---:|---:|
+| `T = 0,02·wfh·(v−50)+0,2`, `wfh = 0,001` (m, v1) | 0,20 | 0,20 | 0,20 | 0,20 | 0,20 |
+| cùng công thức, `wfh = 1` (mm, paper) | 0,20 | 0,40 | 0,80 | 1,20 | 1,80 |
+
+v1 chạy nhánh mét ⇒ `T ≈ 0,20 s` ở mọi tốc độ, `K ≈ 2,51` coi như hằng. Đó là **hệ quả của đơn vị**, không
+phải hằng số vật lý: nếu đọc `wfh = 1 mm` là số `1,0` thì `T(130 km/h) = 0,84 s`… `1,80 s` tuỳ công thức
+khấu trừ, tức **sai 4–9×** so với v1. Phải ghi đơn vị bên cạnh **mọi** chỗ dùng `wfh`, và chốt một đơn vị
+duy nhất cho v2 (`wfh_unit: mm`) trước khi sửa generator.
 
 ## Mật độ 3 box (12 / 22 / 38 m, 80 km/h, seed 0–4)
 

@@ -1,6 +1,6 @@
 # Trạng thái dự án — spray plume augmentation cho BEVFusion
 
-**Cập nhật:** 2026-11-10 11:05 · **PM:** Hermes · **Thi công:** CommandCode
+**Cập nhật:** 2026-11-10 11:52 · **PM:** Hermes · **Thi công:** CommandCode
 
 > **Quyết định 2026-11-10 (user chốt):** hướng **(c)** — khối nước **sinh từ `metadata.txt` +
 > `poses.txt`**, **nghiệm thu bằng nhãn spray thật** (`label == 2`, 24–44 điểm/frame).
@@ -85,6 +85,25 @@ qua epoch + `intensity = 0`); **D6** (thứ tự `w`/`l` của box production) c
 **Kết luận:** null của ticket 11 là **hệ quả của thiết kế can thiệp**, không phải của augmentation; sửa
 generator trước, train lại sau. Ba việc phải làm trước khi sửa code (0 GPU) ở §5 của tài liệu audit.
 
+## Đo 0 GPU xong (ticket 25) — 5 phát hiện đổi thiết kế v2
+
+Chi tiết + bảng số: `docs/plume-v2-measurements.md` (5 section, sinh bởi 4 script, idempotent).
+Nghiệm thu: `issues/25-measure-zero-gpu.md` §PM nghiệm thu.
+
+| # | Phát hiện `[ĐO]` | Hệ quả cho ticket 26–31 |
+|---|---|---|
+| 1 | `poses.txt` **toàn bộ 207 scene** có cột tịnh tiến = `0,000000 m`, chỉ rotation (orthogonality `2,2e-16`) | Tốc độ ego **chỉ** lấy từ `metadata.txt`; `poses.txt` dùng cho yaw, không dùng cho dịch chuyển. Tiêu chí <10 % của ticket 25 **KHÔNG ĐẠT** vì dữ liệu thiếu, không phải code sai |
+| 2 | `object_velocity == ego_velocity` ở **207/207** scene; `distance_to_object` chỉ **20,0 / 30,0 m**; `itr_after_water` ∈ 1…6 | Dataset là **ma trận thí nghiệm có kiểm soát**, không phải lái tự nhiên. Vệt spray gần như đứng yên trong frame ego (vận tốc tương đối ≤ 6,26 km/h) |
+| 3 | Box 3D thật chỉ có ở **36/207 scene** (`object_labels/lidar/`, 1 instance/frame, `Van`) | Hướng (c) **bắt buộc** cho 171 scene còn lại. `size3D = (6,83 dài, 2,42 rộng, 2,62 cao) m` ⇒ `x` là **chiều dài**, xác nhận lỗi **D6** |
+| 4 | Cột 4 = ring id `0…31`, nhưng lệch bảng VLP-32C median `|Δ| = 3,49°`, `27/32` ring `≥ 0,5°` | Ray casting **phải** tính `atan2(z, √(x²+y²))` từ toạ độ; **không** dùng ring làm góc. Cảm biến là **VLP-32C**, không phải HDL-32E |
+| 5 | `z` mặt đường SemanticSpray = **`−0,411 m`** (p1), khớp đáy box thật `−0,4113 m` trong `0,0003 m` | Số này **khác** `−1,84 m` của nuScenes: ticket 28 phải đọc mặt đường **theo từng dataset** |
+
+**Trần dữ liệu:** `0 %` frame dưới 50 km/h, nhưng **16,33 % (2.844 frame) đúng 50 km/h** ⇒ `mean = 0` cụm,
+tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng hoặc loại khỏi mẫu dose–response.
+
+**Còn mở `[CHỌN]`:** đơn vị `wfh` trong `T = 0,02·wfh·(v−50)+0,2` — mét (v1) cho `0,20 s`, mm (paper) cho
+**1,80 s @130 km/h** (vệt 65 m). Chốt **trước ticket 28**.
+
 ## Bảng ticket
 
 | # | Việc | Trạng thái | Bằng chứng / next |
@@ -115,8 +134,8 @@ generator trước, train lại sau. Ba việc phải làm trước khi sửa co
 | 22 | Sửa lỗi tính hai lần + docs | **done** `75d210c` | `K = 2,51`; 8 cụm @80 km/h; 56 test |
 | 23 | Trần bán kính 1,0 m + tên cột 5 + docs `K`/`T` | **done** `da996ff` | chạm trần đo thật 6,51%; 57 test |
 | 24 | `build_kanban.py` sinh board từ nguồn thật | **done** `8da032a` | bỏ hard-code; 25 ticket, 18 done, nguồn STATUS.md |
-| 25 | Đo 0 GPU: tốc độ ego/xe dẫn, beam angles, quỹ đạo, hằng số | **next** | `issues/25-measure-zero-gpu.md` — chặn mọi tham số v2 |
-| 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | blocked by 25 | `issues/26-plume-context-contract.md` |
+| 25 | Đo 0 GPU: tốc độ ego/xe dẫn, beam angles, quỹ đạo, hằng số | **done** | 4 script + `docs/plume-v2-measurements.md` (5 section, idempotent sha `3085a237`); 192 passed, 4 skipped. Nghiệm thu: `issues/25-measure-zero-gpu.md` §PM |
+| 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | **next** | `issues/26-plume-context-contract.md` — nhận 5 phát hiện của 25 |
 | 27 | Bước 0 — wet ground (tái dùng `SysCV/LiDAR_snow_sim`) | blocked by 26 | `issues/27-wet-ground.md` |
 | 28 | Bước 1–3 — vùng sau đuôi, sinh cụm, vòng đời | blocked by 26, 25 | `issues/28-plume-volume-lifetime.md` |
 | 29 | Bước 4–5 — ray casting, attenuation, strongest return | blocked by 27, 28 | `issues/29-ray-casting-attenuation.md` |
@@ -136,8 +155,8 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 
 | Bước | Ticket | Trạng thái |
 |---|---|---|
-| 1 | **25** đo 0 GPU | ⏭ **next** — chặn 26–31 |
-| 2 | **26 → 27 → 28 → 29 → 30** | hình học → wet ground → động học → ray casting → trường dữ liệu |
+| 1 | **25** đo 0 GPU | ✅ **done 2026-11-10** — chặn 26–31 đã gỡ |
+| 2 | **26 → 27 → 28 → 29 → 30** | ⏭ **next = 26** — hình học → wet ground → động học → ray casting → trường dữ liệu |
 | 3 | **31** nghiệm thu + render + audit | trước khi train lại |
 | 4 | A/B `plume-only` vs `plume+wet` | chỉ sau 31, cần GPU |
 | 5 | **13** gate review | dùng kết quả null của 11 + chẩn đoán 11-i |

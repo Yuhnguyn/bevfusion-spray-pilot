@@ -63,3 +63,59 @@ Hệ quả: **velocity đo trực tiếp từ `metadata.txt`**, không cần `nu
 - Không thêm dependency mới ngoài `numpy`/`nuscenes-devkit` đã có.
 - Không sửa `spray/config/plume_default.yaml`.
 - Không "ước lượng" tốc độ từ số vòng quay bánh; không có dữ liệu thì ghi "không đo được".
+
+---
+
+## PM nghiệm thu — 2026-11-10
+
+**Trạng thái: done.** Thi công CommandCode (`--max-turns 80`, log `/tmp/t25.log`). Agent bị ngắt ở bước
+validation cuối (EXIT=130, `Terminated.`) **sau khi** đã ghi xong file; PM tự chạy lại toàn bộ để nghiệm thu.
+
+### Bằng chứng PM tự đo
+
+| Kiểm | Lệnh | Kết quả |
+|---|---|---|
+| 4 script chạy được | `/opt/anaconda3/bin/python scripts/{measure_speeds,measure_beam_angles,measure_ego_motion,verify_frame_geometry}.py` | cả 4 **EXIT=0** |
+| Idempotent | chạy 2 lượt, `shasum docs/plume-v2-measurements.md` | `3085a237…` **giống hệt** 2 lượt |
+| Cấu trúc doc | marker `BEGIN/END` | **5 section**: 4 script + `conclusion` |
+| Test | `CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python -m pytest -q tests/` | **192 passed, 4 skipped** (không đổi baseline) |
+| Phạm vi | `git status --porcelain` | chỉ file mới: 5 script + doc + `docs/figs/ego-motion/`; **không** chạm `spray/`, `mit/`, `tests/` |
+
+PM sửa 3 chuỗi tag trong `verify_frame_geometry.py::render_conclusion` (nhãn `[ĐO …]` ghi sai tên script —
+tốc độ do `measure_speeds.py` sinh, elevation do `measure_beam_angles.py`) và 1 câu trong `measure_speeds.py`
+(`wfh` giờ là mm). **Không đổi logic**, chỉ đổi nhãn nguồn; tái sinh doc rồi kiểm sha 2 lượt.
+
+### 5 phát hiện đổi thiết kế ticket 26–31
+
+1. **Không có quỹ đạo ego.** `poses.txt` **toàn bộ 207 scene** có cột tịnh tiến = `0.000000 m`; chỉ rotation,
+   `max|R·Rᵀ−I| = 2,2e-16`. ⇒ Tốc độ suy từ vị trí = `0 m/s`, lệch **100 %** so với `metadata.txt`
+   (`50`/`130` km/h) → **KHÔNG ĐẠT** ngưỡng <10 % của ticket. Kết luận: **tốc độ ego chỉ lấy từ `metadata.txt`**;
+   `poses.txt` dùng được cho yaw, không dùng cho dịch chuyển.
+2. **`object_velocity == ego_velocity` ở 207/207 scene**, `distance_to_object` chỉ có **20,0 m (103 scene)** và
+   **30,0 m (104 scene)**, `itr_after_water` ∈ 1…6. Đây là **ma trận thí nghiệm có kiểm soát**, không phải lái tự
+   nhiên: xe dẫn giữ đúng khoảng cách, cùng tốc độ ego. Vệt spray trong frame ego gần như **đứng yên tương đối**
+   (đo phụ: vận tốc tương đối từ box ≤ 6,26 km/h).
+3. **Box 3D thật chỉ có ở 36/207 scene** (`object_labels/lidar/`, 1 instance/frame, class `Van`).
+   Với 171 scene còn lại **không có box** ⇒ hướng (c) của spec (sinh từ `metadata.txt`) là bắt buộc, không phải
+   lựa chọn thẩm mỹ. Thứ tự cột box đã chốt bằng số: `size3D = (dài 6,83, rộng 2,42, cao 2,62) m`,
+   tức **`x` là chiều dài** — ngược quy ước `_inside_box` của v1 (lỗi **D6** nay có bằng chứng).
+4. **Ring id KHÔNG dùng được làm góc elevation.** Cột 4 (`0…31`) đúng là ring id, nhưng so cùng ID với bảng
+   VLP-32C lệch median `|Δ| = 3,49°`, max `25,38°`, `27/32` ring lệch `≥ 0,5°`. Cảm biến là **VLP-32C**
+   (README SemanticSpray), không phải HDL-32E như ticket ghi. ⇒ bước 4 ray casting **phải** tính
+   `atan2(z, √(x²+y²))` từ toạ độ điểm.
+5. **`z` mặt đường SemanticSpray = `−0,411 m`** (p1, label 0, `|x|,|y|<20 m`; p5 = `−0,372`), khớp đáy box
+   thật `−0,4113 m` trong `0,0003 m`. Đây **không phải** `−1,84 m` của nuScenes. ⇒ ticket 28 phải đọc mặt đường
+   **theo từng dataset**, không hardcode một hằng.
+
+### Trần dữ liệu (chặn kỳ vọng, không chặn code)
+
+`0,00 %` frame có `object_velocity < 50`, nhưng **16,33 % (2.844 frame) nằm đúng 50 km/h** ⇒
+`mean = (0,2·wfh+0,1)·(50−50) = 0` cụm, tức **0 điểm spray** dù đã vượt ngưỡng kích hoạt 40 km/h.
+Eval/calibration phải báo riêng dải 50 km/h hoặc loại khỏi mẫu dose–response.
+
+### Việc còn mở (không thuộc ticket 25)
+
+- `[CHỌN]` **đơn vị `wfh` trong công thức `T`**: `T = 0,02·wfh·(v−50)+0,2` cho `0,20 s` nếu `wfh` là mét (v1)
+  và **1,80 s @130 km/h** (vệt 65 m) nếu `wfh = 1` mm (paper, user xác nhận 2026-11-10). Chốt trước ticket 28.
+- Đơn vị `rotation3D.z` trong `object_labels` (radian vs độ) — toolkit gốc dùng `deg2rad`, script dùng trực tiếp;
+  ở góc nhỏ chưa đổi kết luận, ghi lại để ticket 26 xử lý.
