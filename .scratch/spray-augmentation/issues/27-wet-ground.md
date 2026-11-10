@@ -48,3 +48,19 @@ mặt đường, chỉ thêm điểm plume.
 
 - Không chỉnh sửa số liệu vật lý trong `phy_equations.py` của tác giả.
 - Không bật mặc định trong ticket này.
+
+---
+
+## PM điều chỉnh phạm vi — 2026-11-10 (trước khi giao)
+
+Hai điểm của ticket không khớp thực tế, PM đã kiểm bằng máy và sửa trong `dispatch/dispatch-27a.md`:
+
+1. **Không vendor `SysCV/LiDAR_snow_sim`.** Repo đó (HEAD `af376b3`) có `tools/wet_ground/` 4 file, 796 dòng,
+   cần `scipy` + `sklearn` + `matplotlib`, giấy phép **CC BY-NC 4.0** (Attribution-**NonCommercial**). Repo dự án
+   là công khai và artifact luận văn ⇒ vendor vào là rủi ro giấy phép, trong khi nguồn chuẩn của chính ticket
+   (`dee.cpp:305–380`) là **MPL-2.0**. ⇒ **Port từ `dee.cpp`**, dùng repo Python chỉ để đối chiếu đọc.
+2. **Mô hình giảm intensity, không xoá điểm.** Vé ticket ghi "làm mất điểm … `stats.removed`", nhưng hàm gốc
+   `simulate_wet_pavement` **chỉ** gọi `set_intensity(...)`, không xoá detection nào. Xoá điểm là mô hình tuyết
+   của Hahner. ⇒ `stats` đổi thành `points_in / attenuated / boosted / mean_ratio`.
+3. Ticket tách làm **27a** (module `spray/wet_ground.py` + test + khoá YAML, chưa nối pipeline) và **27b**
+   (nối vào `inject_plume_stateful`, marker trong log eval).
