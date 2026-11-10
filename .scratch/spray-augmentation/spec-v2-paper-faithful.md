@@ -106,19 +106,34 @@ là hai dữ kiện cùng đúng — ta theo paper vì đó là chuẩn của d�
 
 Ghi trong config: `wfh_unit: mm`. Ticket 31 đối chiếu lại bằng số cụm **và** độ dài vệt thực sinh.
 
-**Tốc độ — hai vai, không gộp** `[CHỌN 2026-11-10 — user chốt]`:
+**Tốc độ — hai vai, không gộp** `[CHỌN 2026-11-10 — user chốt, SỬA 2026-11-10 sau khi đo]`:
 
 | Vai | Dùng biến nào | Vì sao |
 |---|---|---|
 | Sinh bao nhiêu nước: `count`, `T` | **`v_abs`** — xe dẫn so với mặt đường | Lượng nước bắn lên tỉ lệ với số mét mặt đường ướt mà bánh lăn qua mỗi giây. 80 km/h quét gấp đôi 40 km/h |
-| Vệt trôi đi đâu: vận tốc đầu + advection | **`v_rel`** — xe dẫn so với ego | Point cloud ở hệ ego; giọt nước chỉ trôi tương đối so với ego rồi giảm tốc vì cản gió. Dùng `v_abs` sẽ phóng giọt ra khỏi cảnh trong 1 frame |
+| Chuyển động của cụm (advection) | **hệ GROUND**: vận tốc đầu = `v_object_ground`, drag tác động lên vận tốc tương đối với không khí | `[PAPER]` "the velocity of the moving object is set as an initial cluster velocity"; code gốc render bằng `transform_position_from_world_to_sensor_coordinates` |
+| Vị trí hiển thị | **hệ EGO** | point cloud ở hệ ego; mỗi frame trừ đi quãng ego đã đi |
 
-Bằng chứng `v_rel` **không thể** là biến sinh cụm: SemanticSpray có `object_velocity == ego_velocity` ở
-207/207 scene (`v_rel ≈ 0`, đo từ box ≤ 6,26 km/h) nhưng dữ liệu **vẫn có spray thật** (24–44 điểm nhãn `2`
-mỗi frame). Nếu `count = f(v_rel)` thì ra 0 cụm — trái dữ liệu.
+**Đính chính 2026-11-10 (PM viết sai ở bản trước):** bản đầu của bảng này ghi "advection dùng `v_rel`" — **SAI**.
+Đo trên 28b: với `v_rel` (ego và xe dẫn cùng tốc độ ⇒ `v_rel = 0`), giọt không bao giờ trôi về phía sau, vệt chỉ
+dài **7,3 m** ở 130 km/h thay vì `v·T = 65 m`, và 1.781 cụm dồn vào dải 7 m (trần 2.000 điểm cắt 75 %).
+Đúng phải là: cụm mang vận tốc **ground**, drag làm giảm tốc trong hệ ground, ego chỉ là nơi render — nhờ vậy
+giọt trôi ngược ~36 m/s trong hệ ego và vệt dài đúng cỡ `v·T`. Sửa ở ticket 28c.
 
-Trong `PlumeContext` hai số này là hai trường riêng: `object_speed_mps` (`v_abs`) và hiệu
-`object_speed_mps − ego_speed_mps` (`v_rel`).
+Trong `PlumeContext` hai số này là hai trường riêng: `object_speed_mps` (`v_abs`) và
+`object_velocity_ego_mps` (vector, để dựng vận tốc ground = vector đó + `[ego_speed, 0, 0]`).
+
+**Mức nước mỗi frame** `[CHỌN 2026-11-10 — user chốt]`: lấy mẫu `wfh ~ exp(0,1 … 1,2) mm` mỗi frame, đúng như
+paper dùng khi huấn luyện (`[PAPER]` arXiv 2212.08558: "sampled from an exponential distribution from the
+interval 0,1−1,2 mm"). Ba mức nước cố định của paper là **0,5 / 0,75 / 1,0 mm** cho moist / partially / fully.
+Hệ quả đã biết: plume có frame nhẹ (wfh 0,1 mm → 10 cụm/chu kỳ @130) và frame rất dày (wfh 1,2 mm → 28 cụm),
+nên trần `max_injected_points` sẽ cắt mạnh ở frame dày — phải báo `capped` trong marker và xử lý trần ở ticket 30.
+
+**Số cụm — `mean` là phát mỗi time step** `[PAPER]`: paper hiệu chỉnh bằng "counting the number of clusters in a
+spray filter region behind the vehicle … divided by the length ratio of the spray region to the distance the
+object traveled during one scan" ⇒ Fig. 4 = "clusters generated … during one scan", ~24 @130 km/h fully covered.
+Đã kiểm bằng text paper, không suy từ code. Số cụm **còn sống** = `mean × 4T/Δt` (xoá khi `age > 4T`) ⇒ 1.781
+đo được @130 km/h, `wfh = 1,0 mm`.
 
 ---
 
