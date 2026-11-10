@@ -58,8 +58,9 @@ clip: `docs/figs/plume/v1-audit/compare.mp4`):
 4. Cột 4 = ring id nhưng **không khớp** góc VLP-32C (median `3,49°`) → elevation phải tính từ toạ độ.
 5. `z` mặt đường SemanticSpray = **`−0,411 m`**, không phải `−1,84 m` của nuScenes.
 
-**Next = ticket 26** (`PlumeContext` + state theo scene). Còn một `[CHỌN]` phải chốt trước ticket 28:
-đơn vị `wfh` trong `T` — mét (v1) cho `0,20 s`, mm (paper) cho `1,80 s @130 km/h`.
+**Next = ticket 26** (`PlumeContext` + state theo scene). Đã chốt `[CHỌN 2026-11-10 — user]`: `wfh` dùng
+**mm cho cả hai công thức** ⇒ `T = 1,80 s @130 km/h` (vệt 65 m), `T = 0,80 s @80 km/h` (vệt 17,8 m),
+xoá khi `age > 4T`. Không trộn đơn vị; ticket 28 dùng một hằng `wfh_unit: mm`.
 
 **Sau v2:** dose–response eval trên ckpt cũ (10×, 20×) + control camera-off (~1 h GPU) → chọn liều →
 train lại 2 arm 10.000 bước (~6,7 h). Ba hướng A/B/C cũ vẫn giữ nguyên thứ tự B → A → C, nhưng **chỉ

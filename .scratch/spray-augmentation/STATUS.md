@@ -101,8 +101,9 @@ Nghiệm thu: `issues/25-measure-zero-gpu.md` §PM nghiệm thu.
 **Trần dữ liệu:** `0 %` frame dưới 50 km/h, nhưng **16,33 % (2.844 frame) đúng 50 km/h** ⇒ `mean = 0` cụm,
 tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng hoặc loại khỏi mẫu dose–response.
 
-**Còn mở `[CHỌN]`:** đơn vị `wfh` trong `T = 0,02·wfh·(v−50)+0,2` — mét (v1) cho `0,20 s`, mm (paper) cho
-**1,80 s @130 km/h** (vệt 65 m). Chốt **trước ticket 28**.
+**Đã chốt `[CHỌN 2026-11-10 — user]`:** `wfh` dùng **mm cho cả hai công thức** (`count` và `T`), không trộn
+đơn vị. Hệ quả chấp nhận: `T = 1,80 s @130 km/h` ⇒ vệt `65 m`, xoá khi `age > 4T = 7,2 s`;
+`T = 0,80 s @80 km/h` ⇒ vệt `17,8 m`. Ticket 28 dùng một hằng `wfh_unit: mm`.
 
 ## Bảng ticket
 

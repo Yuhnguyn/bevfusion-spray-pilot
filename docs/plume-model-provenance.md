@@ -108,9 +108,12 @@ số cụm và công thức thời gian sống đều nhân với `wfh`.
 | cùng công thức, `wfh = 1` (mm, paper) | 0,20 | 0,40 | 0,80 | 1,20 | 1,80 |
 
 v1 chạy nhánh mét ⇒ `T ≈ 0,20 s` ở mọi tốc độ, `K ≈ 2,51` coi như hằng. Đó là **hệ quả của đơn vị**, không
-phải hằng số vật lý: nếu đọc `wfh = 1 mm` là số `1,0` thì `T(130 km/h) = 0,84 s`… `1,80 s` tuỳ công thức
-khấu trừ, tức **sai 4–9×** so với v1. Phải ghi đơn vị bên cạnh **mọi** chỗ dùng `wfh`, và chốt một đơn vị
-duy nhất cho v2 (`wfh_unit: mm`) trước khi sửa generator.
+phải hằng số vật lý: nếu đọc `wfh = 1 mm` là số `1,0` thì `T(130 km/h) = 1,80 s`, tức **sai 9×** so với v1.
+Phải ghi đơn vị bên cạnh **mọi** chỗ dùng `wfh`.
+
+**`[CHỌN 2026-11-10 — user chốt]`:** v2 dùng **mm cho cả `count` và `T`**, không trộn đơn vị. Hệ quả chấp
+nhận: `T = 1,80 s @130 km/h` ⇒ vệt `v·T = 65 m`, xoá khi `age > 4T = 7,2 s`. v1 chạy nhánh mét nên
+**không có vệt dài** — đây là một phần vì sao can thiệp v1 yếu, không chỉ vì mật độ cụm.
 
 ## Mật độ 3 box (12 / 22 / 38 m, 80 km/h, seed 0–4)
 

@@ -84,7 +84,20 @@ Kiểm chéo bằng số, khớp:
 
 Với mm, `T` **phụ thuộc tốc độ** (1,8 s @130 ⇒ vệt dài `v·T = 65 m`, xoá khi `age > 4T` = 7,2 s);
 với mét, `T ≈ 0,20 s` ở mọi tốc độ và vệt gần như đứng yên. v1 vô tình chọn nhánh "mét" nên
-**không có vệt dài**. Đây là `[CHỌN]` cần user chốt trước ticket 28/30 (xem STATUS).
+**không có vệt dài**.
+
+**`[CHỌN 2026-11-10 — user chốt]` = mm cho CẢ HAI công thức.** Không trộn đơn vị: `wfh` là một đại lượng,
+dùng mm ở chỗ sinh cụm thì dùng mm ở chỗ tính `T`. Hệ quả đã biết và được chấp nhận:
+
+| v (km/h) | 50 | 60 | 80 | 100 | 130 |
+|---|---:|---:|---:|---:|---:|
+| `T` (s), `wfh = 1` mm | 0,20 | 0,40 | 0,80 | 1,20 | 1,80 |
+| vệt `v·T` (m) | — (0 cụm) | 6,7 | 17,8 | 33,3 | **65,0** |
+| xoá khi `age > 4T` (s) | 0,8 | 1,6 | 3,2 | 4,8 | 7,2 |
+
+Với `wfh ~ exp(0,1…1,2)` mm `[PAPER]` §IV, `T(130)` nằm trong `0,36 … 2,12 s` tuỳ cụm. Ticket 28 dùng
+**một** hằng `wfh_unit: mm` cho cả `count` và `T`; ticket 31 đối chiếu độ dài vệt sinh ra với vệt thật
+(36/207 scene có box + nhãn spray).
 
 Code tham chiếu đọc `surface_water_film()` của OSI `[CODE]` `dee.cpp:181`, mà OSI quy định đơn vị
 **mét**; repo **không kèm file scenario** nào đặt giá trị này (`grep surface_water_film` ngoài `.cpp/.hpp`
