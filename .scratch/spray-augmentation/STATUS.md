@@ -139,7 +139,7 @@ tức 0 điểm spray dù vượt ngưỡng kích hoạt 40 km/h. Báo riêng ho
 | 26 | Hợp đồng dữ liệu `PlumeContext` + state theo scene | **done** | 3 file; **200 passed, 4 skipped** (+8 test); `inject_plume` không đổi chữ ký. Nghiệm thu: `issues/26-plume-context-contract.md` §PM |
 | 27 | Bước 0 — wet ground (port `dee.cpp`, không vendor CC BY-NC) | **done** (27a/b) | **227 passed, 4 skipped**; frame thật `points_in=14576 attenuated=2821`; `points_clean` giữ sạch (PM kiểm); mặc định tắt. Nghiệm thu: `issues/27-wet-ground.md` §PM |
 | 28 | Bước 1–3 — vùng sau đuôi, sinh cụm, vòng đời | **done** (28a/b/c) | **217 passed, 4 skipped**. Vệt trong tầm **73,7 m @130 km/h** (trước 7,3 m); marker `PLUME_STATE` 7 khoá; D6 đã sửa. Còn tồn sang 30/31: trần 2.000 cắt 45–82 %, điểm/cụm lệch 6× so với paper. Nghiệm thu: `issues/28-plume-volume-lifetime.md` §PM |
-| 29 | Bước 4–5 — ray casting, attenuation, strongest return | **next (29a)** | `issues/29-ray-casting-attenuation.md`; bảng beam đo được: `docs/plume-beam-table.md` |
+| 29 | Bước 4–5 — ray casting, attenuation, strongest return | **29a done, 29b next** | `spray/beam_model.py` + bảng đo `spray/config/beam_elevation.yaml` (20 beam, az step 0,197°); **232 passed, 4 skipped** |
 | 30 | Intensity, ring, seed theo epoch, cap | blocked by 29 | `issues/30-intensity-ring-seed-cap.md` |
 | 31 | Nghiệm thu thống kê + render + audit độc lập | blocked by 25–30 | `issues/31-acceptance-v2.md` |
 

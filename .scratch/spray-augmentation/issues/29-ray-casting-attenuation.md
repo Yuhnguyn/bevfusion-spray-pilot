@@ -17,8 +17,10 @@ beam, (b) không bao giờ làm mất tín hiệu của vật thật phía sau.
 
 ## Việc phải làm
 
-1. `spray/beam_model.py` — nạp 32 elevation từ ticket 25; hàm giao tia × cầu (vector hoá,
-   trả `(t0, t1)` hoặc rỗng).
+1. `spray/beam_model.py` — nạp elevation từ **bảng đo** (không phải bảng hãng, xem
+   `docs/plume-beam-table.md`); hàm giao tia × cầu (vector hoá, trả `(t0, t1)` hoặc rỗng).
+   **Đã sửa 2026-11-11:** bản release chỉ còn **20 beam** (ring 0…19), bảng VLP-32C lệch median
+   3,49° nên không dùng; bảng đo ổn định ±0,13–0,36° giữa 120 frame.
 2. `spray/plume.py` — vòng lặp: cho mỗi beam thật (azimuth lấy từ scan), cho mỗi cụm:
    cắt → `P`; sample; sinh detection tại `N((t0+t1)/2, (t1−t0)/6)`.
 3. Attenuation: cộng dồn `L` = tổng chiều dài tia trong các cụm **trước** điểm; nhân
