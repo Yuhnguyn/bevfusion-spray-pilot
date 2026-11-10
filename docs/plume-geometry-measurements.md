@@ -1,97 +1,121 @@
-# Hình học plume: nhãn thật vs mô phỏng — đo theo thang tốc độ
+# Hình học plume: nhãn thật vs mô phỏng — đo theo thang 50–130 km/h
 
-Script: `scripts/measure_plume_geometry.py` (tất định, chạy lại cho cùng số).
-Nhãn spray = giá trị `2` trong `labels/*.label` (README dòng 91–94).
-Mô phỏng: `PlumeState` + `PlumeContext` với `wfh = 1,0 mm`, xe dẫn ở 20 m,
-`dt = 0,1 s`, `ego_speed = object_speed` (đúng như metadata: hai giá trị bằng nhau
-ở 207/207 scene).
+Hai script, đều tất định, chạy lại cho cùng số:
+
+| Script | Đo gì |
+|---|---|
+| `scripts/measure_plume_geometry.py` | vị trí 3D của cum mô phỏng vs điểm spray thật, theo từng mức tốc độ |
+| `scripts/measure_spray_height.py` | độ cao điểm spray trên **mặt đường đã fit** (khử pitch/roll), quy ra % chiều cao box |
+
+Nhãn spray = giá trị `2` trong `labels/*.label`. Mô phỏng: `PlumeState` + `PlumeContext`,
+`wfh = 1,0 mm`, xe dẫn ở 20 m, `dt = 0,1 s`, `ego_speed = object_speed` (đúng metadata:
+hai giá trị bằng nhau ở 207/207 scene).
 
 ## A. Nhãn thật — spray nằm ở đâu `[ĐO]`
 
 2 scene mỗi mức tốc độ, tối đa 60 frame/scene:
 
-| km/h | điểm spray/frame | range p5 / **med** / p95 (m) | elevation med | phân bố range |
-|---:|---:|---:|---:|---|
-| 50 | 65 | 3,39 / **3,84** / 20,57 | 7,14° | 54,2 % trong 2–4 m |
-| 60 | 162 | 3,38 / **7,45** / 16,43 | 7,34° | 76,3 % trong 4–12 m |
-| 70 | 471 | 3,41 / **8,16** / 14,79 | 9,54° | 74,9 % trong 6–12 m |
-| 80 | 878 | 3,72 / **9,09** / 17,45 | 8,16° | 73,0 % trong 6–12 m |
-| 90 | 1.059 | 3,69 / **8,33** / 15,92 | 8,08° | 71,5 % trong 6–12 m |
-| 100 | 1.555 | 3,68 / **7,98** / 16,28 | 8,94° | 69,8 % trong 6–12 m |
-| 110 | 1.399 | 3,66 / **8,17** / 17,45 | 8,24° | 69,2 % trong 6–12 m |
-| 120 | 950 | 3,52 / **7,99** / 16,52 | 8,61° | 69,0 % trong 6–12 m |
-| 130 | 807 | 3,38 / **7,35** / 15,73 | 9,18° | 63,8 % trong 6–12 m |
+| km/h | điểm/frame | range p5 / **med** / p95 (m) | elevation med | x p5 / **med** / p95 (m) | % điểm **sau** cảm biến |
+|---:|---:|---|---:|---|---:|
+| 50 | 65 | 3,39 / **3,84** / 20,57 | 7,14° | −7,8 / **+3,7** / 20,5 | 34,9 % |
+| 60 | 162 | 3,38 / **7,45** / 16,43 | 7,34° | −10,5 / **−4,8** / 17,0 | 69,5 % |
+| 70 | 471 | 3,41 / **8,16** / 14,79 | 9,54° | −13,5 / **−7,1** / 8,5 | 93,1 % |
+| 80 | 878 | 3,72 / **9,09** / 17,45 | 8,16° | −12,2 / **+3,7** / 17,1 | 41,2 % |
+| 90 | 1.059 | 3,69 / **8,33** / 15,92 | 8,08° | −14,3 / **−5,5** / 14,0 | 62,9 % |
+| 100 | 1.555 | 3,68 / **7,98** / 16,28 | 8,94° | −15,5 / **−5,7** / 12,2 | 68,6 % |
+| 110 | 1.399 | 3,66 / **8,17** / 17,45 | 8,24° | −15,4 / **−5,1** / 14,2 | 62,6 % |
+| 120 | 950 | 3,52 / **7,99** / 16,52 | 8,61° | −14,0 / **−4,9** / 14,0 | 62,2 % |
+| 130 | 807 | 3,38 / **7,35** / 15,73 | 9,18° | −14,2 / **−4,9** / 12,2 | 68,6 % |
 
-Ba tính chất quan trọng, đều **không** phụ thuộc tốc độ:
+Bốn tính chất, đều **không** phụ thuộc tốc độ:
 
-1. **Range median 7,3–9,1 m** ở mọi tốc độ ≥60; p95 **14,8–20,6 m**. Plume luôn nằm
-   giữa ego và xe dẫn, cách cảm biến dưới 20 m, không phải một vệt dài hàng trăm mét.
-2. **Elevation median 7,1–9,5°**, tức đám nước ở **cao hơn cảm biến ~0,9–1,4 m**
-   (tại range 8 m: `8·tan(8°) ≈ 1,1 m`). Nước bắn lên từ bánh, không nằm sát mặt đường.
-3. **Số điểm/frame không đơn điệu**: 65 → 1.555 (đỉnh ở 100 km/h) → 807 (130 km/h).
+1. **Range median 7,3–9,1 m** ở mọi tốc độ ≥60; p95 14,8–20,6 m. Plume luôn nằm trong
+   20 m quanh cảm biến, không phải vệt dài hàng trăm mét.
+2. **62–93 % điểm spray nằm SAU cảm biến** (`x < 0`), median `x ≈ −5 m`. Nước bắn ra từ
+   bánh xe dẫn, rồi xe mang cảm biến **vượt qua** đám nước đó. Plume thật trải từ
+   `x ≈ −14 m` (p5) tới `x ≈ +14 m` (p95), tức cả hai phía cảm biến.
+3. **Độ cao trên mặt đường**: p5 **0,16 m** / med **1,51 m** / p95 **2,36 m**
+   (n = 939.803 điểm, gộp 9 mức tốc độ) = **6,1 % / 57,8 % / 90,2 %** chiều cao box
+   (2,6206 m). Nước bắn lên tới gần nóc xe, không nằm sát mặt đường.
+4. **Bề ngang**: `|y|` p5 **0,06** / med **0,63** / p95 **2,31 m** — hẹp ở giữa, tản ra
+   ±2,3 m.
 
-## B. Mô phỏng — cấu hình hiện tại sai ở tốc độ cao `[ĐO]`
+Nhiệt độ nghiêng xe (pitch fit từ mặt đường) chỉ **+0,05…+0,12°** ⇒ phép đo elevation
+không bị nhiễu pitch; hai khung "độ cao trên mặt đường" và "range" cho cùng kết luận.
 
-90 frame, 30 frame cuối lấy trung vị:
+## B. Mô phỏng hiện tại — sai ở tốc độ cao `[ĐO]`
 
-| km/h | cụm sống | range med | p95 | elevation med |
-|---:|---:|---:|---:|---:|
-| 50 | **0** | — | — | — |
-| 60 | 51 | 9,83 | 16,2 | 7,60° |
-| 70 | 155 | 10,65 | 28,3 | 6,29° |
-| 80 | 302 | 13,99 | 50,3 | 4,51° |
-| 90 | 497 | 22,27 | 75,1 | 2,96° |
-| 100 | 738 | 37,43 | 104,0 | 1,98° |
-| 110 | 1.030 | 54,62 | 136,4 | 1,41° |
-| 120 | 1.354 | 73,03 | 170,0 | 1,07° |
-| 130 | 1.700 | **91,01** | **204,3** | **0,85°** |
+90 frame, lấy trung vị 30 frame cuối. Cấu hình hiện tại: khối sau đuôi 0–1,5 m trên mặt
+đường, chỉ xoá theo `age > 4T`.
 
-**Lỗi 1 — vệt kéo dài vô hạn ở tốc độ cao.** Ở 130 km/h mô phỏng cho range median
-**91 m**, thật là **7,35 m** (lệch **12×**), p95 204 m so với 15,7 m (lệch **13×**).
+| km/h | cụm sống | range med | p95 | elevation med | x med | % sau cảm biến |
+|---:|---:|---:|---:|---:|---:|---:|
+| 50 | **0** | — | — | — | — | — |
+| 60 | 51 | 9,83 | 16,2 | 7,60° | +8,1 | 21,8 % |
+| 70 | 155 | 10,65 | 28,3 | 6,29° | +0,6 | 48,6 % |
+| 80 | 302 | 13,99 | 50,3 | 4,51° | −9,5 | 65,5 % |
+| 90 | 497 | 22,27 | 75,1 | 2,96° | −22,0 | 75,5 % |
+| 100 | 738 | 37,43 | 104,0 | 1,98° | −37,2 | 82,1 % |
+| 110 | 1.030 | 54,62 | 136,4 | 1,41° | −54,5 | 86,2 % |
+| 120 | 1.354 | 73,03 | 170,0 | 1,07° | −72,9 | 88,7 % |
+| 130 | 1.700 | **91,01** | **204,3** | **0,85°** | **−90,8** | 90,7 % |
 
-Nguyên nhân: `advance()` chỉ rút vận tốc cụm về **vận tốc gió (1,77 m/s)**, nên trong
-hệ ego cụm rơi lại phía sau với tốc độ ≈ `v_ego`, suốt cả `4T` = 7,2 s. Quãng đường
-tương đối = 36,1 × 7,2 ≈ 260 m. Luật xoá duy nhất hiện có là `age > 4T`.
+**Lỗi 1 — vệt kéo dài vô hạn.** Ở 130 km/h range median **91 m** (thật 7,35 m, lệch
+**12×**), p95 **204 m** (thật 15,7 m). Nguyên nhân: `advance()` chỉ rút vận tốc cụm về
+**vận tốc gió 1,77 m/s**, nên trong hệ ego cụm rơi lại với tốc độ ≈ `v_ego` suốt
+`4T` = 7,2 s ⇒ 36,1 × 7,2 ≈ 260 m. Luật xoá duy nhất hiện có là `age > 4T`.
 
-**Lỗi 2 — plume nằm quá thấp.** Elevation median mô phỏng 0,85–7,60° (giảm khi tốc độ
-tăng vì plume lan xa), thật 7,1–9,5°. Khối sau đuôi hiện đặt `z` từ mặt đường lên
-1,5 m (đỉnh +1,09 m trong hệ cảm biến), trong khi nhãn thật cho z ≈ **1,2–1,4 m**.
+**Lỗi 2 — plume nằm quá thấp.** Khối phủ 0–1,5 m (0–57 % chiều cao box), trung vị 28,6 %,
+trong khi nhãn thật có trung vị **57,8 %**; elevation median mô phỏng **0,85–7,60°** so
+với thật **7,1–9,5°**, và càng sai khi tốc độ tăng.
 
-## C. Sửa bằng hình học, không bằng hằng số `[ĐO]`
+## C. Sửa bằng hình học, không bằng hằng số mới `[ĐO]`
 
-Thêm **một** luật: xoá cụm khi nó đã đi qua cảm biến (`pos[0] < 0`). Không đổi `T`,
-không đổi `P_det`, không đổi `C`.
+Ba luật, mỗi luật lấy từ một số đo ở mục A. Không đổi `T`, không đổi `P_det`, không đổi `C`.
 
-| km/h | cụm sống | range med | p95 | elevation med | nhãn thật: range med / p95 |
-|---:|---:|---:|---:|---:|---:|
-| 50 | **0** | — | — | — | 3,84 / 20,57 |
-| 60 | 40 | 10,78 | 15,9 | 5,96° | 7,45 / 16,43 |
-| 70 | 80 | 9,77 | 15,8 | 5,34° | 8,16 / 14,79 |
-| 80 | 104 | 9,44 | 15,6 | 5,09° | 9,09 / 17,45 |
-| 90 | 122 | 9,37 | 15,5 | 4,57° | 8,33 / 15,92 |
-| 100 | 132 | 9,46 | 15,5 | 4,33° | 7,98 / 16,28 |
-| 110 | 142 | 9,19 | 15,4 | 4,22° | 8,17 / 17,45 |
-| 120 | 150 | 8,78 | 15,3 | 4,18° | 7,99 / 16,52 |
-| 130 | 154 | 9,03 | 15,4 | 3,96° | 7,35 / 15,73 |
+**(1) Cắt cụm khi đã ra khỏi vùng thật có spray: `x < −15 m`** (p5 của nhãn thật).
 
-Sau khi thêm luật, range median **8,78–10,78 m** so với thật **7,35–9,09 m** (lệch
-≤ 1,7 m), p95 **15,3–15,9 m** so với thật **14,8–20,6 m**. Sai lệch 12× biến mất, và
-**không cần chỉnh một tham số nào của paper**.
+| km/h | cụm sống | range med | p95 | elevation med | x p5 / med / p95 | % sau cảm biến | `\|y\|` p95 |
+|---:|---:|---:|---:|---:|---|---:|---:|
+| 60 | 50 | 9,63 | 15,8 | 5,96° | −7,8 / +8,5 / 15,7 | 19,5 % | 3,1 |
+| 70 | 126 | 8,93 | 15,4 | 5,34° | −12,6 / +4,4 / 15,4 | 36,6 % | 3,3 |
+| 80 | 177 | 8,68 | 15,2 | 5,09° | −13,0 / +2,9 / 15,1 | 41,1 % | 3,1 |
+| 90 | 210 | 8,56 | 15,1 | 4,57° | −13,3 / +2,5 / 15,0 | 41,8 % | 2,9 |
+| 100 | 231 | 8,51 | 15,0 | 4,33° | −13,2 / +2,4 / 14,9 | 42,9 % | 2,8 |
+| 110 | 248 | 8,48 | 15,0 | 4,22° | −12,9 / +2,4 / 14,8 | 42,9 % | 2,6 |
+| 120 | 264 | 8,26 | 14,8 | 4,18° | −13,3 / +2,4 / 14,6 | 42,7 % | 2,5 |
+| 130 | 274 | 8,24 | 14,8 | 3,96° | −13,4 / +1,8 / 14,6 | 43,7 % | 2,4 |
 
-Còn lại hai việc, cả hai đều có số:
+Range median **8,2–9,6 m** (thật 7,3–9,1), p95 **14,8–15,8** (thật 14,8–20,6), `|y|` p95
+**2,4–3,3 m** (thật **2,31 m**) — khớp, và bề ngang 3,4 m đang hardcode **đúng**, không
+cần sửa.
 
-1. **Nâng khối sau đuôi** để elevation median khớp 7,1–9,5°: khối hiện phủ 0–1,5 m trên
-   mặt đường (đỉnh +1,09 m trong hệ cảm biến), cần phủ khoảng **1,1–1,9 m trên mặt
-   đường** để med rơi vào 0,9–1,4 m như nhãn thật.
-2. **Lỗ ở 50 km/h**: công thức `mean = (0,2·wfh + 0,1)(v − 50)` cho **0 cụm**, nhưng
-   nhãn thật có **65 điểm/frame**. 24 scene (16,33 % frame) ở đúng 50 km/h sẽ **không
-   được tăng cường gì**. Đây là xung đột dữ liệu ↔ công thức, đã ghi ở ticket 31, chưa
-   quyết định.
+**(2) Nâng khối theo chiều cao xe dẫn**, không theo mét tuyệt đối: khối phủ
+**5 %–92 % chiều cao box** (với van 2,6206 m ⇒ **0,13–2,41 m** trên mặt đường).
+
+| km/h | elevation med mô phỏng | elevation med nhãn thật |
+|---:|---:|---:|
+| 70 | 11,02° | 9,54° |
+| 100 | 9,52° | 8,94° |
+| 130 | 8,92° | 9,18° |
+
+**(3) `wfh` độc lập với tốc độ** — không phải luật hình học mà là ràng buộc của paper:
+`wfh` sample mỗi frame từ `exp(0,1…1,2) mm`, không suy từ `v`. Hiện **chưa có** chỗ nào
+sample `wfh`: `PlumeContext` nhận `wfh_mm` từ ngoài, `from_sample()` chưa được nối vào
+adapter nào. Cần một adapter dataset làm việc này trước khi chạy augmentation thật.
 
 ## D. Hệ quả cho vòng sinh detection
 
 Với `n_max` đo được và range thật 7–10 m: cụm bán kính 0,3 m tại 9 m chiếm **1,91°**,
 tức `1,91/0,333 ≈ 5,7` mức elevation × `1,91/0,197 ≈ 9,7` bước phương vị ≈ **55 ô góc**.
-Với `P_det ≈ 0,19`, mỗi cụm cho ~10 detection trước bước giữ echo mạnh nhất. 154 cụm
-sống ⇒ cùng cỡ **807–1.555 điểm/frame** mà nhãn thật có. Nghĩa là trần
-`max_injected_points = 2000` (lỗi D7) **không còn là nút cổ chai** khi hình học đã đúng.
+`P_det ≈ 0,19` ⇒ ~10 detection/cụm trước bước giữ echo mạnh nhất. 274 cụm sống ⇒ cùng cỡ
+**807–1.555 điểm/frame** mà nhãn thật có. Trần `max_injected_points = 2000` (lỗi D7)
+**không còn là nút cổ chai** khi hình học đã đúng.
+
+## E. Điều chỉnh lại điều PM nói trước đó
+
+PM từng đề "nâng khối lên **1,1–1,9 m**". Con số đó suy từ `8·tan(8°)` ở một cự ly duy
+nhất, chỉ là **dải trung vị**, và không chuyển được sang xe khác. Số đúng — đo trực tiếp
+trên 939.803 điểm — là **5 %–92 % chiều cao box**, kiểm lại bằng elevation median
+(bảng mục C(2)). PM cũng từng đề cắt cụm khi `x < 0`; số đo ở mục A cho thấy **62–93 %
+spray thật nằm ở `x < 0`**, nên ngưỡng đúng là **`x < −15 m`**, không phải `x < 0`.

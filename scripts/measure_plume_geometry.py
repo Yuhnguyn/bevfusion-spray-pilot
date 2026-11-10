@@ -82,6 +82,7 @@ def real_spray(scenes: list[str], max_frames: int) -> tuple[int, np.ndarray, np.
     counts: list[int] = []
     ranges: list[np.ndarray] = []
     elevations: list[np.ndarray] = []
+    xs: list[np.ndarray] = []
     for scene in scenes:
         scene_dir = DATASET / scene
         for path in sorted((scene_dir / "velodyne").glob("*.bin"))[:max_frames]:
@@ -96,6 +97,7 @@ def real_spray(scenes: list[str], max_frames: int) -> tuple[int, np.ndarray, np.
             counts.append(spray.shape[0])
             if spray.size:
                 ranges.append(np.linalg.norm(spray[:, :3], axis=1))
+                xs.append(spray[:, 0])
                 elevations.append(
                     np.degrees(
                         np.arctan2(spray[:, 2], np.hypot(spray[:, 0], spray[:, 1]))
@@ -104,7 +106,8 @@ def real_spray(scenes: list[str], max_frames: int) -> tuple[int, np.ndarray, np.
     med_points = int(np.median(counts)) if counts else 0
     flat_r = np.concatenate(ranges) if ranges else np.empty(0)
     flat_e = np.concatenate(elevations) if elevations else np.empty(0)
-    return med_points, flat_r, flat_e
+    flat_x = np.concatenate(xs) if xs else np.empty(0)
+    return med_points, flat_r, flat_e, flat_x
 
 
 def simulate(
@@ -114,6 +117,9 @@ def simulate(
     *,
     fov_prune: bool,
     verbose: bool,
+    behind_limit: float = -15.0,
+    block_bottom_frac: float = 0.0,
+    block_top_frac: float = 1.5 / 2.6206,
 ) -> dict[str, float]:
     speed_mps = speed_kmh / 3.6
     state = PlumeState()
@@ -130,15 +136,14 @@ def simulate(
         object_velocity_ego_mps=np.zeros(3, dtype=np.float64),
     )
     block_length = speed_mps * DT_S
+    road_z = BOX_Z_M - BOX_HEIGHT_M / 2.0
+    block_low = road_z + block_bottom_frac * BOX_HEIGHT_M
+    block_high = road_z + block_top_frac * BOX_HEIGHT_M
     centre = np.array(
-        [
-            distance_m - (BOX_LENGTH_M / 2.0 + block_length / 2.0),
-            0.0,
-            BOX_Z_M - BOX_HEIGHT_M / 2.0 + TAIL_BLOCK_HEIGHT_M / 2.0,
-        ]
+        [distance_m - (BOX_LENGTH_M / 2.0 + block_length / 2.0), 0.0, (block_low + block_high) / 2.0]
     )
     extents = np.array(
-        [block_length / 2.0, TAIL_BLOCK_WIDTH_M / 2.0, TAIL_BLOCK_HEIGHT_M / 2.0]
+        [block_length / 2.0, TAIL_BLOCK_WIDTH_M / 2.0, (block_high - block_low) / 2.0]
     )
 
     per_frame: list[np.ndarray] = []
@@ -156,7 +161,7 @@ def simulate(
                 cohort[cluster.cluster_id] = []
         if fov_prune:
             for cluster in state.all_alive():
-                if cluster.pos[0] < 0.0:
+                if cluster.pos[0] < behind_limit:
                     cluster.age = float("inf")
             state.prune()
         alive = state.all_alive()
@@ -179,6 +184,7 @@ def simulate(
     elevations = np.degrees(
         np.arctan2(positions[:, 2], np.hypot(positions[:, 0], positions[:, 1]))
     )
+    lateral = positions[:, 1]
     alive_med = float(np.median([p.shape[0] for p in per_frame[-30:]]))
     if verbose:
         print(f"   mo phong: cum song med {alive_med:.0f} | range {_stats(ranges)}")
@@ -198,6 +204,11 @@ def simulate(
         "range_med": float(np.median(ranges)),
         "range_p95": float(np.percentile(ranges, 95)),
         "elev_med": float(np.median(elevations)),
+        "x_med": float(np.median(positions[:, 0])),
+        "x_p5": float(np.percentile(positions[:, 0], 5)),
+        "x_p95": float(np.percentile(positions[:, 0], 95)),
+        "behind_share": float(100.0 * np.mean(positions[:, 0] < 0.0)),
+        "y_p95": float(np.percentile(np.abs(lateral), 95)),
     }
 
 
@@ -207,6 +218,20 @@ def main() -> None:
     parser.add_argument("--distance", type=float, default=20.0)
     parser.add_argument("--scenes-per-speed", type=int, default=2)
     parser.add_argument("--max-real-frames", type=int, default=60)
+    parser.add_argument(
+        "--behind-limit",
+        type=float,
+        default=-15.0,
+        help="drop clusters once they fall this far behind the sensor (m)",
+    )
+    parser.add_argument(
+        "--block-frac",
+        type=float,
+        nargs=2,
+        default=[0.0, 1.5 / 2.6206],
+        metavar=("BOTTOM", "TOP"),
+        help="tail block vertical span as a fraction of the leading box height",
+    )
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -218,13 +243,15 @@ def main() -> None:
         scenes = table.get(speed, [])[: args.scenes_per_speed]
         if not scenes:
             continue
-        points, ranges, elevations = real_spray(scenes, args.max_real_frames)
+        points, ranges, elevations, xs = real_spray(scenes, args.max_real_frames)
         real[speed] = (points, ranges, elevations)
         if ranges.size:
             print(
                 f"  {speed:5.0f} | {points:10d} | {np.percentile(ranges, 5):5.2f} /"
                 f" {np.median(ranges):5.2f} / {np.percentile(ranges, 95):5.2f}"
-                f" | {np.median(elevations):5.2f} do | {_histogram(ranges, [0, 2, 4, 6, 8, 12, 20, 60])}"
+                f" | elev {np.median(elevations):5.2f} do"
+                f" | x {np.percentile(xs, 5):6.1f}/{np.median(xs):6.1f}/{np.percentile(xs, 95):6.1f}"
+                f" | sau cam bien {100.0 * np.mean(xs < 0):5.1f}%"
             )
 
     for fov_prune in (False, True):
@@ -233,15 +260,24 @@ def main() -> None:
         print("  km/h | song med | range med | p95 | elevation med | nhan that: diem/frame, range med")
         for speed in SPEEDS_KMH:
             result = simulate(
-                speed, args.frames, args.distance, fov_prune=fov_prune, verbose=args.verbose
+                speed,
+                args.frames,
+                args.distance,
+                fov_prune=fov_prune,
+                verbose=args.verbose,
+                behind_limit=args.behind_limit,
+                block_bottom_frac=args.block_frac[0],
+                block_top_frac=args.block_frac[1],
             )
             if not result:
                 continue
             points, ranges, _ = real[speed]
             print(
                 f"  {speed:5.0f} | {result['alive_med']:8.0f} | {result['range_med']:9.2f} |"
-                f" {result['range_p95']:5.1f} | {result['elev_med']:13.2f} |"
-                f" {points:4d} diem, {np.median(ranges):5.2f} m"
+                f" {result['range_p95']:5.1f} | x {result['x_p5']:6.1f}/{result['x_med']:6.1f}"
+                f"/{result['x_p95']:6.1f} | sau cam bien {result['behind_share']:5.1f}%"
+                f" | |y| p95 {result['y_p95']:4.1f} | that: {points:4d} diem,"
+                f" range {np.median(ranges):5.2f} m"
             )
 
 
