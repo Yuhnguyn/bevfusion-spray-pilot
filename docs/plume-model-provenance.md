@@ -115,6 +115,12 @@ Phải ghi đơn vị bên cạnh **mọi** chỗ dùng `wfh`.
 nhận: `T = 1,80 s @130 km/h` ⇒ vệt `v·T = 65 m`, xoá khi `age > 4T = 7,2 s`. v1 chạy nhánh mét nên
 **không có vệt dài** — đây là một phần vì sao can thiệp v1 yếu, không chỉ vì mật độ cụm.
 
+**`[CHỌN 2026-11-10 — user chốt]` Hai tốc độ, hai vai.** `count` và `T` dùng **tốc độ tuyệt đối** (xe dẫn so
+với mặt đường, `object_speed_mps`); vận tốc đầu của cụm và advection dùng **tốc độ tương đối** so với ego
+(`object_speed_mps − ego_speed_mps`). Lý do: lượng nước bắn lên tỉ lệ với quãng mặt đường ướt bánh lăn qua
+mỗi giây; còn chuyển động nhìn thấy được trong point cloud là chuyển động trong hệ ego. Bằng chứng loại
+phương án "dùng `v_rel` cho tất cả": SemanticSpray có `v_rel ≈ 0` ở 207/207 scene nhưng vẫn có spray thật.
+
 ## Mật độ 3 box (12 / 22 / 38 m, 80 km/h, seed 0–4)
 
 Tái lập bằng `scripts/plume_density_table.py`. Frame nền tổng hợp 1.000 điểm, 3 box phía trước,

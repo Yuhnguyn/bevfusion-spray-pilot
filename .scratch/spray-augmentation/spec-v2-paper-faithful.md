@@ -106,6 +106,20 @@ là hai dữ kiện cùng đúng — ta theo paper vì đó là chuẩn của d�
 
 Ghi trong config: `wfh_unit: mm`. Ticket 31 đối chiếu lại bằng số cụm **và** độ dài vệt thực sinh.
 
+**Tốc độ — hai vai, không gộp** `[CHỌN 2026-11-10 — user chốt]`:
+
+| Vai | Dùng biến nào | Vì sao |
+|---|---|---|
+| Sinh bao nhiêu nước: `count`, `T` | **`v_abs`** — xe dẫn so với mặt đường | Lượng nước bắn lên tỉ lệ với số mét mặt đường ướt mà bánh lăn qua mỗi giây. 80 km/h quét gấp đôi 40 km/h |
+| Vệt trôi đi đâu: vận tốc đầu + advection | **`v_rel`** — xe dẫn so với ego | Point cloud ở hệ ego; giọt nước chỉ trôi tương đối so với ego rồi giảm tốc vì cản gió. Dùng `v_abs` sẽ phóng giọt ra khỏi cảnh trong 1 frame |
+
+Bằng chứng `v_rel` **không thể** là biến sinh cụm: SemanticSpray có `object_velocity == ego_velocity` ở
+207/207 scene (`v_rel ≈ 0`, đo từ box ≤ 6,26 km/h) nhưng dữ liệu **vẫn có spray thật** (24–44 điểm nhãn `2`
+mỗi frame). Nếu `count = f(v_rel)` thì ra 0 cụm — trái dữ liệu.
+
+Trong `PlumeContext` hai số này là hai trường riêng: `object_speed_mps` (`v_abs`) và hiệu
+`object_speed_mps − ego_speed_mps` (`v_rel`).
+
 ---
 
 ## 2. Hợp đồng dữ liệu
