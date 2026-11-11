@@ -1,4 +1,4 @@
-# 29c: sửa 6 lỗi — ray casting + liều (dose)
+# 29c: sửa 7 lỗi — ray casting + liều (dose)
 
 **Type:** task
 **Status:** ready-for-agent
@@ -18,6 +18,7 @@
 | Khối sau đuôi | `plume.py:115–116` cao `1,5 m` cứng |
 | **Số cụm/chu kỳ (MỚI)** | `(0,2·wfh+0,1)·(v−50)` [CODE, dee.cpp] cho **9/15/24** cụm mỗi 0,1 s ở 80/100/130 km/h ⇒ **436 cụm/frame** @130 ướt đẫm; paper (Fig. 11b) là **~75**. Sai **4–6×**, và gán phụ thuộc ẩm vào sai biến |
 | **det/cụm (MỚI)** | 807–1.555 điểm ÷ 436 cụm ≈ **2–3,5** det/cụm; paper Fig. 1 = **14,3** |
+| **Phân bố ngang (MỚI)** | `plume.py:255` `lateral = rng.normal(0, 0,5)` ⇒ `p95(|lateral|) ≈ 0,98 m`; paper dùng **phân bố đều**, số thật `p95(|y|) = 2,31 m` ⇒ plume bám trục hẹp **~2,4×**, che vật thể nhiều hơn thực |
 
 ## Việc phải làm
 
@@ -57,6 +58,18 @@
    đúng cửa sổ đo được 807–1.555. Nếu tổng điểm tụt khỏi cửa sổ thì hiệu chỉnh **median
    `points_per_cluster`** (`plume.py:78–88`, đang là `[CODE]`), **không** đổi dạng `P_det`
    (lognormal mỗi cụm Fig. 7 bốc `n`, Bernoulli mỗi tia `n/n_max`) và **không** nâng trần điểm.
+9. **Phân bố ngang của tâm cụm: đều, không Gaussian** `[PAPER]` §III-B:
+   *"spheres are positioned with a uniform distribution in the region behind every moving object
+   according to the empirical values for the number of clusters and the distribution of cluster
+   radii"*, *"A uniform distribution was chosen as a first estimate, as no other form of distribution
+   was visible."* Và §III: *"The initialization of clusters is restricted to the vehicle trajectory
+   and no clusters are spawned randomly in the scene."*
+
+   Thay `rng.normal(0, lateral_sigma_m)` (`plume.py:255`) bằng phân bố **đều** trên `±half_width`.
+   `half_width` **không chọn tay**: đo `p95(|y − y_tâm_box|)` của điểm nhiễu thật trên `cal` bằng
+   `spray/semantic_stats.py` rồi đặt `half_width` sao cho phân bố đều cho cùng p95 (đều trên `±a`
+   có `p95 = 0,95·a`). Số tham chiếu đang có: `p95(|y|) = 2,31 m` ⇒ `half_width ≈ 2,4 m`, nhưng
+   **phải đo lại theo hiệu với tâm box**, không bê nguyên `2,31 m`. In cả hai số.
 
 ## Tiêu chí nghiệm thu
 
@@ -71,6 +84,8 @@
       `wfh = 1,0` (mốc: 10,5·21·41,5 và 29,5·43·74,5). In bảng paper-vs-code.
 - [ ] **det/cụm** median ở 100 km/h, `wfh = 1,0` trong **12–17** (paper 14,3).
 - [ ] Tổng điểm spray/frame vẫn trong **807–1.555**; `capped` không tăng.
+- [ ] `p95(|lateral|)` của cụm sinh ra khớp `p95(|y − y_box|)` đo trên `cal` trong **±10 %**; phân bố
+      là đều (test: histogram 10 bin, χ² không bác `p > 0,01`), không còn `rng.normal` cho `lateral`.
 - [ ] Biên bản nghiệm thu ghi trong ticket này: số đo trước/sau, phần chưa khớp.
 
 ## Cấm
