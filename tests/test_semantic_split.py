@@ -65,6 +65,34 @@ def _itr_grid_metas(velocities=(50.0, 60.0), distances=(20.0, 30.0)):
     return metas
 
 
+def _three_per_cell_metas(velocities=(50.0, 60.0), distances=(20.0, 30.0)):
+    metas = []
+    for group in GROUPS:
+        for velocity in velocities:
+            for distance in distances:
+                for index in range(3):
+                    scene = f"{int(velocity):03d}_{int(distance):02d}_{index:02d}"
+                    metas.append(
+                        _meta(
+                            group,
+                            scene,
+                            velocity,
+                            distance,
+                            itr=index + 1,
+                        )
+                    )
+    return metas
+
+
+def _cal_metas(metas, split):
+    cal_rel_paths = {
+        rel_path
+        for cell in split["cells"]
+        for rel_path in cell["scenes"][ROLE_CAL]
+    }
+    return [meta for meta in metas if meta.rel_path in cal_rel_paths]
+
+
 def _metrics(**overrides):
     values = {
         "G1": 100.0,
@@ -183,16 +211,170 @@ def test_dump_is_byte_identical_and_verify_detects_one_role_change(tmp_path):
     assert moved in problems[0]
 
 
-def test_halves_are_alternating_disjoint_and_stable():
-    paths = [f"scene_{index}" for index in range(5)]
+def test_halves_partitions_cal_disjointly_and_is_stable():
+    metas = [
+        _meta(
+            "Crafter_dynamic",
+            f"scene_{index:02d}",
+            50.0,
+            20.0,
+            itr=index % 3 + 1,
+        )
+        for index in range(6)
+    ]
 
-    first, second = halves(paths)
+    first, second = halves(metas)
 
-    assert first == paths[::2]
-    assert second == paths[1::2]
     assert not set(first) & set(second)
-    assert set(first) | set(second) == set(paths)
-    assert halves(paths) == (first, second)
+    assert set(first) | set(second) == {meta.rel_path for meta in metas}
+    assert halves(metas) == (first, second)
+
+
+def test_halves_balance_itr_after_water_within_each_group():
+    metas = _three_per_cell_metas()
+    split = build_split(metas)
+    cal_metas = _cal_metas(metas, split)
+    by_rel_path = {meta.rel_path: meta for meta in cal_metas}
+
+    first, second = halves(cal_metas)
+
+    assert not set(first) & set(second)
+    assert set(first) | set(second) == set(by_rel_path)
+
+    for group in GROUPS:
+        counts_first = Counter(
+            by_rel_path[rel_path].itr_after_water
+            for rel_path in first
+            if by_rel_path[rel_path].group == group
+        )
+        counts_second = Counter(
+            by_rel_path[rel_path].itr_after_water
+            for rel_path in second
+            if by_rel_path[rel_path].group == group
+        )
+        assert counts_first == counts_second
+        assert sum(counts_first.values()) + sum(counts_second.values()) == sum(
+            1 for meta in cal_metas if meta.group == group
+        )
+
+    assert abs(len(first) - len(second)) <= 1
+
+
+def test_halves_balances_odd_strata_at_every_itr_level():
+    metas = []
+    for group in GROUPS:
+        odd_levels = (1, 2, 3, 4, 5, 6) if group == GROUPS[0] else (1, 6)
+        for itr in range(1, 7):
+            count = 3 if itr in odd_levels else 2
+            for index in range(count):
+                metas.append(
+                    _meta(
+                        group,
+                        f"scene_{itr:02d}_{index:02d}",
+                        50.0,
+                        20.0,
+                        itr=itr,
+                    )
+                )
+
+    first, second = halves(metas)
+    by_rel_path = {meta.rel_path: meta for meta in metas}
+
+    for level in range(1, 7):
+        first_level = sum(
+            1
+            for rel_path in first
+            if by_rel_path[rel_path].itr_after_water == level
+        )
+        second_level = sum(
+            1
+            for rel_path in second
+            if by_rel_path[rel_path].itr_after_water == level
+        )
+        assert abs(first_level - second_level) <= 1
+
+    for group in GROUPS:
+        for level in range(1, 7):
+            first_level = sum(
+                1
+                for rel_path in first
+                if by_rel_path[rel_path].group == group
+                and by_rel_path[rel_path].itr_after_water == level
+            )
+            second_level = sum(
+                1
+                for rel_path in second
+                if by_rel_path[rel_path].group == group
+                and by_rel_path[rel_path].itr_after_water == level
+            )
+            assert abs(first_level - second_level) <= 1
+
+    assert abs(len(first) - len(second)) <= 1
+
+
+def test_halves_is_deterministic_under_input_permutation():
+    metas = _itr_grid_metas()
+    split = build_split(metas)
+    cal_metas = _cal_metas(metas, split)
+
+    expected = halves(cal_metas)
+
+    assert halves(list(reversed(cal_metas))) == expected
+    rotated = cal_metas[7:] + cal_metas[:7]
+    assert halves(rotated) == expected
+
+    shuffled = list(cal_metas)
+    for left, right in ((0, 12), (7, 19), (5, 11)):
+        shuffled[left], shuffled[right] = shuffled[right], shuffled[left]
+    assert halves(shuffled) == expected
+
+
+def test_threshold_stays_at_floor_when_half_split_is_huge():
+    metrics_by_role = {
+        ROLE_CAL: _metrics(),
+        ROLE_HELD_OUT: _metrics(G1=101.0),
+        "cal_a": _metrics(),
+        "cal_b": _metrics(G1=150.0),
+    }
+
+    results = evaluate_criteria(metrics_by_role)
+    g1 = next(result for result in results if result.id == "G1")
+
+    assert g1.half_split_delta == pytest.approx(0.5)
+    assert g1.threshold == pytest.approx(0.15)
+    assert g1.passed is True
+
+
+def test_regression_beyond_floor_fails_despite_huge_half_split():
+    metrics_by_role = {
+        ROLE_CAL: _metrics(),
+        ROLE_HELD_OUT: _metrics(G1=145.0),
+        "cal_a": _metrics(),
+        "cal_b": _metrics(G1=300.0),
+    }
+
+    results = evaluate_criteria(metrics_by_role)
+    g1 = next(result for result in results if result.id == "G1")
+
+    assert g1.delta == pytest.approx(45.0)
+    assert g1.threshold == pytest.approx(0.15)
+    assert g1.passed is False
+
+
+def test_observed_beyond_twice_half_split_only_adds_a_note():
+    metrics_by_role = {
+        ROLE_CAL: _metrics(),
+        ROLE_HELD_OUT: _metrics(G1=110.0),
+        "cal_a": _metrics(),
+        "cal_b": _metrics(G1=102.0),
+    }
+
+    results = evaluate_criteria(metrics_by_role)
+    g1 = next(result for result in results if result.id == "G1")
+
+    assert g1.half_split_delta == pytest.approx(0.02)
+    assert g1.passed is True
+    assert "vượt sàn nhiễu nội tại" in g1.note
 
 
 def test_evaluate_criteria_flags_shift_and_missing_data():

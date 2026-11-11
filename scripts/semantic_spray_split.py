@@ -37,6 +37,7 @@ from spray.semantic_split import (  # noqa: E402
     build_split,
     dump_split,
     evaluate_criteria,
+    halves,
     itr_balance,
     load_split,
     read_dataset,
@@ -102,6 +103,7 @@ def measure_roles(
     cal_paths: list[Path],
     held_paths: list[Path],
     frames_per_scene: int,
+    cal_half_by_path: dict[Path, str],
 ) -> dict:
     role_keys = (ROLE_CAL, ROLE_HELD_OUT, "cal_a", "cal_b")
     paper = {role: StatsAccumulator() for role in role_keys}
@@ -146,7 +148,7 @@ def measure_roles(
 
     announce_start(ROLE_CAL, cal_paths)
     for index, scene in enumerate(cal_paths):
-        half = "cal_a" if index % 2 == 0 else "cal_b"
+        half = cal_half_by_path[scene]
         run(scene, (ROLE_CAL, half), (ROLE_CAL,), ROLE_CAL)
         announce_progress(ROLE_CAL, index + 1, len(cal_paths))
     announce_start(ROLE_HELD_OUT, held_paths)
@@ -281,7 +283,7 @@ def _table4(balance: dict) -> list[str]:
 
 def _table2(results: list, metrics_by_role: dict) -> list[str]:
     lines = [
-        "| id | đại lượng | cal | held-out | Δ | Δ_halfsplit | ngưỡng | verdict |",
+        "| id | đại lượng | cal | held-out | Δ | Δ_halfsplit (chẩn đoán) | ngưỡng | verdict |",
         "|---|---|---:|---:|---:|---:|---:|---|",
     ]
     for result in results:
@@ -494,10 +496,11 @@ def render_report(
         "",
         "## Bảng 2 — 7 tiêu chí đóng băng `[ĐO]`",
         "",
-        "Ngưỡng hiệu dụng = `max(sàn, 2 × Δ_halfsplit)`; `Δ_halfsplit` là",
-        "chênh giữa hai nửa xen kẽ của `cal` và chỉ là **sàn nhiễu nội tại**",
-        "`[CHỌN]`. G6 PASS khi cả p5, p50, p95 đạt. G2/G3/G4 dùng DBSCAN góc",
-        "theo recipe paper.",
+        "Ngưỡng = sàn đóng băng của từng tiêu chí, không bao giờ nới.",
+        "`Δ_halfsplit` là chênh giữa hai nửa stratify theo",
+        "`(group, itr_after_water)` của `cal`, chỉ để **chẩn đoán** và không",
+        "tham gia verdict `[CHỌN]`. G6 PASS khi cả p5, p50, p95 đạt.",
+        "G2/G3/G4 dùng DBSCAN góc theo recipe paper.",
         "",
         *_table2(results, metrics_by_role),
         "",
@@ -547,8 +550,9 @@ def render_report(
         "",
         "## Caveats",
         "",
-        "- `Δ_halfsplit` chỉ là sàn nhiễu nội tại của `cal`, không phải "
-        "khoảng tin cậy hình thức `[CHỌN]`.",
+        "- `Δ_halfsplit` chỉ là chẩn đoán nhiễu nội tại của `cal` (hai nửa",
+        "  stratify theo `(group, itr_after_water)`), không phải khoảng tin",
+        "  cậy hình thức và không dùng để nới ngưỡng `[CHỌN]`.",
         "- Cổng dùng DBSCAN góc `minPts = 3`, `eps = 0,7°`, elevation snap "
         "`0,333°`; paper không nói rõ lân cận là hộp hay tròn trong mặt "
         "phẳng góc nên dùng đĩa Euclid `[CHỌN]`. Single-linkage 0,5 m chỉ "
@@ -599,14 +603,32 @@ def _verify(args: argparse.Namespace) -> int:
 
 def _measure(args: argparse.Namespace) -> int:
     split = load_split(args.split)
-    balance = itr_balance(read_dataset(args.data), split)
+    metas = read_dataset(args.data)
+    balance = itr_balance(metas, split)
     cal_paths = role_scenes(split, ROLE_CAL, args.data)
     held_paths = role_scenes(split, ROLE_HELD_OUT, args.data)
     if args.limit_scenes:
         cal_paths = cal_paths[: args.limit_scenes]
         held_paths = held_paths[: args.limit_scenes]
 
-    measured = measure_roles(cal_paths, held_paths, args.frames_per_scene)
+    cal_rel_paths = {
+        rel_path
+        for cell in split.get("cells") or []
+        for rel_path in (cell.get("scenes") or {}).get(ROLE_CAL) or []
+    }
+    cal_metas = [meta for meta in metas if meta.rel_path in cal_rel_paths]
+    first_half, second_half = halves(cal_metas)
+    data_root = Path(args.data)
+    cal_half_by_path = {
+        data_root / rel_path: "cal_a" for rel_path in first_half
+    }
+    cal_half_by_path.update(
+        {data_root / rel_path: "cal_b" for rel_path in second_half}
+    )
+
+    measured = measure_roles(
+        cal_paths, held_paths, args.frames_per_scene, cal_half_by_path
+    )
     results = evaluate_criteria(measured["metrics"])
 
     command = _display_command()
@@ -617,8 +639,16 @@ def _measure(args: argparse.Namespace) -> int:
         "scenes": {
             ROLE_CAL: len(cal_paths),
             ROLE_HELD_OUT: len(held_paths),
-            "cal_a": len(cal_paths[::2]),
-            "cal_b": len(cal_paths[1::2]),
+            "cal_a": sum(
+                1
+                for path in cal_paths
+                if cal_half_by_path[path] == "cal_a"
+            ),
+            "cal_b": sum(
+                1
+                for path in cal_paths
+                if cal_half_by_path[path] == "cal_b"
+            ),
         },
         "skipped": sum(measured["skipped"].values()),
     }

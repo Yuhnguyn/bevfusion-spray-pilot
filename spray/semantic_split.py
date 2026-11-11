@@ -424,11 +424,34 @@ def role_scenes(split: dict, role: str, root: str | Path) -> list[Path]:
     return [base / rel_path for rel_path in rel_paths]
 
 
-def halves(rel_paths: list[str]) -> tuple[list[str], list[str]]:
-    """Split an already sorted list into alternating halves (even, odd)."""
+def halves(metas: list[SceneMeta]) -> tuple[list[str], list[str]]:
+    """Stratify scenes by ``(group, itr_after_water)`` into two halves.
 
-    ordered = list(rel_paths)
-    return ordered[::2], ordered[1::2]
+    Strata are processed level by level; inside each stratum scenes are
+    sorted by ``rel_path`` and assigned alternately to A/B, starting with the
+    half that currently has fewer scenes.  That keeps both halves balanced at
+    every ``itr_after_water`` level without RNG and without depending on the
+    input order.
+    """
+
+    strata: dict[tuple[str, int], list[SceneMeta]] = {}
+    for meta in metas:
+        strata.setdefault((meta.group, meta.itr_after_water), []).append(meta)
+
+    first: list[str] = []
+    second: list[str] = []
+    levels = sorted({meta.itr_after_water for meta in metas})
+    for level in levels:
+        keys = sorted(key for key in strata if key[1] == level)
+        for key in keys:
+            members = sorted(strata[key], key=lambda meta: meta.rel_path)
+            start_first = len(first) <= len(second)
+            for index, meta in enumerate(members):
+                if (index % 2 == 0) == start_first:
+                    first.append(meta.rel_path)
+                else:
+                    second.append(meta.rel_path)
+    return sorted(first), sorted(second)
 
 
 def _finite(value) -> float | None:
@@ -482,12 +505,14 @@ def evaluate_criteria(
 ) -> list[CriterionResult]:
     """Evaluate the frozen G1..G7 gate on ``cal`` vs ``held-out``.
 
-    ``threshold = max(floor, 2 * Δ_halfsplit)`` where ``Δ_halfsplit`` is the
-    gap between the two alternating halves of ``cal``; for G6 it is the largest
-    gap over p5/p50/p95. Relative criteria compare ``|Δ|/cal``; absolute ones
-    compare metres, ratio or degrees directly. Any criterion whose roles lack
-    ``min_frames`` frames or ``min_clusters`` clusters fails with a
-    ``quá ít dữ liệu`` note; thresholds are never widened.
+    The threshold is always the frozen floor (``floor_rel`` or ``floor_abs``)
+    and is never widened. ``Δ_halfsplit`` is the gap between the two
+    stratified halves of ``cal`` (for G6 the largest gap over p5/p50/p95) and
+    is reported for diagnostics only: when the observed gap exceeds twice
+    ``Δ_halfsplit`` a note says so, but the verdict depends only on
+    ``observed <= threshold``. Any criterion whose roles lack ``min_frames``
+    frames or ``min_clusters`` clusters still fails with a
+    ``quá ít dữ liệu`` note.
     """
 
     cal_metrics = metrics_by_role.get(ROLE_CAL) or {}
@@ -557,22 +582,18 @@ def evaluate_criteria(
         if relative:
             base = cal_values[0]
             observed = _relative_gap(deltas[0], base)
-            if half_gap is None:
-                half_delta = math.nan
-                threshold = spec.floor_rel
-            else:
-                half_delta = _relative_gap(half_gap, base)
-                threshold = max(spec.floor_rel, 2.0 * half_delta)
+            half_delta = (
+                _relative_gap(half_gap, base)
+                if half_gap is not None
+                else math.nan
+            )
+            threshold = spec.floor_rel
             passed = observed <= threshold
             note = ""
         elif len(spec.keys) == 1:
             observed = abs(deltas[0])
             half_delta = half_gap if half_gap is not None else math.nan
-            threshold = (
-                max(spec.floor_abs, 2.0 * half_gap)
-                if half_gap is not None
-                else spec.floor_abs
-            )
+            threshold = spec.floor_abs
             passed = observed <= threshold
             note = ""
         else:
@@ -581,11 +602,7 @@ def evaluate_criteria(
             )
             observed = abs(deltas[worst])
             half_delta = half_gap if half_gap is not None else math.nan
-            threshold = (
-                max(spec.floor_abs, 2.0 * half_gap)
-                if half_gap is not None
-                else spec.floor_abs
-            )
+            threshold = spec.floor_abs
             passed = all(abs(delta) <= threshold for delta in deltas)
             note = "; ".join(
                 f"{key}: Δ={delta:+.3f}"
@@ -595,8 +612,15 @@ def evaluate_criteria(
                 note += " — có phân vị vượt ngưỡng"
 
         if half_gap is None:
-            passed = False
-            note = "quá ít dữ liệu: thiếu half-split của cal"
+            note = "; ".join(
+                part
+                for part in (note, "thiếu half-split của cal (chẩn đoán)")
+                if part
+            )
+        elif observed > 2.0 * half_delta:
+            note = "; ".join(
+                part for part in (note, "vượt sàn nhiễu nội tại") if part
+            )
         if gate:
             passed = False
             note = "quá ít dữ liệu: " + "; ".join(gate)
