@@ -1,6 +1,8 @@
-version: semantic-spray-split-v1
-rule: 1:1 trong từng ô (group, object_velocity, distance_to_object); sắp theo tên;
-  xen kẽ cal/held-out; scene dư về cal
+version: semantic-spray-split-v2
+rule_version: v2-parity-flip-by-cell
+rule: 1:1 trong từng ô (group, object_velocity, distance_to_object); sắp theo (itr_after_water,
+  tên); parity đảo theo ô (ô chẵn bắt đầu cal, ô lẻ bắt đầu held-out); scene dư về
+  cal
 counts:
   cal: 104
   held-out: 103
@@ -25,13 +27,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0006_2021-09-08-14-43-47_0
-    - Crafter_dynamic/0008_2021-09-08-14-45-10_0
-    - Crafter_dynamic/0010_2021-09-08-14-46-31_0
-    held-out:
     - Crafter_dynamic/0007_2021-09-08-14-44-32_0
     - Crafter_dynamic/0009_2021-09-08-14-45-57_0
     - Crafter_dynamic/0011_2021-09-08-14-47-19_0
+    held-out:
+    - Crafter_dynamic/0006_2021-09-08-14-43-47_0
+    - Crafter_dynamic/0008_2021-09-08-14-45-10_0
+    - Crafter_dynamic/0010_2021-09-08-14-46-31_0
   unpaired: false
 - key:
     group: Crafter_dynamic
@@ -53,13 +55,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0018_2021-09-08-14-58-08_0
-    - Crafter_dynamic/0020_2021-09-08-14-59-37_0
-    - Crafter_dynamic/0022_2021-09-08-15-01-04_0
-    held-out:
     - Crafter_dynamic/0019_2021-09-08-14-58-55_0
     - Crafter_dynamic/0021_2021-09-08-15-00-20_0
     - Crafter_dynamic/0023_2021-09-08-15-01-50_0
+    held-out:
+    - Crafter_dynamic/0018_2021-09-08-14-58-08_0
+    - Crafter_dynamic/0020_2021-09-08-14-59-37_0
+    - Crafter_dynamic/0022_2021-09-08-15-01-04_0
   unpaired: false
 - key:
     group: Crafter_dynamic
@@ -81,13 +83,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0030_2021-09-08-15-13-19_0
-    - Crafter_dynamic/0032_2021-09-08-15-14-41_0
-    - Crafter_dynamic/0034_2021-09-08-15-16-02_0
-    held-out:
     - Crafter_dynamic/0031_2021-09-08-15-14-01_0
     - Crafter_dynamic/0033_2021-09-08-15-15-24_0
     - Crafter_dynamic/0035_2021-09-08-15-16-46_0
+    held-out:
+    - Crafter_dynamic/0030_2021-09-08-15-13-19_0
+    - Crafter_dynamic/0032_2021-09-08-15-14-41_0
+    - Crafter_dynamic/0034_2021-09-08-15-16-02_0
   unpaired: false
 - key:
     group: Crafter_dynamic
@@ -109,13 +111,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0042_2021-09-08-15-54-21_0
-    - Crafter_dynamic/0044_2021-09-08-15-55-54_0
-    - Crafter_dynamic/0046_2021-09-08-15-57-24_0
-    held-out:
     - Crafter_dynamic/0043_2021-09-08-15-55-09_0
     - Crafter_dynamic/0045_2021-09-08-15-56-38_0
     - Crafter_dynamic/0047_2021-09-08-15-58-08_0
+    held-out:
+    - Crafter_dynamic/0042_2021-09-08-15-54-21_0
+    - Crafter_dynamic/0044_2021-09-08-15-55-54_0
+    - Crafter_dynamic/0046_2021-09-08-15-57-24_0
   unpaired: false
 - key:
     group: Crafter_dynamic
@@ -137,13 +139,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0054_2021-09-08-16-19-50_0
-    - Crafter_dynamic/0056_2021-09-08-16-21-25_0
-    - Crafter_dynamic/0058_2021-09-08-16-23-01_0
-    held-out:
     - Crafter_dynamic/0055_2021-09-08-16-20-37_0
     - Crafter_dynamic/0057_2021-09-08-16-22-11_0
     - Crafter_dynamic/0059_2021-09-08-16-23-49_0
+    held-out:
+    - Crafter_dynamic/0054_2021-09-08-16-19-50_0
+    - Crafter_dynamic/0056_2021-09-08-16-21-25_0
+    - Crafter_dynamic/0058_2021-09-08-16-23-01_0
   unpaired: false
 - key:
     group: Crafter_dynamic
@@ -165,13 +167,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0066_2021-09-08-16-34-39_0
-    - Crafter_dynamic/0068_2021-09-08-16-36-15_0
-    - Crafter_dynamic/0070_2021-09-08-16-37-49_0
-    held-out:
     - Crafter_dynamic/0067_2021-09-08-16-35-27_0
     - Crafter_dynamic/0069_2021-09-08-16-37-02_0
     - Crafter_dynamic/0071_2021-09-08-16-38-37_0
+    held-out:
+    - Crafter_dynamic/0066_2021-09-08-16-34-39_0
+    - Crafter_dynamic/0068_2021-09-08-16-36-15_0
+    - Crafter_dynamic/0070_2021-09-08-16-37-49_0
   unpaired: false
 - key:
     group: Crafter_dynamic
@@ -193,13 +195,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0078_2021-09-08-17-22-14_0
-    - Crafter_dynamic/0080_2021-09-08-17-23-59_0
-    - Crafter_dynamic/0082_2021-09-08-17-25-45_0
-    held-out:
     - Crafter_dynamic/0079_2021-09-08-17-23-05_0
     - Crafter_dynamic/0081_2021-09-08-17-24-52_0
     - Crafter_dynamic/0083_2021-09-08-17-26-43_0
+    held-out:
+    - Crafter_dynamic/0078_2021-09-08-17-22-14_0
+    - Crafter_dynamic/0080_2021-09-08-17-23-59_0
+    - Crafter_dynamic/0082_2021-09-08-17-25-45_0
   unpaired: false
 - key:
     group: Crafter_dynamic
@@ -221,13 +223,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0090_2021-09-08-17-39-56_0
-    - Crafter_dynamic/0092_2021-09-08-17-41-47_0
-    - Crafter_dynamic/0094_2021-09-08-17-43-37_0
-    held-out:
     - Crafter_dynamic/0091_2021-09-08-17-40-50_0
     - Crafter_dynamic/0093_2021-09-08-17-42-41_0
     - Crafter_dynamic/0095_2021-09-08-17-44-32_0
+    held-out:
+    - Crafter_dynamic/0090_2021-09-08-17-39-56_0
+    - Crafter_dynamic/0092_2021-09-08-17-41-47_0
+    - Crafter_dynamic/0094_2021-09-08-17-43-37_0
   unpaired: false
 - key:
     group: Crafter_dynamic
@@ -249,13 +251,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Crafter_dynamic/0102_2021-09-08-17-59-07_0
-    - Crafter_dynamic/0104_2021-09-08-18-01-09_0
-    - Crafter_dynamic/0106_2021-09-08-18-03-12_0
-    held-out:
     - Crafter_dynamic/0103_2021-09-08-18-00-12_0
     - Crafter_dynamic/0105_2021-09-08-18-02-15_0
     - Crafter_dynamic/0107_2021-09-08-18-04-20_0
+    held-out:
+    - Crafter_dynamic/0102_2021-09-08-17-59-07_0
+    - Crafter_dynamic/0104_2021-09-08-18-01-09_0
+    - Crafter_dynamic/0106_2021-09-08-18-03-12_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -277,13 +279,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0012_2021-09-08-08-44-47_0
-    - Golf_dynamic/0014_2021-09-08-08-46-28_0
-    - Golf_dynamic/0016_2021-09-08-08-48-18_0
-    held-out:
     - Golf_dynamic/0013_2021-09-08-08-45-37_0
     - Golf_dynamic/0015_2021-09-08-08-47-22_0
     - Golf_dynamic/0017_2021-09-08-08-49-11_0
+    held-out:
+    - Golf_dynamic/0012_2021-09-08-08-44-47_0
+    - Golf_dynamic/0014_2021-09-08-08-46-28_0
+    - Golf_dynamic/0016_2021-09-08-08-48-18_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -305,13 +307,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0006_2021-09-08-08-36-56_0
-    - Golf_dynamic/0008_2021-09-08-08-38-36_0
-    - Golf_dynamic/0010_2021-09-08-08-40-17_0
-    held-out:
     - Golf_dynamic/0007_2021-09-08-08-37-37_0
     - Golf_dynamic/0009_2021-09-08-08-39-19_0
     - Golf_dynamic/0011_2021-09-08-08-41-11_0
+    held-out:
+    - Golf_dynamic/0006_2021-09-08-08-36-56_0
+    - Golf_dynamic/0008_2021-09-08-08-38-36_0
+    - Golf_dynamic/0010_2021-09-08-08-40-17_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -333,13 +335,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0030_2021-09-08-09-09-05_0
-    - Golf_dynamic/0032_2021-09-08-09-10-45_0
-    - Golf_dynamic/0034_2021-09-08-09-12-31_0
-    held-out:
     - Golf_dynamic/0031_2021-09-08-09-09-56_0
     - Golf_dynamic/0033_2021-09-08-09-11-39_0
     - Golf_dynamic/0035_2021-09-08-09-13-19_0
+    held-out:
+    - Golf_dynamic/0030_2021-09-08-09-09-05_0
+    - Golf_dynamic/0032_2021-09-08-09-10-45_0
+    - Golf_dynamic/0034_2021-09-08-09-12-31_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -361,9 +363,9 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0042_2021-09-08-09-54-42_0
-    held-out:
     - Golf_dynamic/0047_2021-09-08-09-58-44_0
+    held-out:
+    - Golf_dynamic/0042_2021-09-08-09-54-42_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -380,13 +382,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0054_2021-09-08-10-12-42_0
-    - Golf_dynamic/0056_2021-09-08-10-14-27_0
-    - Golf_dynamic/0058_2021-09-08-10-16-15_0
-    held-out:
     - Golf_dynamic/0055_2021-09-08-10-13-34_0
     - Golf_dynamic/0057_2021-09-08-10-15-18_0
     - Golf_dynamic/0059_2021-09-08-10-17-03_0
+    held-out:
+    - Golf_dynamic/0054_2021-09-08-10-12-42_0
+    - Golf_dynamic/0056_2021-09-08-10-14-27_0
+    - Golf_dynamic/0058_2021-09-08-10-16-15_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -408,13 +410,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0066_2021-09-08-10-28-53_0
-    - Golf_dynamic/0068_2021-09-08-10-30-46_0
-    - Golf_dynamic/0070_2021-09-08-10-32-37_0
-    held-out:
     - Golf_dynamic/0067_2021-09-08-10-29-51_0
     - Golf_dynamic/0069_2021-09-08-10-31-40_0
     - Golf_dynamic/0071_2021-09-08-10-33-37_0
+    held-out:
+    - Golf_dynamic/0066_2021-09-08-10-28-53_0
+    - Golf_dynamic/0068_2021-09-08-10-30-46_0
+    - Golf_dynamic/0070_2021-09-08-10-32-37_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -436,13 +438,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0078_2021-09-08-11-23-11_0
-    - Golf_dynamic/0080_2021-09-08-11-25-05_0
-    - Golf_dynamic/0082_2021-09-08-11-27-05_0
-    held-out:
     - Golf_dynamic/0079_2021-09-08-11-24-08_0
     - Golf_dynamic/0081_2021-09-08-11-26-13_0
     - Golf_dynamic/0083_2021-09-08-11-28-08_0
+    held-out:
+    - Golf_dynamic/0078_2021-09-08-11-23-11_0
+    - Golf_dynamic/0080_2021-09-08-11-25-05_0
+    - Golf_dynamic/0082_2021-09-08-11-27-05_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -464,13 +466,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0090_2021-09-08-11-40-49_0
-    - Golf_dynamic/0092_2021-09-08-11-42-48_0
-    - Golf_dynamic/0094_2021-09-08-11-44-47_0
-    held-out:
     - Golf_dynamic/0091_2021-09-08-11-41-50_0
     - Golf_dynamic/0093_2021-09-08-11-43-50_0
     - Golf_dynamic/0095_2021-09-08-11-45-47_0
+    held-out:
+    - Golf_dynamic/0090_2021-09-08-11-40-49_0
+    - Golf_dynamic/0092_2021-09-08-11-42-48_0
+    - Golf_dynamic/0094_2021-09-08-11-44-47_0
   unpaired: false
 - key:
     group: Golf_dynamic
@@ -492,13 +494,13 @@ cells:
     distance_m: 30.0
   scenes:
     cal:
-    - Golf_dynamic/0102_2021-09-08-12-00-19_0
-    - Golf_dynamic/0104_2021-09-08-12-03-10_0
-    - Golf_dynamic/0106_2021-09-08-12-05-11_0
-    held-out:
     - Golf_dynamic/0103_2021-09-08-12-02-13_0
     - Golf_dynamic/0105_2021-09-08-12-04-10_0
     - Golf_dynamic/0107_2021-09-08-12-06-10_0
+    held-out:
+    - Golf_dynamic/0102_2021-09-08-12-00-19_0
+    - Golf_dynamic/0104_2021-09-08-12-03-10_0
+    - Golf_dynamic/0106_2021-09-08-12-05-11_0
   unpaired: false
 criteria:
 - id: G1

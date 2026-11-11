@@ -3,10 +3,23 @@
 The split rule is frozen (``[CHỌN 2026-11-11]``):
 
 * a cell is ``(group, object_velocity_kmh, distance_to_object_m)``;
-* inside a cell the scenes are sorted by relative path and assigned alternately
-  ``cal``, ``held-out`` (even index -> ``cal``);
+* inside a cell the scenes are sorted by ``(itr_after_water, rel_path)`` and
+  assigned alternately, with the starting role flipped for every other cell
+  (even cell index starts at ``cal``, odd cell index starts at ``held-out``);
 * an odd cell keeps its extra scene in ``cal`` and is flagged ``unpaired``;
 * no RNG, so the same input always gives the same output.
+
+Rule v1 sorted only by relative path and always started at ``cal``.  The
+measurement runs inside a cell are ordered by ``itr_after_water`` (1..6) and
+the water tank gets emptier after every run, so v1 systematically put
+``cal`` into iterations 1, 3, 5 (fresh water, larger plume) and ``held-out``
+into 2, 4, 6 (depleted water).  That produced a 44.6 % noise/frame gap and
+failed G1/G6/G7 even though the two roles covered exactly the same cells.
+
+Rule v2 sorts by ``itr_after_water`` and flips the parity per cell, so every
+role receives the same number of scenes at every ``w_itr`` level.  Consequence:
+comparing the two roles *inside a single cell* is no longer meaningful (their
+iterations differ by construction); only role-level aggregates may be used.
 
 It exists so generator parameters are never selected and validated on the same
 scenes: ``cal`` may select parameters, ``held-out`` may only be used to check
@@ -24,12 +37,14 @@ import yaml
 
 ROLE_CAL = "cal"
 ROLE_HELD_OUT = "held-out"
-SPLIT_VERSION = "semantic-spray-split-v1"
+RULE_VERSION = "v2-parity-flip-by-cell"
+SPLIT_VERSION = "semantic-spray-split-v2"
 GROUPS = ("Crafter_dynamic", "Golf_dynamic")
 
 SPLIT_RULE = (
     "1:1 trong từng ô (group, object_velocity, distance_to_object); "
-    "sắp theo tên; xen kẽ cal/held-out; scene dư về cal"
+    "sắp theo (itr_after_water, tên); parity đảo theo ô (ô chẵn bắt đầu cal, "
+    "ô lẻ bắt đầu held-out); scene dư về cal"
 )
 
 _REQUIRED_COLUMNS = (
@@ -188,20 +203,59 @@ def cell_key(meta: SceneMeta) -> tuple[str, float, float]:
 
 
 def assign_roles(metas: list[SceneMeta]) -> dict[str, str]:
-    """Assign ``cal``/``held-out`` by alternating inside each sorted cell."""
+    """Assign ``cal``/``held-out`` by alternating inside each sorted cell.
+
+    Members are ordered by ``(itr_after_water, rel_path)`` and the starting
+    role flips with the cell index, so both roles get the same number of
+    scenes at every ``w_itr`` level.  In an odd cell the extra scene always
+    goes to ``cal``.
+    """
 
     cells: dict[tuple[str, float, float], list[SceneMeta]] = {}
     for meta in metas:
         cells.setdefault(cell_key(meta), []).append(meta)
 
     roles: dict[str, str] = {}
-    for key in sorted(cells):
-        members = sorted(cells[key], key=lambda meta: meta.rel_path)
+    for cell_index, key in enumerate(sorted(cells)):
+        members = sorted(
+            cells[key],
+            key=lambda meta: (meta.itr_after_water, meta.rel_path),
+        )
+        offset = cell_index % 2
+        odd = bool(len(members) % 2)
         for index, meta in enumerate(members):
+            if odd and index == len(members) - 1:
+                roles[meta.rel_path] = ROLE_CAL
+                continue
             roles[meta.rel_path] = (
-                ROLE_CAL if index % 2 == 0 else ROLE_HELD_OUT
+                ROLE_CAL if (index + offset) % 2 == 0 else ROLE_HELD_OUT
             )
     return roles
+
+
+def itr_balance(
+    metas: list[SceneMeta], split: dict
+) -> dict[str, dict[str, dict[int, int]]]:
+    """Count scenes per ``group``, ``role`` and ``itr_after_water`` level.
+
+    Returns ``{group: {role: {itr: count}}}``.  Only levels that actually
+    occur are present; missing levels are absent rather than zero.
+    """
+
+    roles = _role_map(split)
+    table: dict[str, dict[str, dict[int, int]]] = {}
+    for meta in sorted(metas, key=lambda meta: meta.rel_path):
+        role = roles.get(meta.rel_path)
+        if role is None:
+            raise ValueError(f"scene not in split: {meta.rel_path}")
+        per_group = table.setdefault(
+            meta.group, {ROLE_CAL: {}, ROLE_HELD_OUT: {}}
+        )
+        per_role = per_group[role]
+        per_role[meta.itr_after_water] = (
+            per_role.get(meta.itr_after_water, 0) + 1
+        )
+    return table
 
 
 def _criteria_table() -> list[dict]:
@@ -252,6 +306,7 @@ def build_split(metas: list[SceneMeta]) -> dict:
 
     return {
         "version": SPLIT_VERSION,
+        "rule_version": RULE_VERSION,
         "rule": SPLIT_RULE,
         "counts": counts,
         "cells": rows,
@@ -316,6 +371,12 @@ def verify_split(split: dict, path: str | Path) -> list[str]:
         problems.append(
             f"version: expected {split.get('version')!r}, "
             f"got {on_disk.get('version')!r}"
+        )
+
+    if split.get("rule_version") != on_disk.get("rule_version"):
+        problems.append(
+            f"rule_version: expected {split.get('rule_version')!r}, "
+            f"got {on_disk.get('rule_version')!r}"
         )
 
     if split.get("counts") != on_disk.get("counts"):

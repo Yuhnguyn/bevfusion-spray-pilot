@@ -1,3 +1,5 @@
+from collections import Counter
+
 import yaml
 import pytest
 
@@ -5,6 +7,7 @@ from spray.semantic_split import (
     GROUPS,
     ROLE_CAL,
     ROLE_HELD_OUT,
+    RULE_VERSION,
     SPLIT_VERSION,
     SceneMeta,
     assign_roles,
@@ -12,6 +15,7 @@ from spray.semantic_split import (
     dump_split,
     evaluate_criteria,
     halves,
+    itr_balance,
     load_split,
     verify_split,
 )
@@ -39,6 +43,25 @@ def _grid_metas(per_cell=6):
                 for index in range(per_cell):
                     scene = f"{int(velocity):03d}_{int(distance):02d}_{index:02d}"
                     metas.append(_meta(group, scene, velocity, distance))
+    return metas
+
+
+def _itr_grid_metas(velocities=(50.0, 60.0), distances=(20.0, 30.0)):
+    metas = []
+    for group in GROUPS:
+        for velocity in velocities:
+            for distance in distances:
+                for index in range(6):
+                    scene = f"{int(velocity):03d}_{int(distance):02d}_{index:02d}"
+                    metas.append(
+                        _meta(
+                            group,
+                            scene,
+                            velocity,
+                            distance,
+                            itr=index + 1,
+                        )
+                    )
     return metas
 
 
@@ -207,3 +230,116 @@ def test_evaluate_criteria_flags_shift_and_missing_data():
     assert all(
         "quá ít dữ liệu" in result.note for result in starved_results
     )
+
+
+def test_itr_after_water_counts_match_between_roles_per_group_and_globally():
+    metas = _itr_grid_metas()
+    split = build_split(metas)
+    balance = itr_balance(metas, split)
+
+    assert split["version"] == SPLIT_VERSION
+    assert split["rule_version"] == RULE_VERSION
+
+    for group in GROUPS:
+        cal = Counter(balance[group][ROLE_CAL])
+        held = Counter(balance[group][ROLE_HELD_OUT])
+        assert cal == held
+        assert set(cal) == {1, 2, 3, 4, 5, 6}
+        assert set(cal.values()) == {2}
+
+    global_cal = Counter()
+    global_held = Counter()
+    for group in GROUPS:
+        global_cal.update(balance[group][ROLE_CAL])
+        global_held.update(balance[group][ROLE_HELD_OUT])
+    assert global_cal == global_held
+    assert set(global_cal.values()) == {4}
+
+
+def test_assign_roles_orders_by_itr_after_water_not_by_name():
+    metas = [
+        _meta(
+            "Crafter_dynamic",
+            f"scene_{5 - index:02d}",
+            50.0,
+            20.0,
+            itr=index + 1,
+        )
+        for index in range(6)
+    ]
+
+    roles = assign_roles(metas)
+
+    assert roles["Crafter_dynamic/scene_05"] == ROLE_CAL
+    assert roles["Crafter_dynamic/scene_03"] == ROLE_CAL
+    assert roles["Crafter_dynamic/scene_01"] == ROLE_CAL
+    assert roles["Crafter_dynamic/scene_04"] == ROLE_HELD_OUT
+    assert roles["Crafter_dynamic/scene_02"] == ROLE_HELD_OUT
+    assert roles["Crafter_dynamic/scene_00"] == ROLE_HELD_OUT
+
+
+def test_odd_cells_keep_extra_scene_in_cal():
+    metas = [
+        _meta(
+            "Crafter_dynamic",
+            f"five_{index}",
+            50.0,
+            20.0,
+            itr=index + 1,
+        )
+        for index in range(5)
+    ]
+    metas.append(_meta("Golf_dynamic", "single", 60.0, 20.0, itr=3))
+
+    split = build_split(metas)
+    cells = {
+        (
+            cell["key"]["group"],
+            cell["key"]["velocity_kmh"],
+            cell["key"]["distance_m"],
+        ): cell
+        for cell in split["cells"]
+    }
+
+    five = cells[("Crafter_dynamic", 50.0, 20.0)]
+    assert len(five["scenes"][ROLE_CAL]) == 3
+    assert len(five["scenes"][ROLE_HELD_OUT]) == 2
+    assert five["unpaired"] is True
+
+    single = cells[("Golf_dynamic", 60.0, 20.0)]
+    assert single["scenes"][ROLE_CAL] == ["Golf_dynamic/single"]
+    assert single["scenes"][ROLE_HELD_OUT] == []
+    assert single["unpaired"] is True
+
+
+def test_itr_balance_helper_counts_and_rejects_unknown_scene():
+    metas = _itr_grid_metas()
+    split = build_split(metas)
+
+    balance = itr_balance(metas, split)
+
+    assert set(balance) == set(GROUPS)
+    for group in GROUPS:
+        assert sum(balance[group][ROLE_CAL].values()) == 12
+        assert sum(balance[group][ROLE_HELD_OUT].values()) == 12
+
+    with pytest.raises(ValueError):
+        itr_balance(
+            metas + [_meta("Crafter_dynamic", "ghost", 70.0, 20.0, itr=1)],
+            split,
+        )
+
+
+def test_assign_roles_is_deterministic_with_itr_ordering():
+    metas = _itr_grid_metas()
+
+    expected = assign_roles(metas)
+
+    assert assign_roles(list(reversed(metas))) == expected
+    rotated = metas[5:] + metas[:5]
+    assert assign_roles(rotated) == expected
+
+    shuffled = list(metas)
+    for left, right in ((0, 40), (7, 31), (13, 23)):
+        shuffled[left], shuffled[right] = shuffled[right], shuffled[left]
+    assert assign_roles(shuffled) == expected

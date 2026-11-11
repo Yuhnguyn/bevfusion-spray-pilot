@@ -21,6 +21,7 @@ import argparse
 import math
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -29,11 +30,14 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from spray.semantic_split import (  # noqa: E402
+    GROUPS,
     ROLE_CAL,
     ROLE_HELD_OUT,
+    RULE_VERSION,
     build_split,
     dump_split,
     evaluate_criteria,
+    itr_balance,
     load_split,
     read_dataset,
     role_scenes,
@@ -104,6 +108,22 @@ def measure_roles(
     legacy = {role: StatsAccumulator() for role in role_keys}
     frames = {role: 0 for role in role_keys}
     skipped = {ROLE_CAL: 0, ROLE_HELD_OUT: 0}
+    started = time.monotonic()
+
+    def announce_start(role: str, paths: list[Path]) -> None:
+        print(
+            f"MEASURE_START role={role} scenes={len(paths)} "
+            f"frames_per_scene={frames_per_scene}",
+            flush=True,
+        )
+
+    def announce_progress(role: str, position: int, total: int) -> None:
+        if position % 10 == 0 or position == total:
+            print(
+                f"MEASURE_PROGRESS role={role} scene={position}/{total} "
+                f"frames={frames[role]}",
+                flush=True,
+            )
 
     def run(
         scene: Path,
@@ -124,11 +144,22 @@ def measure_roles(
             for name in legacy_roles:
                 legacy[name].add(frames_for_recipe["legacy"])
 
+    announce_start(ROLE_CAL, cal_paths)
     for index, scene in enumerate(cal_paths):
         half = "cal_a" if index % 2 == 0 else "cal_b"
         run(scene, (ROLE_CAL, half), (ROLE_CAL,), ROLE_CAL)
-    for scene in held_paths:
+        announce_progress(ROLE_CAL, index + 1, len(cal_paths))
+    announce_start(ROLE_HELD_OUT, held_paths)
+    for index, scene in enumerate(held_paths):
         run(scene, (ROLE_HELD_OUT,), (ROLE_HELD_OUT,), ROLE_HELD_OUT)
+        announce_progress(ROLE_HELD_OUT, index + 1, len(held_paths))
+
+    print(
+        f"MEASURE_DONE elapsed={time.monotonic() - started:.1f} "
+        f"frames={frames[ROLE_CAL] + frames[ROLE_HELD_OUT]} "
+        f"skipped={sum(skipped.values())}",
+        flush=True,
+    )
 
     summaries = {
         role: paper[role].summary() for role in role_keys
@@ -202,6 +233,48 @@ def _table1(split: dict) -> list[str]:
             f"{key['distance_m']:.1f} | {len(cal) + len(held)} | "
             f"{len(cal)} | {len(held)} | "
             f"{'yes' if cell['unpaired'] else 'no'} |"
+        )
+    return lines
+
+
+def _table4(balance: dict) -> list[str]:
+    levels = sorted(
+        {
+            level
+            for per_group in balance.values()
+            for per_role in per_group.values()
+            for level in per_role
+        }
+    )
+    lines = [
+        "| group | vai | "
+        + " | ".join(f"w={level}" for level in levels)
+        + " | tổng |",
+        "|---|---|" + "---:|" * len(levels) + "---:|",
+    ]
+
+    totals = {
+        ROLE_CAL: {level: 0 for level in levels},
+        ROLE_HELD_OUT: {level: 0 for level in levels},
+    }
+    for group in (group for group in GROUPS if group in balance):
+        for role in (ROLE_CAL, ROLE_HELD_OUT):
+            counts = balance[group][role]
+            for level in levels:
+                totals[role][level] += counts.get(level, 0)
+            cells = " | ".join(
+                str(counts.get(level, 0)) for level in levels
+            )
+            lines.append(
+                f"| {group} | {role} | {cells} | "
+                f"{sum(counts.values())} |"
+            )
+
+    for role in (ROLE_CAL, ROLE_HELD_OUT):
+        cells = " | ".join(str(totals[role][level]) for level in levels)
+        lines.append(
+            f"| toàn cục | {role} | {cells} | "
+            f"{sum(totals[role].values())} |"
         )
     return lines
 
@@ -333,6 +406,7 @@ def render_report(
     measured: dict,
     results: list,
     sample: dict,
+    balance: dict,
 ) -> str:
     summaries = measured["summaries"]
     metrics_by_role = measured["metrics"]
@@ -340,13 +414,31 @@ def render_report(
     lines = [
         "# Cổng chia `cal` / `held-out` cho SemanticSpray",
         "",
+        "## Luật chia",
+        "",
+        f"- rule: `{RULE_VERSION}`",
+        "- ngày: 2026-11-11",
+        "- lý do đổi luật: trong mỗi ô, `metadata.txt` ghi `itr_after_water`",
+        "  1…6 đúng theo thứ tự tên file và bể nước vơi dần sau mỗi lần đo.",
+        "  Luật v1 sắp theo tên rồi luôn bắt đầu bằng `cal`, nên `cal` rơi vào",
+        "  các lần đo 1/3/5 (nước vừa thay, plume lớn) còn `held-out` vào",
+        "  2/4/6 (nước đã vơi); đo 8 frame/scene cho thấy noise/frame chênh",
+        "  1,62 lần, khớp với Δ −44,6 % của G1 và kéo theo G6/G7. v2 sắp theo",
+        "  `(itr_after_water, tên)` và đảo parity theo ô để hai vai bằng nhau",
+        "  ở từng mốc `w_itr`.",
+        "- hệ quả: so sánh hai vai **trong cùng một ô** không còn nghĩa vì",
+        "  chúng đo ở chu kỳ nước khác nhau; chỉ aggregate theo vai mới dùng được.",
+        "",
+        "> Số liệu của luật v1 (`SPLIT_GATE ok=False failed=[G1,G6,G7]`)",
+        "> **không dùng nữa**. Mọi bảng dưới đây sinh lại bằng luật v2.",
+        "",
         "## Bối cảnh",
         "",
         "Tham số generator v2 đang được đo trên toàn bộ 207 scene rồi báo cáo",
         "khớp trên chính 207 scene đó, nên mọi con số là in-sample. Cổng này",
         "chia dataset thành `cal` (được chọn tham số) và `held-out` (chỉ dùng để",
-        "kiểm) theo luật đóng băng `[CHỌN 2026-11-11]`: 1:1 trong từng ô, sắp",
-        "theo tên, xen kẽ, scene dư về `cal`, không RNG. Cổng chỉ PASS khi 7/7",
+        "kiểm) theo luật v2: 1:1 trong từng ô, sắp theo `itr_after_water`, đảo",
+        "parity theo ô, scene dư về `cal`, không RNG. Cổng chỉ PASS khi 7/7",
         "tiêu chí đạt; `held-out` không được dùng để chọn tham số.",
         "",
         "## Mẫu",
@@ -382,6 +474,23 @@ def render_report(
         "## Bảng 1 — Split theo ô",
         "",
         *_table1(split),
+        "",
+        "## Bảng 4 — Cân bằng `itr_after_water`",
+        "",
+        "Số scene mỗi mốc `w_itr` phải bằng nhau giữa `cal` và `held-out`, cho",
+        "từng group và toàn cục. Bảng tính trên toàn bộ split, không phụ thuộc",
+        "`--limit-scenes`.",
+        "",
+        *_table4(balance),
+        "",
+        "- 34 ô đủ 6 scene: `cal` và `held-out` bằng nhau tuyệt đối ở cả 6 mốc",
+        "  (mỗi vai 3 scene/mốc/ô).",
+        "- Ô `Golf_dynamic` 80 km/h / 30 m chỉ có 2 scene (`w_itr` 1 và 6), ô",
+        "  `Golf_dynamic` 90 km/h / 20 m chỉ có 1 scene (`w_itr` 1). Vì tổng",
+        "  toàn cục ở mốc `w=6` là **35** (lẻ) nên không thể chia đều: một vai",
+        "  buộc phải nhận 18, vai kia 17. Các mốc `w=1…5` bằng nhau (18/18 rồi",
+        "  17/17), `w=6` lệch đúng 1 scene — đây là dư lượng của dữ liệu, không",
+        "  phải lỗi luật chia.",
         "",
         "## Bảng 2 — 7 tiêu chí đóng băng `[ĐO]`",
         "",
@@ -490,6 +599,7 @@ def _verify(args: argparse.Namespace) -> int:
 
 def _measure(args: argparse.Namespace) -> int:
     split = load_split(args.split)
+    balance = itr_balance(read_dataset(args.data), split)
     cal_paths = role_scenes(split, ROLE_CAL, args.data)
     held_paths = role_scenes(split, ROLE_HELD_OUT, args.data)
     if args.limit_scenes:
@@ -513,7 +623,7 @@ def _measure(args: argparse.Namespace) -> int:
         "skipped": sum(measured["skipped"].values()),
     }
 
-    report = render_report(split, measured, results, sample)
+    report = render_report(split, measured, results, sample, balance)
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(report, encoding="utf-8")
