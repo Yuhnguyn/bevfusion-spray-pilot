@@ -1,4 +1,4 @@
-# 29c: sửa 4 lỗi còn lại của ray casting
+# 29c: sửa 6 lỗi — ray casting + liều (dose)
 
 **Type:** task
 **Status:** ready-for-agent
@@ -16,6 +16,8 @@
 | Marker | `PLUME_RAYCAST` **chưa tồn tại** |
 | Trần điểm | `plume.py:104` `max_injected_points = 2000` (lỗi D7) |
 | Khối sau đuôi | `plume.py:115–116` cao `1,5 m` cứng |
+| **Số cụm/chu kỳ (MỚI)** | `(0,2·wfh+0,1)·(v−50)` [CODE, dee.cpp] cho **9/15/24** cụm mỗi 0,1 s ở 80/100/130 km/h ⇒ **436 cụm/frame** @130 ướt đẫm; paper (Fig. 11b) là **~75**. Sai **4–6×**, và gán phụ thuộc ẩm vào sai biến |
+| **det/cụm (MỚI)** | 807–1.555 điểm ÷ 436 cụm ≈ **2–3,5** det/cụm; paper Fig. 1 = **14,3** |
 
 ## Việc phải làm
 
@@ -37,6 +39,24 @@
    vector hoá bằng cách tăng bộ nhớ vượt 2 GB; đo lại bằng `time.perf_counter` và in số.
 5. **Marker mới** mỗi frame: `PLUME_RAYCAST beams=<n> hit=<n> det=<n> att_m=<L> capped=<n> ms=<t>`.
 6. **Xoá** `spray/config/beam_elevation.yaml`; `beam_model.py` chỉ còn lưới đều.
+7. **Tốc độ sinh cụm theo Fig. 11b** `[PAPER-graph]`, `[CHỌN]` cho dạng hàm.
+   Paper §III-B chỉ cho quy tắc (đếm cụm trong vùng lọc rồi chia cho tỉ lệ độ dài vùng / quãng
+   đường một scan), không in hằng số. Suy ngược bằng chính `K(T) = Σ exp(−k·Δt/T)` của `plume.py`:
+
+   | km/h | paper ướt đẫm | ⇒ cụm/chu kỳ | paper ẩm | ⇒ cụm/chu kỳ | code hiện tại (ướt đẫm / ẩm) |
+   |---:|---:|---:|---:|---:|---:|
+   | 80 | 21 | 2,5 | 10,5 | 1,9 | 9 / 6 |
+   | 100 | 43 | 3,5 | 29,5 | 4,0 | 15 / 10 |
+   | 130 | 74,5 | 4,1 | 41,5 | 4,0 | 24 / 16 |
+
+   ⇒ tốc độ sinh **gần phẳng 3,5–4,1/chu kỳ** khi `v ≥ 100` và **gần như độc lập `wfh`**; độ ẩm
+   chỉ tác động qua `T`. Dạng đề nghị: `rate(v) = min(rate_cap, rate_slope·(v − v0))`, **không**
+   chứa `wfh`, `visible = round(rate × K(T(wfh, v)))`. Fit 2 tham số, in bảng before/after.
+   **Không** đổi `T`, không đổi `age > 4T`.
+8. **Canvas điểm phải khớp lại sau khi giảm số cụm.** Với 75 cụm và 14,3 det/cụm ⇒ ~1.070 điểm/frame,
+   đúng cửa sổ đo được 807–1.555. Nếu tổng điểm tụt khỏi cửa sổ thì hiệu chỉnh **median
+   `points_per_cluster`** (`plume.py:78–88`, đang là `[CODE]`), **không** đổi dạng `P_det`
+   (lognormal mỗi cụm Fig. 7 bốc `n`, Bernoulli mỗi tia `n/n_max`) và **không** nâng trần điểm.
 
 ## Tiêu chí nghiệm thu
 
@@ -47,11 +67,16 @@
 - [ ] Chiều cao điểm sinh ra: p5/med/p95 = **0,16 / 1,51 / 2,36 m** trên mặt đường ±0,15 m.
 - [ ] Latency **< 100 ms/frame** ở 100 cụm, đo trên laptop, in số thật.
 - [ ] `spray/config/beam_elevation.yaml` không còn tồn tại; không file nào reference.
+- [ ] **Cụm/frame khớp Fig. 11b trong ±20 %** tại 80 / 100 / 130 km/h cho **cả** `wfh = 0,5` và
+      `wfh = 1,0` (mốc: 10,5·21·41,5 và 29,5·43·74,5). In bảng paper-vs-code.
+- [ ] **det/cụm** median ở 100 km/h, `wfh = 1,0` trong **12–17** (paper 14,3).
+- [ ] Tổng điểm spray/frame vẫn trong **807–1.555**; `capped` không tăng.
 - [ ] Biên bản nghiệm thu ghi trong ticket này: số đo trước/sau, phần chưa khớp.
 
 ## Cấm
 
-- Không đổi `P_det` (đang đúng paper: lognormal Fig. 7 bốc mỗi cụm, Bernoulli mỗi tia).
+- Không đổi **dạng** `P_det` (lognormal Fig. 7 bốc `n` mỗi cụm, Bernoulli mỗi tia `n/n_max`).
+  Được đổi **tốc độ sinh cụm** (mục 7) và **median `points_per_cluster`** (mục 8) — đó là hai lỗi.
 - Không đổi `T`, `C = −0,15`, `age > 4T`.
 - Không thêm ngưỡng cắt cụm theo mét — p5 của `x` dao động −40,6…+3,7 m giữa hai nửa scene.
 - Không nâng `wfh` hay hệ số nào để khớp số điểm.

@@ -67,6 +67,40 @@ tương ứng `FAIL` với ghi chú `quá ít dữ liệu`, không được nớ
 **Khi FAIL:** ghi nguyên số, kết luận "split không đại diện được cho tham số X", **không** trộn
 `cal` vào `held-out`, **không** đổi luật chia, **không** đổi ngưỡng. Quyết định tiếp theo là của user.
 
+## SỬA 2026-11-11 (sau khi đối chiếu paper, TRƯỚC khi đo full)
+
+`docs/reference/paper-qa-notebooklm.md` §4 ghi paper dùng **DBSCAN `minPts = 3`, neighborhood góc 0,7°,
+elevation discretisation 0,333°** (VLP-32C). Bản brief đầu tiên dùng neighbor Euclid **0,5 m** (lấy từ
+`spray/spray_stats.py` cũ) ⇒ toán tử đếm cụm **không phải recipe paper**. Chốt lại:
+
+| | Cổng `cal` vs `held-out` | Bảng phụ (so với số cũ) |
+|---|---|---|
+| Cụm | **DBSCAN góc**: `eps = 0,7°` trong mặt phẳng (azimuth, elevation), elevation snap lưới **0,333°**, `minPts = 3` | single-linkage **0,5 m** + lọc cụm ≥ 3 điểm |
+| Áp lên `G2`, `G3`, `G4` | ✅ | chỉ để so `17,06` cụm/frame của ticket 16 |
+
+- Đại lượng, ngưỡng sàn và luật chia **không đổi** — chỉ đổi toán tử đếm cụm.
+- `azimuth` wrap ±180° phải xử lý (khoảng cách góc theo modulo 360).
+- Nếu paper (hỏi lại notebook) nói rõ lân cận là **hộp** hay **tròn** trong mặt phẳng góc: theo paper;
+  chưa rõ thì dùng Euclid trong mặt phẳng góc và ghi `[CHỌN]`.
+
+**Đã hỏi lại notebook (2026-11-11, §8.1 của `docs/reference/paper-qa-notebooklm.md`)** — nguyên văn §III-B:
+*"a DBSCAN algorithm is applied to the detections"*, *"applied to the point cloud in spherical coordinates
+to account for the change in Cartesian resolution over distance"*, *"search neighborhood of DBSCAN is set
+to 0.7° to cover at least two scan lines"*, *"three points is defined as the minimum number of points that
+can form a cluster"*. Paper **không** nói hộp hay tròn, **không** nói lân cận có ràng buộc `r` ⇒ chốt:
+`eps = 0,7°` **Euclid trong mặt phẳng `(azimuth, elevation)`**, elevation snap `0,333°`, `minPts = 3`,
+`[CHỌN]` cho hai điểm mơ hồ.
+
+**Số neo để so `[PAPER]`:** 100 km/h, Crafter 50 m → **33** cụm/frame, **14,3** detection/cụm,
+**84,1 %** clustered (Fig. 1 text box); 130 km/h → **~75** cụm đo được (Fig. 11b). Số `17,06` cụm/frame
+trong `docs/measurements/semantic-spray-stats.md` do toán tử `0,5 m` + `dense_min = 5` ⇒ **đếm thiếu**,
+chỉ dùng làm bảng phụ. Ticket 31 **không** được lấy `17,06` làm mốc.
+
+**Protocol của paper khác mình:** paper *"object distances and values, which were not utilized for the
+model calibration, are used on the same data set"* (§IV-1) — giữ **điều kiện**, không chia scene; và có
+bộ dữ liệu thứ hai 1.463 frame. Split scene 1:1 của 29d là `[CHỌN]` của mình; báo cáo phải nói rõ
+điều này, không được trình bày như protocol paper.
+
 ## Việc phải làm
 
 1. `spray/semantic_split.py` — luật chia thuần, đọc/ghi split, lọc scene theo vai, đánh giá 7 tiêu chí

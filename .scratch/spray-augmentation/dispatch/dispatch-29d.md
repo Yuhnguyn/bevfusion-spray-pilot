@@ -229,3 +229,30 @@ Kỳ vọng: **251 passed, 4 skipped** (239 + 12). Nêu số thật vào báo c�
 - Không đổi luật chia / 7 ngưỡng / định nghĩa đại lượng. Không dùng `held-out` để chọn tham số.
 - Không train, không Kaggle, không tải dữ liệu mới, không thêm dependency.
 - Không tự commit; PM nghiệm thu rồi commit.
+## PHỤ LỤC 2026-11-11 (sau khi dispatch, trước khi đo full) — SỬA TOÁN TỬ ĐẾM CỤM
+
+Paper dùng **DBSCAN `minPts = 3`, neighborhood góc `0,7°`, elevation discretisation `0,333°`**
+(`docs/reference/paper-qa-notebooklm.md` §4). Brief gốc dùng neighbor Euclid `0,5 m` ⇒ **cổng `G2/G3/G4`
+phải dùng recipe góc**; `0,5 m` chỉ còn là bảng phụ để so `17,06` cụm/frame của ticket 16.
+
+Yêu cầu bổ sung cho `spray/semantic_stats.py`:
+
+```python
+ELEVATION_STEP_DEG = 0.333
+ANGULAR_EPS_DEG = 0.7
+
+def cluster_angular(points: np.ndarray, *, eps_deg: float = ANGULAR_EPS_DEG,
+                    min_pts: int = MIN_PTS) -> np.ndarray
+    # chỉ nhận điểm noise; trả nhãn cụm int (-1 = không vào cụm nào)
+    # azimuth_deg = degrees(atan2(y, x)); elevation_deg = degrees(atan2(z, hypot(x, y)))
+    # elevation snap về lưới ELEVATION_STEP_DEG (round(el / step) * step)
+    # lân cận: khoảng cách Euclid trong mặt phẳng (az, el) <= eps_deg, azimuth xử lý wrap modulo 360
+    # CORE/border đúng DBSCAN: điểm core khi có >= min_pts điểm (kể cả chính nó) trong eps
+```
+
+`frame_stats(..., recipe="paper")` dùng `cluster_angular`; `frame_stats(..., recipe="legacy")` giữ
+single-linkage `0,5 m` + lọc cụm `>= 3` điểm. `metrics()` báo thêm khoá `legacy_*` cho bảng phụ;
+**cổng chỉ đọc G1..G7 của recipe paper**.
+
+Test bổ sung (≥ 2): cùng một đám điểm, cụm 2 điểm bị loại với `min_pts=3`; hai điểm lệch azimuth
+`359°` và `1°` phải được coi là gần nhau (wrap); elevation lệch `0,34°` snap về cùng một hàng lưới.

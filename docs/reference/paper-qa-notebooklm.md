@@ -89,3 +89,141 @@ nguyên tắc đó: tham số đo trên **train scenes**, eval trên **scene gi�
 | Chiều dài vùng | paper NOT STATED, code `v·Δt` | giữ `[CODE]` |
 | Xoá cụm | paper NOT STATED, code `age > 4T` | giữ `4T` `[CODE]`, **không** thêm ngưỡng mét |
 | Cụm sau cảm biến (62–93 % nhãn thật) | paper NOT STATED; paper có nói **ego cũng là nguồn spray** | quyết định: có sinh spray sau ego hay không |
+
+## 8. Bổ sung 2026-11-11 — hỏi lại notebook cho ticket 29d/29c
+
+Hỏi qua CLI `notebooklm -p phk4` (Edge cookies, tài khoản `huynguyen.phk4@gmail.com` — tài khoản này
+là **owner** của notebook; profile `default` của `huy7a2004@gmail.com` đã hết hạn token).
+
+### 8.1 Recipe đếm cụm — §III-B, trích nguyên văn
+
+| Điều | Nguyên văn |
+|---|---|
+| Thuật toán | *"To quantify this effect, a DBSCAN algorithm is applied to the detections."* |
+| Không gian | *"The DBSCAN algorithm is applied to the point cloud in spherical coordinates to account for the change in Cartesian resolution over distance."* |
+| Lân cận | *"To ensure possible clustering in vertical direction, the search neighborhood of DBSCAN is set to 0.7° to cover at least two scan lines of the sensor."* |
+| `minPts` | *"As small clusters are observed in the recorded data, three points is defined as the minimum number of points that can form a cluster."* |
+| Độ phân giải góc | *"In the central elevation field of view, the Velodyne VLP32 has an elevation angle discretization of 0.333°."* |
+| Hộp hay tròn trong mặt phẳng góc | **NOT STATED IN PAPER** |
+| Lân cận có ràng buộc cả khoảng cách `r` | **NOT STATED IN PAPER** |
+
+⇒ Toán tử của mình: DBSCAN trên `(azimuth, elevation)`, `eps = 0,7°` Euclid, elevation snap lưới
+`0,333°`, `minPts = 3`, azimuth wrap modulo 360. Hai chỗ paper không nói ⇒ `[CHỌN]`.
+**Toán tử `0,5 m` Euclid của `spray/spray_stats.py` KHÔNG phải recipe paper** — vẫn dùng được như số cũ
+để so, nhưng không được gọi là "khớp paper".
+
+### 8.2 Số neo để so (Fig. 1 text box, Fig. 11) — [PAPER]
+
+| Đại lượng | Giá trị | Nguồn |
+|---|---|---|
+| Cụm/frame, Crafter 50 m, **100 km/h** | **33** cụm | Fig. 1 text box |
+| Detections/cụm (trung bình) | **14,3** | Fig. 1 text box |
+| Clustered/total | **84,1 %** | Fig. 1 text box |
+| Cụm/frame @130 km/h, mặt đường ướt đẫm | **~75** đo, **~110** mô phỏng | Fig. 11b |
+| Bán kính cụm `r_cl` | lognormal `µ = −1,2`, `σ = 0,8` ⇒ median **0,30 m**, mean **0,42 m** | Fig. 5, §III-B |
+
+⚠️ **Mâu thuẫn phải sửa**: `docs/measurements/semantic-spray-stats.md` ghi **17,06 cụm/frame** và ticket 31
+đang lấy số đó làm mốc "khớp Fig. 11a". Paper nói **33** cụm ở 100 km/h và **~75** ở 130 km/h. Con số
+17,06 sinh ra bởi single-linkage `0,5 m` + `dense_min = 5` ⇒ đếm thiếu. Ticket 31 **không** được dùng
+`17,06` làm mốc cho tới khi đo lại bằng toán tử §8.1.
+
+### 8.3 Protocol chia dữ liệu — paper KHÔNG chia scene
+
+| Điều | Nguyên văn |
+|---|---|
+| Hiệu chỉnh vs đánh giá | *"The disturbance is analyzed and modeled by clustering of the point cloud in a first data set with isolated spray effects and the overall model validation is performed using object detection algorithms on a second data set."* (§II) |
+| Cách "held-out" của paper | *"To evaluate the model, object distances and values, which were not utilized for the model calibration, are used on the same data set. This is done to evaluate and verify the model and its calibration."* (§IV-1) |
+| Tập kiểm thử riêng | *"the effectiveness of the spray augmentation is evaluated on a dedicated spray test set."* (§III-3) |
+
+⇒ Paper **giữ lại điều kiện** (khoảng cách/giá trị chưa dùng khi hiệu chỉnh) **trên cùng bộ dữ liệu**,
+không chia scene 1:1. Split `cal`/`held-out` của ticket 29d là quyết định riêng của mình ⇒ `[CHỌN]`,
+không được trình bày như protocol của paper. Hệ quả: khi viết báo cáo, nêu rõ hai khác biệt
+(1) paper giữ điều kiện, mình giữ scene; (2) paper có bộ dữ liệu thứ hai 1.463 frame, mình không có.
+
+### 8.4 Hình học vùng spray — vẫn NOT STATED
+
+Hỏi lại lần này: **chiều cao trên mặt đường, bề rộng ngang, chiều dài sau vật thể** — cả ba đều
+**NOT STATED IN PAPER**. Fig. 1 chỉ vẽ trục `z in m` từ −2 đến 2 m, không có số đo; Fig. 3b là hộp
+schematic, không có kích thước. Fig. 5 chỉ cho **bán kính cụm** (`r_cl` = khoảng cách xa nhất từ
+detection tới tâm cụm), không cho kích thước vùng.
+
+⇒ Nhãn đúng cho các giá trị đang dùng: `5–92 %` chiều cao box và `3,4 m` bề rộng là **`[ĐO]` trên
+939.803 điểm nhãn thật + `[CHỌN]` khi quy ra tham số box** — **không** phải giá trị paper. Chỉ
+`intensity = 0` và `P_det = n / n_max` là `[PAPER]`.
+
+## 9. Bổ sung 2026-11-11 (đợt 2) — tuổi thọ cụm, tắt tín hiệu, số cụm theo tốc độ
+
+### 9.1 Tuổi thọ cụm — §III-B, eq. (1)
+
+> *"Clusters do not just disappear after a certain amount of time, but they dissolve gradually. This
+> behavior is modeled by changing the detection probability of the clusters exponentially over time
+> with a probability factor based on an exponential impulse response"* → `P_t(t) = exp(−t/T)`
+>
+> *"the time constant T is defined as the time required to reduce the detection count to 36 % of the
+> maximum"*
+>
+> *"From Fig. 6, it becomes apparent that the time constants rise with respect to object speed, which
+> is approximated by linear functions for the different watering levels."*
+>
+> *"The only differences between the two vehicles are the number of clusters and the dissolve time
+> constant. These are set separately for the object classes."*
+
+`T` theo Fig. 6 đọc được: `≈0,15–0,25 s` @50 km/h → `1,15 s` (ẩm) / `1,4 s` (phủ một phần) /
+`1,8 s` (ướt đẫm) @130 km/h. **Ngưỡng xoá cứng: NOT STATED** ⇒ `age > 4T` vẫn là `[CODE]`.
+
+✅ Code hiện tại: `T = 0,02·wfh·(v−50) + 0,2` cho `0,20 / 1,00 / 1,80 s` tại `50 / 130 ẩm / 130 ướt
+đẫm` — **khớp paper**, không phải sửa.
+
+### 9.2 Tắt tín hiệu do spray — §III-B "Attenuation"
+
+> *"Since a beam intersecting with a cluster generates only a detection with a certain detection
+> probability, a beam can pass multiple clusters, before generating a detection. As water in the air
+> not only reflects light back to the sensor but also scatters the light, an attenuation occurs."*
+>
+> *"The total distance a beam traveled through multiple clusters is calculated and an attenuation is
+> applied. … yields a mean extinction coefficient of **0.02 m⁻¹**."*
+>
+> *"If a detection existed in a beam before the spray simulation, the attenuation due to the spray is
+> also applied to its intensity. In the end, the detection intensities of all detections from a beam
+> are compared and the strongest is added to the overall point cloud."*
+
+⇒ Paper **có** mô hình tắt tín hiệu thật, và giữ **một** return mạnh nhất mỗi tia. Code có
+`mean_attenuation_per_m = 0,02` ✓ nhưng dùng `exp(−2·σ·L)` (khứ hồi, `[CODE]`); paper **chỉ in ra
+σ**, không in dạng mũ ⇒ `NOT STATED IN PAPER`, giữ `2` và khai `[CODE]`.
+
+### 9.3 Số cụm theo tốc độ — Fig. 11b (đọc xấp xỉ trên đồ thị, `[PAPER-graph]`)
+
+| km/h | 70 | 80 | 90 | 100 | 110 | 120 | 130 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Ướt đẫm (1,0 mm) | 4,5 | 21 | 28,5 | 43 | 49,5 | 56,5 | **74,5** |
+| Ẩm (0,5 mm) | 3,5 | 10,5 | 23,5 | 29,5 | 31 | 32,5 | **41,5** |
+
+(Fig. 1 text box cho một frame đơn @100 km/h: **33** cụm — khác Fig. 11b vì 11b là trung bình nhiều
+frame; dùng 11b để hiệu chỉnh, 1 để sanity-check bậc độ lớn.)
+
+Quy tắc của paper, §III-B nguyên văn:
+
+> *"The number of clusters generated within one simulation time step is determined by first counting
+> the number of clusters in a spray filter region behind the vehicle. This total number is then
+> divided by the length ratio of the spray region to the distance the object traveled during one scan
+> of the sensor."*
+
+Suy ngược bằng `K(T) = Σ_{k=0}^{4T/Δt} exp(−k·Δt/T)` của chính code (`plume.py`):
+
+| km/h | K (ướt đẫm) | cụm/chu kỳ suy ra | code hiện tại | K (ẩm) | cụm/chu kỳ suy ra | code hiện tại |
+|---:|---:|---:|---:|---:|---:|---:|
+| 80 | 8,37 | 2,5 | 9 | 5,43 | 1,9 | 6 |
+| 100 | 12,28 | 3,5 | 15 | 7,37 | 4,0 | 10 |
+| 130 | 18,18 | 4,1 | 24 | 10,33 | 4,0 | 16 |
+
+⇒ Hai kết luận:
+
+1. **Tốc độ sinh cụm hiện tại sai 4–6×** (`(0,2·wfh+0,1)·(v−50)` [CODE, dee.cpp] cho 24/chu kỳ ở
+   130 km/h ướt đẫm, paper tương ứng **~4**).
+2. **Độ ẩm gần như không đổi tốc độ sinh** (`3,5–4,1` ở mọi mức ẩm khi `v ≥ 100`); độ ẩm tác động
+   qua **`T`** (cụm sống lâu hơn ⇒ thấy nhiều hơn). Nhân `(0,2·wfh+0,1)` vào tốc độ sinh là **sai
+   chỗ**: nó vừa thừa 4–6×, vừa gán phụ thuộc ẩm vào sai biến.
+3. Đường hiệu chỉnh đơn giản khớp bảng trên: `rate(v) = min(3,8 ; 0,107·(v−60))` cụm/chu kỳ, độc lập
+   `wfh`; `visible = rate × K(T(wfh, v))`.
+4. Hệ quả cấu trúc: 807–1.555 điểm/frame ÷ 436 cụm ≈ **2–3,5 det/cụm**, paper là **14,3** ⇒ đang tạo
+   nhiều cụm nhỏ li ti thay vì ít cụm dày. Phải hiệu chỉnh `P_det` cùng lúc với số cụm.
