@@ -75,7 +75,6 @@ def test_without_context_matches_direct_inject_plume():
         distance_range_m=(3.0, 6.0),
         points_per_cluster_sigma=0.0,
         cluster_radius_sigma=0.0,
-        max_injected_points=200,
     )
     transform = PlumeTransform(config=config, seed=11)
     results = {

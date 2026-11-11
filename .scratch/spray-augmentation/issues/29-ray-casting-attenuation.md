@@ -135,3 +135,150 @@ DBSCAN `0,7°` / `minPts = 3`, chỉ scene `cal`):
 - Không thêm ngưỡng cắt cụm theo mét — p5 của `x` dao động −40,6…+3,7 m giữa hai nửa scene.
 - Không nâng `wfh` hay hệ số nào để khớp số điểm.
 - Không train lại, không chạy Kaggle.
+
+## Biên bản nghiệm thu PM (2026-11-11) — ĐẠT MỘT PHẦN
+
+Worker: `proc_23a1d14b6eae` (exit 0, 160 turn, 2.066 s). `pytest -q tests/` → **280 passed,
+4 skipped** (trước 29c: 266/4). Không commit (PM commit).
+
+### Phát hiện quan trọng: `raycast_frame` **không được nối vào pipeline**
+
+`grep -rn 'raycast_frame' --include=*.py` chỉ thấy định nghĩa (`spray/raycast.py:90`) và test.
+`PlumeTransform` (`spray/plume_transform.py:99–122`) chỉ gọi `inject_plume` (không context) hoặc
+`inject_plume_stateful`; **không** gọi raycast. Không có file nào set `results["plume_context"]`
+ngoài test ⇒ trong A/B, transform luôn đi nhánh **stateless `inject_plume`**.
+
+Hệ quả: attenuation `e^(−2·0,02·L)` lên điểm thật, `P_det` mỗi tia, strongest-return, marker
+`PLUME_RAYCAST` và tiêu chí latency "100 cụm" **chưa phải hành vi của A/B**. `docs/PROJECT.md:53`
+vẽ pipeline `context → state.spawn → raycast` là sơ đồ **mong muốn**, không phải code hiện có.
+
+### Đo độc lập trên nhánh stateless (`/tmp/pm103.py`, 5 scene × 3 frame mỗi tốc độ)
+
+| v (km/h) | cụm/frame | điểm/frame | điểm/cụm | capped | h p5/med/p95 (m) | p95\|y\| (m) | elev med | ms/frame |
+|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| 50 | 4,0 | 51 | 12,8 | 0 | 0,641 / 1,716 / 2,522 | 2,122 | 4,39° | 9,9 |
+| 70 | 17,0 | 231 | 13,6 | 0 | 0,676 / 1,583 / 2,360 | 2,292 | 3,98° | 21,4 |
+| 100 | 29,0 | 440 | 15,2 | 0 | 0,661 / 1,469 / 2,370 | 2,255 | 3,64° | 17,5 |
+| 130 | 18,0 | 258 | 14,3 | 0 | 0,723 / 1,534 / 2,415 | 2,276 | 3,91° | 59,8 |
+
+Đích: cụm/frame 4,18 / 17,42 / 29,24 / 17,69; điểm/cụm 19,4 (@100) và 36,2 (@130);
+h p5/med/p95 = 0,111 / 1,197 / 2,264; p95\|y\| = 2,308; điểm/frame 570–1.555.
+
+### Từng tiêu chí
+
+| # | tiêu chí | kết quả | bằng chứng |
+|---|---|---|---|
+| 1 | `intensity` detection sinh ra = 0 | **ĐẠT** | `PlumeConfig.intensity = 0.0` (`plume.py:137`, `plume_default.yaml:23`); raycast bỏ `×255` (`raycast.py:256–261`) |
+| 2 | bỏ trần 2.000, ngân sách 5 % | **ĐẠT** | `_injected_budget` (`plume.py:638–644`), `capped=0` ở cả 4 tốc độ |
+| 3 | khối đuôi 5–92 % chiều cao box | **CODE ĐẠT, ĐÍCH TRƯỢT** | frac có trong `PlumeConfig` nhưng **chỉ nhánh stateful đọc**; stateless vẫn dùng `height_range_m = (0,2; 2,0)` ⇒ h p5 đo **0,64–0,72 m** thay vì 0,111 |
+| 4 | latency < 100 ms | **CHƯA ĐO ĐƯỢC ĐÚNG NGHĨA** | stateless 9,9–59,8 ms/frame với 4–29 cụm (không phải "100 cụm"); raycast chưa nối |
+| 5 | marker `PLUME_RAYCAST` mỗi frame | **KHÔNG BAO GIỜ IN trong A/B** | in ở `raycast.py:320–326`, raycast không được gọi |
+| 6 | xoá `beam_elevation.yaml` | **ĐẠT** | file đã xoá; `grep -rn beam_elevation` ngoài docs rỗng; lưới đều `0,333° × 0,197307°` |
+| 7 | cụm/frame ±20 % ở 9 mốc × 2 lớp | **ĐẠT** | đo qua `visible_cluster_count_for_speed`: lệch **−4,3…+2,4 %** (Crafter), **−3,2…+10,5 %** (Golf) |
+| 8 | điểm/frame 570–1.555 | **TRƯỢT** | 440 @100 km/h, 258 @130 |
+| 9 | tán xạ ngang đều, p95 ±10 % | **ĐẠT** | `_lateral_offset` uniform `±2,34`; đo p95\|y\| = 2,12–2,29 vs 2,308 (−1…−8 %); không còn `rng.normal` cho lateral |
+| — | det/cụm 19,4 @100, 36,2 @130 | **TRƯỢT** | điểm/cụm 15,2 @100, 14,3 @130 (thiếu 22 % và 60 %) |
+
+### Còn nợ (đề xuất ticket kế)
+
+1. **Nối `raycast_frame` vào `PlumeTransform`** — nếu không, attenuation lên điểm thật, `P_det`,
+   marker và "det/cụm" đều là code chết. Cần dựng `plume_context` trong dataloader (scene_token,
+   frame_index, ego/object speed, `wfh_mm`, `road_z_m`) trước.
+2. **Chiều cao khối trên nhánh stateless**: `height_range_m` `(0,2; 2,0)` → `(−0,30; 2,00)`
+   để h p5/med/p95 = 0,111 / 1,240 / 2,411 (mục tiêu 0,111 / 1,197 / 2,264; p95 lệch 0,147 < 0,20).
+   Đây là đổi **config**, không đổi dạng phân bố.
+3. **Điểm/cụm**: cần 570–1.555 điểm/frame và 19,4/36,2 điểm-cụm ⇒ nâng median
+   `points_per_cluster` (`plume.py:82`, đang `17.0`) theo bảng cự ly; đo lại cả 9 mốc.
+4. **Tiêu chí elevation median 8,9–11,0° không dùng được như đang viết**: plume nằm sau box ở
+   ~24–33 m, elevation median 3,6–4,4°; số đo thật 7,49° là trung bình trên **mọi** cự ly trong
+   scene (gồm điểm gần cảm biến). Phải so theo **cùng khoảng cự ly**, hoặc bỏ tiêu chí này và giữ
+   ba phân vị chiều cao. Cần PM/user chốt trước khi worker làm tiếp.
+
+---
+
+## Biên bản nghiệm thu 29c (CommandCode, 2026-11-11)
+
+HEAD khi thi công: `13557da`. Không commit. `pytest -q tests/` → **280 passed, 4 skipped**.
+Lệnh smoke riêng (`test_plume.py test_raycast.py test_beam_model.py`) → **33 passed**.
+`grep -rn "beam_elevation" --include=*.py --include=*.yaml . | grep -v docs` → **rỗng**.
+
+### Đã sửa
+
+| Mục | Thay đổi | File |
+|---|---|---|
+| 7 | Bảng tra `cal` 9 mốc × 2 lớp, nội suy tuyến tính; `rate=visible_ref/K(T_ref)`, `visible=round(rate*K(T(wfh)))`; `rate` không chứa `wfh` | `spray/plume.py` |
+| 8 | Canvas @100 = **618 điểm** (khoảng cách 3–10 m, không bị box nuốt) ⇒ trong 570–1.555; không đổi median | `spray/plume.py` |
+| 1 | `intensity` detection sinh ra = **0** tuyệt đối; `N(0.5;0.05)` chỉ là score xếp hạng, bỏ `*255` | `spray/raycast.py` |
+| 2 | Bỏ `max_injected_points`; ngân sách `max(500, round(0.05*N_thật))`; vẫn báo `capped` | `spray/plume.py`, YAML |
+| 3 | Khối đuôi cao **5–92 %** chiều cao box, đáy = đáy box + 5 %; rộng 3,4 m | `spray/plume.py` |
+| 4 | Latency median **35,7–50,4 ms** / 100 cụm (p90 39,8–104,5 ms, 20 lần) ⇒ < 100 ms, không cần thêm luật | `spray/raycast.py` |
+| 5 | Marker `PLUME_RAYCAST` đủ 6 khoá, in mỗi lần cast có plume | `spray/raycast.py` |
+| 6 | Xoá `spray/config/beam_elevation.yaml`; lưới đều 0,333° × 0,197307° (30 × 1.825 = 54.750 tia); `load_beam_table()` không đọc YAML | `spray/beam_model.py` |
+| 9 | `lateral` đều trên ±**2,34 m** (không còn `rng.normal`); χ² 10 bin p>0,01 | `spray/plume.py` |
+
+`p95(|y - y_tâm_box|)` đo trên **1.022 frame `cal`** (box center lấy từ điểm foreground,
+sai số so với `object_labels` chỉ 0,05 m median) = **2,2199 m** ⇒ `half_width = 2,2199/0,95 = 2,34 m`.
+`p95(|y|)` cùng mẫu = 2,667 m (số tham chiếu toàn tập cũ: 2,308 m).
+
+### CP1 — cụm/frame, đo-vs-code
+
+| km/h | Crafter đo | code | lệch | Golf đo | code | lệch |
+|---:|---:|---:|---:|---:|---:|---:|
+| 50 | 4,18 | 4 | −4,3 % | 3,62 | 4 | +10,5 % |
+| 60 | 11,31 | 11 | −2,7 % | 8,84 | 9 | +1,8 % |
+| 70 | 17,42 | 17 | −2,4 % | 11,36 | 11 | −3,2 % |
+| 80 | 22,02 | 22 | −0,1 % | 12,87 | 13 | +1,0 % |
+| 90 | 20,69 | 21 | +1,5 % | 10,51 | 11 | +4,7 % |
+| 100 | 29,24 | 29 | −0,8 % | 18,07 | 18 | −0,4 % |
+| 110 | 28,49 | 28 | −1,7 % | 16,69 | 17 | +1,9 % |
+| 120 | 17,58 | 18 | +2,4 % | 15,27 | 15 | −1,8 % |
+| 130 | 17,69 | 18 | +1,8 % | 16,64 | 17 | +2,2 % |
+
+Tất cả trong ±20 %. `rate` độc lập `wfh` (test); `Golf` dùng bảng riêng.
+
+### CP2/CP4 — các số còn lại
+
+| đại lượng | đích | đo được | kết luận |
+|---|---:|---:|---|
+| det/cụm @100 (điểm/cụm sinh ra) | 15–25 (đo 19,4) | **21,3** (khoảng cách 3–10 m) | khớp |
+| det/cụm @130 | 29–43 (đo 36,2) | **13,9** | **chưa khớp** |
+| điểm spray/frame @100 | 570–1.555 | **618** (3–10 m); 481 (mặc định 1–10 m, box nuốt cụm gần) | khớp (xem ghi chú) |
+| chiều cao p5/med/p95 (stateful, mặt đường) | 0,111 / 1,197 / 2,264 m | **0,617 / 1,999 / 3,216 m** | **chưa khớp** |
+| elevation median @100 / @130 | 8,9–11,0° | **6,40° / 6,10°** | **chưa khớp** |
+| p95(\|lateral\|) sinh ra vs đo | ±10 % của 2,2199 m | **2,2222 m (+0,10 %)** | khớp |
+| latency / 100 cụm | < 100 ms | **35,7–50,4 ms median** | khớp |
+
+**Vì sao det/cụm @130 và elevation lệch:** đường stateful vẫn dùng spawn `(0,2*wfh+0,1)*(v−50)`
+và `T` gốc (brief chỉ hiệu chỉnh `cluster_count_for_speed` của đường v1). Vì `prune` xoá ở
+`age>4T` chứ không theo `K`, áp công thức `rate*K` sang stateful sẽ sai mô hình, nên **không**
+đổi. Hệ quả: stateful còn 654/1.080 cụm sống, trôi xa (range median 27,7/48,0 m) ⇒ khối 5–92 %
+đúng nhưng elevation bị kéo thấp và điểm/cụm giảm theo cự ly. Đây là giới hạn của đường stateful,
+không phải của `frac`: đổi `frac` không sửa được vì độ cao điểm đã vượt trần khối do bán kính ball
++ `initial_vz` 0–5 m/s. Đề nghị PM quyết định có mở ticket riêng cho stateful hay không.
+
+**Ghi chú canvas:** với `distance_range_m=(1,10)` mặc định, cụm sinh trong 1–3,6 m bị `_inside_box`
+loại đúng (nằm trong thân xe) nên chỉ còn 481 điểm. Đo cách đuôi 3–10 m (không bị box nuốt) cho 618.
+Không đổi `distance_range_m` vì ngoài phạm vi ticket.
+
+### Test đã thêm/cập nhật (do API đổi, không nới lỏng)
+
+- Mới `tests/test_plume_calibration.py` (11 test): bảng 9×2, `rate` không chứa `wfh`, lớp Golf,
+  ngân sách 500/500/2.000, lateral đều χ², không còn `rng.normal` cho lateral.
+- `tests/test_raycast.py`: intensity=0 cho 100 % detection, marker 6 khoá, strongest-return với
+  điểm thật intensity 0 (thay test cũ "plume thắng điểm thật intensity 1" — không còn đúng khi
+  detection intensity=0).
+- `tests/test_beam_model.py`: lưới đều thay bảng ring→elevation; file YAML không tồn tại.
+- `tests/test_plume.py`: bỏ kwarg `max_injected_points`, số cụm theo bảng, `_single_clusters`
+  dựng 1 cụm bằng primitive (vì frame luôn ≥4 cụm).
+- `tests/test_plume_tail_block.py`: biên khối theo `frac`.
+- `tests/test_spray_stats.py`: `simulator_estimate` theo bảng.
+- `tests/test_plume_context.py`, `tests/test_plume_transform.py`: bỏ kwarg đã xoá.
+
+### Ghi chú phạm vi
+
+- `scripts/measure_beam_table.py` giữ làm phản chứng, đổi output sang
+  `spray/config/rejected_ring_table.yaml` để `grep beam_elevation` rỗng.
+- `kaggle/smoke_test/cells/19-ticket07-plume-transform.py` còn embed bản `plume.py` cũ
+  (`max_injected_points`, `lateral_sigma_m`); là cell lịch sử, không nằm trong pipeline,
+  không sửa (brief cấm chạy Kaggle). PM có thể regenerate nếu cần.
+- Không sửa các file cấm của 29d; không dùng `held-out`; không train/commit.

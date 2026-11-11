@@ -1,4 +1,0 @@
-# Sinh bởi scripts/measure_beam_table.py — [ĐO] trên SemanticSpray (207 scene)
-source: "SemanticSpray VLP-32C, 120 frame, ring id 0..19 (release đánh lại)"
-azimuth_step_deg: 0.197307
-elevation_deg: [-4.055584, -2.609556, -1.958939, -1.323005, -1.046196, -0.655385, -0.536396, -0.426418, -0.271496, -0.222701, -0.188237, -0.216856, 0.020315, 0.002922, 0.023786, -0.078687, 0.109386, 0.088261, -0.006789, -0.057996]

@@ -3,9 +3,12 @@
 
 Ticket 29a. The release's ring ids are real beam ids, but the manufacturer's
 VLP-32C table does not apply: the data was clipped vertically and the ring ids
-were renumbered ``0..N-1``. This script measures the angles from the data and
-writes ``spray/config/beam_elevation.yaml``; it never edits the manufacturer's
-table to fit (see ``docs/history/plume-beam-table.md``).
+were renumbered ``0..N-1``. This script measures ``ring -> elevation`` and
+writes ``spray/config/rejected_ring_table.yaml``. It is kept only as
+**counter-evidence**: the table was rejected in ticket 29c because the
+``>= 100 points`` filter dropped the upward rings that see the plume. Casting
+now uses the uniform grid in ``spray/beam_model.py``; this script is not used
+by the pipeline (see ``docs/history/plume-beam-table.md``).
 
 Robustness rules measured in that document:
 
@@ -30,7 +33,7 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 DATASET = REPO / "data" / "SemanticSprayDataset"
-OUTPUT = REPO / "spray" / "config" / "beam_elevation.yaml"
+OUTPUT = REPO / "spray" / "config" / "rejected_ring_table.yaml"
 
 N_FRAMES = 120
 MIN_POINTS_PER_FRAME = 100

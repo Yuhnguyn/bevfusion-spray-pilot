@@ -1,4 +1,6 @@
-"""Ticket 29b: beam ray casting, attenuation and strongest return."""
+"""Ticket 29b/29c: beam ray casting, attenuation and strongest return."""
+
+import re
 
 import numpy as np
 import pytest
@@ -197,8 +199,10 @@ def test_strongest_return_keeps_the_real_point_when_it_is_brighter():
     assert result.real_points[0, 3] > 0.0
 
 
-def test_strongest_return_drops_the_real_point_when_the_plume_is_brighter():
-    points = _point_on_beam(30.0, 1.0)
+def test_strongest_return_drops_the_zero_intensity_real_point():
+    # Ticket 29c mục 1: detection intensity is 0, so it can only win against a
+    # real return of intensity 0 (a tie keeps the real point; score > 0 wins).
+    points = _point_on_beam(30.0, 0.0)
     result = raycast_frame(
         points,
         [_cluster((20.0, 0.0, 0.0))],
@@ -212,3 +216,45 @@ def test_strongest_return_drops_the_real_point_when_the_plume_is_brighter():
     assert len(result.real_points) == 0
     assert len(result.detections) >= 1
     assert np.any(result.detections[:, 4] == RING)
+
+
+def test_every_generated_detection_has_intensity_zero():
+    result = raycast_frame(
+        np.zeros((0, 5)),
+        [_cluster((20.0, 0.0, 0.0))],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=np.random.default_rng(6),
+        config=RaycastConfig(p_det_mu=10.0),
+    )
+
+    assert result.detections.shape[0] > 0
+    assert np.all(result.detections[:, 3] == 0.0)
+    assert result.stats.att_m_total >= 0.0
+
+
+def test_marker_has_the_six_required_keys(capsys):
+    regex = re.compile(
+        r"PLUME_RAYCAST beams=(\d+) hit=(\d+) det=(\d+) "
+        r"att_m=([0-9.]+) capped=(\d+) ms=([0-9.]+)"
+    )
+
+    raycast_frame(
+        np.zeros((0, 5)),
+        [_cluster((20.0, 0.0, 0.0))],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=np.random.default_rng(7),
+        config=RaycastConfig(p_det_mu=10.0),
+        capped=42,
+    )
+
+    lines = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("PLUME_RAYCAST")
+    ]
+    assert len(lines) == 1
+    match = regex.fullmatch(lines[0])
+    assert match is not None
+    assert match.group(5) == "42"

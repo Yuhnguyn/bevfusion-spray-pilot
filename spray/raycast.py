@@ -24,6 +24,7 @@ Only numpy and the standard library are used.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -45,8 +46,9 @@ class RaycastConfig:
 
     ``mean_attenuation_per_m`` enters ``exp(-2 * mean * L)`` [CODE]
     ``dee.cpp:279``. The detection probability is the clamped lognormal of the
-    published profile; the intensity is ``N(0.5, 0.05)`` clipped to ``[0, 1]``
-    and scaled to 0-255 [CODE] ``normal_distrib_0_5``.
+    published profile. ``N(0.5, 0.05)`` is only a **ranking score** for the
+    strongest-return step: it is not scaled to 0-255 and the emitted detection
+    intensity is exactly 0 [PAPER] (over 80 % of real spray returns are 0).
     """
 
     mean_attenuation_per_m: float = 0.02
@@ -93,8 +95,9 @@ def raycast_frame(
     road_z_m: float,
     rng: np.random.Generator,
     config: RaycastConfig | None = None,
+    capped: int = 0,
 ) -> RaycastResult:
-    """Cast the measured beam grid through ``clusters`` for one frame.
+    """Cast the uniform beam grid through ``clusters`` for one frame.
 
     ``points`` is ``(N, 5)`` ``x, y, z, intensity, ring``. Every real point is
     assigned to its beam by ``ring`` and the nearest measured azimuth
@@ -102,8 +105,9 @@ def raycast_frame(
     stay in the output but take no part in intersection or occlusion.
 
     Clusters are pre-filtered with an angular box around the cone they subtend,
-    so the 36,500-beam grid is never tested against every cluster.
+    so the 54,750-beam grid is never tested against every cluster.
     """
+    started = time.perf_counter()
     cfg = config or RaycastConfig()
     real = _as_points(points)
     cluster_list = list(clusters)
@@ -148,11 +152,14 @@ def raycast_frame(
         azimuth_count=azimuth_count,
     )
     if hits is None:
-        return RaycastResult(
+        result = RaycastResult(
             detections=np.empty((0, 5), dtype=np.float64),
             real_points=real,
             stats=stats,
         )
+        if cluster_list:
+            _emit_marker(stats, capped, started)
+        return result
 
     keys_hit, t0_hit, t1_hit, cluster_hit = hits
     order = np.lexsort((t1_hit, t0_hit, keys_hit))
@@ -253,20 +260,20 @@ def raycast_frame(
     midpoints = 0.5 * (t0_hit + t1_hit)
     sigma = segment_lengths / 6.0
     distances = rng.normal(midpoints, sigma)
-    intensity = np.clip(
+    # Ranking score only: N(0.5, 0.05) clipped to [0, 1] and attenuated.
+    # Never scaled to 255 and never emitted — the detection intensity is 0.
+    score = np.clip(
         rng.normal(cfg.intensity_mu, cfg.intensity_sigma, size=keys_hit.size),
         0.0,
         1.0,
     )
-    intensity *= 255.0 * np.exp(
-        -2.0 * cfg.mean_attenuation_per_m * travelled
-    )
+    score *= np.exp(-2.0 * cfg.mean_attenuation_per_m * travelled)
 
     valid = (
         detected
         & (distances <= cfg.max_distance_m)
         & (distances * sin_elevation[beam_global] > float(road_z_m))
-        & (intensity >= cfg.min_intensity)
+        & (score >= cfg.min_intensity)
     )
 
     detection_indices = np.flatnonzero(valid)
@@ -276,7 +283,7 @@ def raycast_frame(
         detection_indices, winning_keys = _keep_strongest_per_beam(
             detection_indices,
             keys_hit,
-            intensity,
+            score,
             unique_keys,
             real_max_by_hit,
             stats,
@@ -286,7 +293,7 @@ def raycast_frame(
             beam = keys_hit[detection_indices] % azimuth_count * elevation_count + ring
             points_3d = distances[detection_indices, np.newaxis] * directions[beam]
             detections = np.column_stack(
-                [points_3d, intensity[detection_indices], ring]
+                [points_3d, np.zeros(detection_indices.size), ring]
             )
             stats.att_m_total += float(travelled[detection_indices].sum())
 
@@ -298,10 +305,28 @@ def raycast_frame(
         stats.real_dropped_plume_stronger = int(point_dropped.sum())
 
     stats.det = int(detections.shape[0])
+    if cluster_list:
+        _emit_marker(stats, capped, started)
     return RaycastResult(
         detections=detections,
         real_points=real[~dropped],
         stats=stats,
+    )
+
+
+def _emit_marker(
+    stats: RaycastStats, capped: int, started: float
+) -> None:
+    """Print one ``PLUME_RAYCAST`` line with the six required keys."""
+    elapsed_ms = (time.perf_counter() - started) * 1000.0
+    print(
+        "PLUME_RAYCAST "
+        f"beams={stats.beams_total} "
+        f"hit={stats.beams_hit} "
+        f"det={stats.det} "
+        f"att_m={stats.att_m_total:.3f} "
+        f"capped={int(capped)} "
+        f"ms={elapsed_ms:.3f}"
     )
 
 

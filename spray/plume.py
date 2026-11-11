@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import ClassVar
 
 import numpy as np
@@ -18,9 +18,37 @@ _POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
     (30.0, float("inf"), 10),
 )
 
-# [CODE] dee.cpp:509–512 — mean = (0.2*wfh + 0.1) * (v_kmh - 50).
-_CLUSTER_COUNT_WFH_COEFF = 0.2
-_CLUSTER_COUNT_BASE = 0.1
+# [ĐO] Cụm/frame trên `cal` (DBSCAN 0,7° / minPts 3), theo lớp xe và mốc 10 km/h.
+# Ticket 29c mục 7: bảng tra, nội suy tuyến tính; đường cong KHÔNG đơn điệu nên
+# không fit `a*(v-v0)`. Bảng gốc: docs/measurements/semantic-spray-clusters-by-speed.md.
+_CLUSTER_VISIBLE_BY_SPEED: dict[str, tuple[tuple[float, float], ...]] = {
+    "crafter": (
+        (50.0, 4.18),
+        (60.0, 11.31),
+        (70.0, 17.42),
+        (80.0, 22.02),
+        (90.0, 20.69),
+        (100.0, 29.24),
+        (110.0, 28.49),
+        (120.0, 17.58),
+        (130.0, 17.69),
+    ),
+    "golf": (
+        (50.0, 3.62),
+        (60.0, 8.84),
+        (70.0, 11.36),
+        (80.0, 12.87),
+        (90.0, 10.51),
+        (100.0, 18.07),
+        (110.0, 16.69),
+        (120.0, 15.27),
+        (130.0, 16.64),
+    ),
+}
+
+# [CHỌN] Mức ẩm chuẩn của dataset: 1 mm — cùng giá trị `PlumeContext.wfh_mm`
+# mặc định và mọi phép đo hình học đã công bố. `T_ref` lấy tại mức này.
+_REFERENCE_WATER_FILM_M = 0.001
 
 # [CODE] profile VLP-32 `update_cycle_time` = 0.1 s — chu kỳ model tham chiếu sinh cụm.
 # Dùng để cộng dồn số cụm còn sống qua các chu kỳ (hệ số K, ticket 22).
@@ -37,8 +65,10 @@ class PlumeConfig:
     docs/adr/0003):
 
     - Cơ chế port từ code tham chiếu đã publish của Linnhoff et al. 2022
-      (openMSL/sl-1-2, MPL-2.0): kích hoạt trên 40 km/h, số cụm
-      `(0,2*wfh + 0,1) * (v_kmh - 50)`, lifetime `T = wfh*0,02*(v_kmh - 50) + 0,2`.
+      (openMSL/sl-1-2, MPL-2.0): kích hoạt trên 40 km/h, lifetime
+      `T = wfh*0,02*(v_kmh - 50) + 0,2`. Số cụm **không** còn lấy từ công thức
+      `(0,2*wfh + 0,1) * (v_kmh - 50)` mà từ bảng đo `_CLUSTER_VISIBLE_BY_SPEED`
+      (ticket 29c mục 7).
       Chi tiết giá trị + số dòng: docs/history/plume-model-provenance.md.
     - Đo trên SemanticSpray (bản release local): số điểm/cụm median **theo cự ly**
       (`_POINTS_MEDIAN_BY_RANGE`, ticket 16) và bề dày theo tia
@@ -67,8 +97,8 @@ class PlumeConfig:
     # [CHỌN] OSI không cho default, dataset không khai báo độ ướt. Giả định 1 mm
     # (mặt đường ướt đều) — phải ghi rõ ở mọi báo cáo dùng generator.
     water_film_height_m: float = 0.001
-    # [CODE] profile num_clusters_velocity_offset_kmh = 50.0. Ở v ≤ 50 km/h
-    # công thức cho 0 cụm; KHÔNG thêm sàn.
+    # [CODE] profile num_clusters_velocity_offset_kmh = 50.0. Bảng đo `cal` bắt đầu
+    # ở mốc 50 km/h; dưới mốc đó không có số đo nên giữ 0 cụm, KHÔNG thêm sàn.
     cluster_count_velocity_offset_kmh: float = 50.0
     # [CODE] dee.cpp:530 — time_constant = wfh*0.02*(v_kmh - 50) + 0.2 (giây).
     lifetime_water_film_coeff: float = 0.02
@@ -99,21 +129,23 @@ class PlumeConfig:
     radial_squash: float = 0.885
     distance_range_m: tuple[float, float] = (1.0, 10.0)
     height_range_m: tuple[float, float] = (0.2, 2.0)
-    lateral_sigma_m: float = 0.5
+    # [ĐO] Nửa bề rộng phân bố ĐỀU của tâm cụm: p95(|y - y_tâm_box|) trên 1.022
+    # frame `cal` = 2,22 m; đều trên ±a có p95 = 0,95a ⇒ a = 2,22/0,95 = 2,34 m.
+    # Phân bố đều [PAPER] §III-B, không phải Gaussian.
+    lateral_half_width_m: float = 2.34
     box_margin_m: float = 0.2
-    max_injected_points: int = 2000
     intensity: float = 0.0
     # Cột 5 là ring index; điểm tổng hợp gán ring 0; không dùng cho occlusion.
     ring: float = 0.0
-    # [CODE] dee.cpp:571–591 — khối phun sau đuôi rộng 3,4 m, cao 1,5 m, đáy =
-    # đáy box. Chỉ đường stateful (ticket 28b) đọc các hằng này.
+    # [PAPER] §III-B/§C — khối phun sau đuôi: rộng 3,4 m, cao 5–92 % chiều cao
+    # box, đáy = đáy box + 5 % chiều cao. Chỉ đường stateful (ticket 28b/29c) đọc.
     #
     # ClassVar cố ý: `spray/config/plume_default.yaml` phải là bản sao khít của
-    # mọi field dataclass (tests/test_plume_config_yaml.py), mà ticket 28b không
-    # được sửa YAML. Vẫn đọc được qua `config.tail_block_width_m` v.v.
+    # mọi field dataclass (tests/test_plume_config_yaml.py). Vẫn đọc được qua
+    # `config.tail_block_width_m` v.v.
     water_film_height_mm: ClassVar[float] = 1.0
     tail_block_width_m: ClassVar[float] = 3.4
-    tail_block_height_m: ClassVar[float] = 1.5
+    tail_block_height_frac: ClassVar[tuple[float, float]] = (0.05, 0.92)
 
 
 @dataclass
@@ -141,25 +173,81 @@ class PlumeResult:
     stats: PlumeStats
 
 
-def cluster_count_for_speed(speed_kmh: float, config: PlumeConfig | None = None) -> int:
-    """Số cụm **nhìn thấy trong một frame** cho một box ở tốc độ cho trước.
+def _visible_table(vehicle_class: str) -> tuple[np.ndarray, np.ndarray]:
+    try:
+        rows = _CLUSTER_VISIBLE_BY_SPEED[vehicle_class.lower()]
+    except KeyError as exc:
+        known = ", ".join(sorted(_CLUSTER_VISIBLE_BY_SPEED))
+        raise ValueError(
+            f"unknown vehicle class {vehicle_class!r}; expected one of {known}"
+        ) from exc
+    speeds = np.asarray([row[0] for row in rows], dtype=np.float64)
+    visible = np.asarray([row[1] for row in rows], dtype=np.float64)
+    return speeds, visible
 
-    [CODE] DetectionEnvironmentalEffects.cpp:502,:554 (kích hoạt trên 40 km/h và
-    wfh > 0) và :509–512 (``mean = (0.2*wfh + 0.1) * (v_kmh - 50)``). ``mean`` là
-    số cụm **sinh mỗi chu kỳ** ``Δt = 0,1 s``; số cụm trong frame ở trạng thái
-    dừng là ``round(mean × K)`` với ``K = steady_state_cluster_factor`` (ticket 22).
-    Ở ``v ≤ 50 km/h`` công thức cho 0 cụm — giữ đúng 0.
+
+def cluster_visible_target_for_speed(
+    speed_kmh: float, vehicle_class: str = "crafter"
+) -> float:
+    """Cụm/frame **nhìn thấy** đo trên ``cal``, nội suy tuyến tính theo tốc độ.
+
+    Bảng ``_CLUSTER_VISIBLE_BY_SPEED`` (ticket 29c mục 7). Đường cong không đơn
+    điệu nên chỉ nội suy giữa các mốc 10 km/h, không fit hàm. Dưới mốc 50 km/h
+    không có số đo ⇒ 0; trên 130 km/h giữ giá trị mốc cuối.
     """
+    speeds, visible = _visible_table(vehicle_class)
+    if speed_kmh < speeds[0]:
+        return 0.0
+    return float(np.interp(float(speed_kmh), speeds, visible))
+
+
+def cluster_rate_for_speed(
+    speed_kmh: float,
+    config: PlumeConfig | None = None,
+    vehicle_class: str = "crafter",
+) -> float:
+    """Số cụm **sinh mỗi chu kỳ** ``Δt = 0,1 s`` để khớp số cụm/frame đo được.
+
+    ``rate(v) = visible_ref(v) / K(T_ref(v))`` — **không** chứa ``wfh``; độ ẩm
+    chỉ tác động qua ``T`` khi caller tính số cụm hiển thị. ``T_ref`` lấy tại
+    mức ẩm chuẩn của dataset (1 mm), để ``rate`` không đổi khi caller đổi ``wfh``.
+    """
+    cfg = config or PlumeConfig()
+    visible_ref = cluster_visible_target_for_speed(speed_kmh, vehicle_class)
+    if visible_ref <= 0.0:
+        return 0.0
+    reference = replace(cfg, water_film_height_m=_REFERENCE_WATER_FILM_M)
+    k_ref = steady_state_cluster_factor(speed_kmh, reference)
+    return visible_ref / k_ref
+
+
+def visible_cluster_count_for_speed(
+    speed_kmh: float,
+    config: PlumeConfig | None = None,
+    vehicle_class: str = "crafter",
+) -> int:
+    """Số cụm **nhìn thấy trong một frame** = ``round(rate × K(T(wfh, v)))``."""
     cfg = config or PlumeConfig()
     if speed_kmh <= cfg.min_speed_kmh or cfg.water_film_height_m <= 0.0:
         return 0
-    mean = (
-        _CLUSTER_COUNT_WFH_COEFF * cfg.water_film_height_m + _CLUSTER_COUNT_BASE
-    ) * (speed_kmh - cfg.cluster_count_velocity_offset_kmh)
-    if mean <= 0.0:
+    rate = cluster_rate_for_speed(speed_kmh, cfg, vehicle_class)
+    if rate <= 0.0:
         return 0
-    visible = mean * steady_state_cluster_factor(speed_kmh, cfg)
+    visible = rate * steady_state_cluster_factor(speed_kmh, cfg)
     return int(np.floor(visible + 0.5))
+
+
+def cluster_count_for_speed(
+    speed_kmh: float,
+    config: PlumeConfig | None = None,
+    vehicle_class: str = "crafter",
+) -> int:
+    """Số cụm nhìn thấy trong một frame cho một box (bảng đo ``cal``, ticket 29c).
+
+    Giữ tên cũ cho caller hiện có. Mặc định lớp ``Crafter`` (lớp duy nhất paper
+    định lượng); ``Golf`` có bảng riêng và phải chọn tường minh.
+    """
+    return visible_cluster_count_for_speed(speed_kmh, config, vehicle_class)
 
 
 def lifetime_time_constant(
@@ -175,27 +263,38 @@ def lifetime_time_constant(
     )
 
 
+def steady_state_factor(
+    time_constant: float,
+    *,
+    dt: float = _UPDATE_CYCLE_TIME_S,
+    max_age_factor: float = 4.0,
+) -> float:
+    """``K = Σ_{k=0}^{4T/Δt} exp(-k·Δt/T)`` cho một ``T`` bất kỳ (giây).
+
+    Tách khỏi ``steady_state_cluster_factor`` để caller có thể truyền ``T`` đã
+    tính theo đơn vị khác mà không lặp lại công thức cấp số nhân.
+    """
+    if time_constant <= 0.0:
+        return 0.0
+    steps = int(np.floor(max_age_factor * time_constant / dt))
+    k = np.arange(steps + 1, dtype=np.float64)
+    return float(np.exp(-k * dt / time_constant).sum())
+
+
 def steady_state_cluster_factor(
     speed_kmh: float, config: PlumeConfig | None = None
 ) -> float:
     """Hệ số tích luỹ ``K`` của số cụm ở trạng thái dừng (ticket 22).
-
-    Cụm sinh mỗi chu kỳ ``Δt`` sống với xác suất ``exp(-age/T)`` và bị xoá khi
-    ``age > 4T``, nên số cụm còn lại trong một frame là tổng cấp số nhân:
-
-        K = Σ_{k=0}^{4T/Δt} exp(-k·Δt/T)
 
     ``T = lifetime_time_constant(v)`` (dee.cpp:530), ``Δt = 0,1 s`` từ profile
     ``update_cycle_time``. Với ``T = 0,2 s`` → ``K ≈ 2,51``; không hard-code vì
     ``T`` tăng nhẹ theo tốc độ.
     """
     cfg = config or PlumeConfig()
-    time_constant = lifetime_time_constant(speed_kmh, cfg)
-    steps = int(
-        np.floor(cfg.lifetime_max_age_factor * time_constant / _UPDATE_CYCLE_TIME_S)
+    return steady_state_factor(
+        lifetime_time_constant(speed_kmh, cfg),
+        max_age_factor=cfg.lifetime_max_age_factor,
     )
-    k = np.arange(steps + 1, dtype=np.float64)
-    return float(np.exp(-k * _UPDATE_CYCLE_TIME_S / time_constant).sum())
 
 
 def inject_plume(
@@ -209,11 +308,11 @@ def inject_plume(
     """Thêm cụm plume vào sau các box đang chạy.
 
     Số cụm mỗi box là số cụm **nhìn thấy trong một frame** ở trạng thái dừng:
-    ``cluster_count_for_speed`` = ``round(mean × K)``, với ``K`` là tổng cấp số
-    nhân của xác suất sống ``exp(-age/T)`` trên ``[0, 4T]``. Generator chạy
-    per-frame, không có state qua frame; **không** còn dropout ``age ~ U(0,4T)``
-    vì suy giảm lifetime đã nằm trong ``K`` (ticket 22). Deterministic theo
-    ``seed``/``token``.
+    ``cluster_count_for_speed`` = ``round(rate × K)``, với ``rate`` lấy từ bảng
+    đo ``cal`` và ``K`` là tổng cấp số nhân của xác suất sống ``exp(-age/T)``
+    trên ``[0, 4T]`` (ticket 29c mục 7). Generator chạy per-frame, không có
+    state qua frame; **không** còn dropout ``age ~ U(0,4T)`` vì suy giảm lifetime
+    đã nằm trong ``K`` (ticket 22). Deterministic theo ``seed``/``token``.
     """
     cfg = config or PlumeConfig()
     clean = _as_five_columns(points)
@@ -252,7 +351,7 @@ def inject_plume(
         for _ in range(n_clusters):
             stats.clusters_spawned += 1
             distance = rng.uniform(*cfg.distance_range_m)
-            lateral = rng.normal(0.0, cfg.lateral_sigma_m)
+            lateral = _lateral_offset(rng, cfg.lateral_half_width_m)
             z = rng.uniform(*cfg.height_range_m)
             center = (
                 np.asarray(box[:2], dtype=np.float64)
@@ -307,10 +406,11 @@ def inject_plume(
         stats.rejected_box = int(inside.sum())
         injected = injected[~inside]
 
-    if len(injected) > cfg.max_injected_points:
-        keep = rng.choice(len(injected), cfg.max_injected_points, replace=False)
+    budget = _injected_budget(len(clean))
+    if len(injected) > budget:
+        keep = rng.choice(len(injected), budget, replace=False)
         keep.sort()
-        stats.capped = len(injected) - cfg.max_injected_points
+        stats.capped = len(injected) - budget
         injected = injected[keep]
 
     stats.injected = int(len(injected))
@@ -387,11 +487,15 @@ def inject_plume_stateful(
         x, y, z = (float(value) for value in box[:3])
         _, length, height, yaw = (float(value) for value in box[3:7])
         offset = length / 2.0 + block_length / 2.0
+        frac_lo, frac_hi = cfg.tail_block_height_frac
+        box_bottom = z - height / 2.0
+        block_bottom = box_bottom + frac_lo * height
+        block_top = box_bottom + frac_hi * height
         center = np.array(
             [
                 x - offset * np.cos(yaw),
                 y - offset * np.sin(yaw),
-                z - height / 2.0 + cfg.tail_block_height_m / 2.0,
+                0.5 * (block_bottom + block_top),
             ],
             dtype=np.float64,
         )
@@ -399,7 +503,7 @@ def inject_plume_stateful(
             [
                 block_length / 2.0,
                 cfg.tail_block_width_m / 2.0,
-                cfg.tail_block_height_m / 2.0,
+                0.5 * (block_top - block_bottom),
             ],
             dtype=np.float64,
         )
@@ -463,10 +567,11 @@ def inject_plume_stateful(
         stats.rejected_box = int(inside.sum())
         injected = injected[~inside]
 
-    if len(injected) > cfg.max_injected_points:
-        keep = rng.choice(len(injected), cfg.max_injected_points, replace=False)
+    budget = _injected_budget(len(clean))
+    if len(injected) > budget:
+        keep = rng.choice(len(injected), budget, replace=False)
         keep.sort()
-        stats.capped = len(injected) - cfg.max_injected_points
+        stats.capped = len(injected) - budget
         injected = injected[keep]
 
     stats.injected = int(len(injected))
@@ -523,6 +628,20 @@ def _rng(seed: int, token: str) -> np.random.Generator:
         f"{token}:{seed}".encode("utf-8"), digest_size=8
     ).digest()
     return np.random.default_rng(int.from_bytes(digest, "little"))
+
+
+def _lateral_offset(rng: np.random.Generator, half_width: float) -> float:
+    """Tâm cụm lệch ngang ~ **phân bố đều** trên ``±half_width`` [PAPER] §III-B."""
+    return float(rng.uniform(-half_width, half_width))
+
+
+def _injected_budget(real_point_count: int) -> int:
+    """Ngân sách điểm plume mỗi frame: ``max(500, round(0,05 × N_thật))``.
+
+    Thay trần tuyệt đối 2.000 (lỗi D7): hình học đúng cho 807–1.555 điểm/frame,
+    trần cũ cắt oan frame dày. Sàn 500 giữ frame thưa vẫn có plume.
+    """
+    return max(500, int(round(0.05 * int(real_point_count))))
 
 
 def _in_range(

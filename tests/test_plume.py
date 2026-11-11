@@ -3,7 +3,10 @@ import pytest
 
 from spray.plume import (
     PlumeConfig,
+    _ball,
+    _count_for_distance,
     _lognormal_clipped,
+    _thin_radial,
     cluster_count_for_speed,
     inject_plume,
     steady_state_cluster_factor,
@@ -17,7 +20,6 @@ def _config(**overrides):
         points_per_cluster_median=20.0,
         points_per_cluster_sigma=0.0,
         cluster_radius_sigma=0.0,
-        max_injected_points=200,
     )
     values.update(overrides)
     return PlumeConfig(**values)
@@ -80,21 +82,20 @@ def test_skips_low_speed_and_missing_velocity():
 
 
 def test_caps_injected_points_and_keeps_them_outside_boxes():
-    points = np.zeros((1, 5), dtype=np.float32)
+    # Ticket 29c mục 2: ngân sách = max(500, 5 % số điểm thật). 1.000 điểm
+    # thật ⇒ 500; cụm ở 3 m cho 30 điểm/cụm nên 4–29 cụm vượt ngân sách.
+    points = np.zeros((1000, 5), dtype=np.float32)
     boxes = np.array(
         [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 20.0, 0.0]], dtype=np.float32
     )
-    config = _config(
-        points_per_cluster_median=100.0,
-        max_injected_points=25,
-    )
+    config = _config(distance_range_m=(3.0, 3.0))
 
     for seed in range(100):
         result = inject_plume(points, boxes, seed=seed, config=config)
         if result.stats.capped > 0:
             break
 
-    assert result.stats.injected == 25
+    assert result.stats.injected == 500
     assert result.stats.capped > 0
     inside = (
         (np.abs(result.injected[:, 0]) <= 2.45)
@@ -169,15 +170,16 @@ def test_activation_threshold_is_40_kmh():
     assert above.stats.skipped_low_speed == 0
 
 
-def test_cluster_count_grows_with_speed():
-    # Ticket 22: số cụm trong frame = round(mean * K), K ≈ 2,51; không còn dropout.
+def test_cluster_count_follows_the_cal_table():
+    # Ticket 29c mục 7: bảng `cal` nội suy, không phải (0,2*wfh+0,1)*(v-50).
     assert cluster_count_for_speed(39.0) == 0
     assert cluster_count_for_speed(40.0) == 0
-    assert cluster_count_for_speed(50.0) == 0
-    assert cluster_count_for_speed(60.0) == 3
-    assert cluster_count_for_speed(80.0) == 8
-    assert cluster_count_for_speed(100.0) == 13
-    assert cluster_count_for_speed(130.0) == 20
+    assert cluster_count_for_speed(45.0) == 0
+    assert cluster_count_for_speed(50.0) == 4
+    assert cluster_count_for_speed(60.0) == 11
+    assert cluster_count_for_speed(80.0) == 22
+    assert cluster_count_for_speed(100.0) == 29
+    assert cluster_count_for_speed(130.0) == 18
 
 
 def test_no_clusters_at_45_kmh():
@@ -185,13 +187,13 @@ def test_no_clusters_at_45_kmh():
 
 
 def test_cluster_count_at_130_kmh_with_one_mm_water_film():
-    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 20
+    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 18
     assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.0)) == 0
 
 
-def test_cluster_count_at_80_kmh_is_eight():
-    # mean = 3,006 cụm/chu kỳ; × K ≈ 2,52 → 7,57 → 8 (ticket 22).
-    assert cluster_count_for_speed(80.0) == 8
+def test_cluster_count_at_80_kmh_matches_the_table():
+    # Bảng `cal` cho 22,02 cụm/frame ở 80 km/h.
+    assert cluster_count_for_speed(80.0) == 22
 
 
 def test_steady_state_cluster_factor_is_geometric_sum():
@@ -212,12 +214,12 @@ def test_no_lifetime_dropout_generates_full_steady_state_count():
     box = np.array(
         [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 80.0 / 3.6, 0.0]], dtype=np.float32
     )
-    config = _config(distance_range_m=(5.0, 5.0), max_injected_points=100000)
+    config = _config(distance_range_m=(5.0, 5.0))
 
     result = inject_plume(points, box, seed=0, config=config)
 
     expected = cluster_count_for_speed(80.0, config)
-    assert expected == 8
+    assert expected == 22
     assert result.stats.clusters_spawned == expected
     assert result.stats.clusters == expected
     assert result.stats.clusters_dropped_lifetime == 0
@@ -240,28 +242,29 @@ def test_points_per_cluster_matches_measured_median():
 
 
 def _single_clusters(distance, *, seeds, tag):
-    """Mỗi (cự ly, seed) sinh đúng một cụm; không còn dropout từ ticket 22."""
-    box = np.array(
-        [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 55.0 / 3.6, 0.0]], dtype=np.float32
-    )
-    empty = np.empty((0, 5), dtype=np.float32)
+    """Một cụm cho mỗi seed, dựng bằng đúng các primitive của generator.
+
+    Từ ticket 29c, một frame luôn có ít nhất 4 cụm (bảng `cal` bắt đầu ở
+    50 km/h), nên không thể lấy "đúng một cụm" bằng ``inject_plume`` nữa.
+    Các test dưới chỉ kiểm hình học một cụm, độc lập với số cụm/frame.
+    """
+    config = PlumeConfig()
+    direction = np.array([1.0, 0.0, 0.0], dtype=np.float64)
     clusters = []
     for seed in seeds:
-        config = PlumeConfig(
-            distance_range_m=(distance, distance),
-            lateral_sigma_m=0.0,
-            height_range_m=(1.0, 1.0),
-            max_injected_points=100000,
+        rng = np.random.default_rng(seed)
+        count = _count_for_distance(rng, distance, config)
+        radius = _lognormal_clipped(
+            rng,
+            config.cluster_radius_median_m,
+            config.cluster_radius_sigma,
+            config.cluster_radius_bounds_m,
         )
-        result = inject_plume(
-            empty,
-            box,
-            seed=seed,
-            token=f"{tag}:{distance:.1f}:{seed}",
-            config=config,
+        offsets = _thin_radial(
+            _ball(rng, count, radius), direction, config.radial_squash
         )
-        assert result.stats.clusters == 1, (tag, distance, seed, result.stats.clusters)
-        clusters.append(result.injected[:, :3].astype(np.float64))
+        center = direction * distance + np.array([0.0, 0.0, 1.0])
+        clusters.append((offsets + center).astype(np.float64))
     return clusters
 
 

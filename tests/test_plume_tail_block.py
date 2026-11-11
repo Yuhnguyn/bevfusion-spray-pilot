@@ -53,7 +53,7 @@ def _run_frames(count, state):
         )
 
 
-def test_block_sits_behind_tail_with_fixed_width_and_height():
+def test_block_sits_behind_tail_with_fixed_width_and_fraction_height():
     state = PlumeState()
 
     inject_plume_stateful(
@@ -66,8 +66,11 @@ def test_block_sits_behind_tail_with_fixed_width_and_height():
     block_len = SPEED_MPS * DT
     x_lo = 23.2 - 6.83 / 2.0 - block_len
     x_hi = 23.2 - 6.83 / 2.0
-    z_lo = 0.899 - 2.62 / 2.0
-    z_hi = z_lo + 1.5
+    height = 2.62
+    box_bottom = 0.899 - height / 2.0
+    frac_lo, frac_hi = PlumeConfig.tail_block_height_frac
+    z_lo = box_bottom + frac_lo * height
+    z_hi = box_bottom + frac_hi * height
     pos = np.array([cluster.pos for cluster in clusters])
 
     assert np.all(pos[:, 0] >= x_lo - 1e-6)

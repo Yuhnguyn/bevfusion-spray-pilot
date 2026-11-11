@@ -103,17 +103,18 @@ def test_accumulator_summarizes_frames_and_clusters():
     assert summary["height_median_m"] == pytest.approx(0.5)
 
 
-def test_simulator_estimate_uses_reference_cluster_formula():
+def test_simulator_estimate_uses_the_cal_table():
     at_fifty = simulator_estimate(speed_kmh=50.0)
     stopped = simulator_estimate(speed_kmh=0.0)
     at_fast = simulator_estimate(speed_kmh=500.0)
 
-    assert at_fifty["clusters_per_frame"] == 0
-    assert at_fifty["points_per_frame"] == 0
+    # Ticket 29c mục 7: bảng `cal` cho 4,18 cụm/frame ở 50 km/h.
+    assert at_fifty["clusters_per_frame"] == 4
+    assert at_fifty["points_per_frame"] == 68
     assert stopped["clusters_per_frame"] == 0
     assert stopped["points_per_frame"] == 0
-    # Ticket 22: count là trạng thái dừng round(mean * K), K ≈ 2,59 ở 500 km/h.
-    assert at_fast["clusters_per_frame"] == 117
+    # Trên mốc 130 km/h giữ giá trị cuối bảng (17,69 → 18).
+    assert at_fast["clusters_per_frame"] == 18
 
 
 def test_compare_rows_expose_simulator_values():

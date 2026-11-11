@@ -1,10 +1,12 @@
 """LiDAR beam geometry for the spray ray-casting step.
 
-The elevation angle of a ring comes from ``docs/history/plume-beam-table.md``, measured
-on SemanticSpray itself. The manufacturer's VLP-32C table must **not** be used:
-the release was clipped vertically and its ring ids were renumbered ``0..N-1``,
-so matching ids against the manual is off by 3.49 deg median. Ring id is used
-as the beam index; the angle is always read from the measured table.
+The measured ``ring -> elevation`` table was rejected: ring ids on this release
+are not beam ids, and the table was produced by a filter that dropped the
+upward rings which see the plume (``docs/history/plume-beam-table.md``
+§ĐÍNH CHÍNH). Casting therefore uses a **uniform grid**: ``0.333°`` in
+elevation over the measured FOV and ``0.197307°`` in azimuth, as decided in
+ticket 29c. The old measured ring table file is deleted and nothing may read
+it.
 
 Units are degrees at the API boundary and metres inside the intersection
 helpers. Azimuth follows the LiDAR frame: ``atan2(y, x)``, so 0 deg is ``+x``.
@@ -13,12 +15,14 @@ helpers. Azimuth follows the LiDAR frame: ``atan2(y, x)``, so 0 deg is ``+x``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
-import yaml
 
 __all__ = [
+    "AZIMUTH_STEP_DEG",
+    "ELEVATION_MAX_DEG",
+    "ELEVATION_MIN_DEG",
+    "ELEVATION_STEP_DEG",
     "BeamTable",
     "BeamTableError",
     "build_beams",
@@ -27,76 +31,45 @@ __all__ = [
     "ray_sphere_intersect",
 ]
 
-DEFAULT_TABLE_PATH = (
-    Path(__file__).resolve().parent / "config" / "beam_elevation.yaml"
-)
-
-_REQUIRED_KEYS = ("elevation_deg", "azimuth_step_deg")
+# [PAPER] VLP-32C elevation discretisation in the central FOV (0.333°); the
+# release is clipped to the measured FOV -4.06…+5.88°.
+ELEVATION_MIN_DEG = -4.06
+ELEVATION_MAX_DEG = 5.88
+ELEVATION_STEP_DEG = 0.333
+# [ĐO] measured azimuth step of the local release; 360 / step = 1,825 columns.
+AZIMUTH_STEP_DEG = 0.197307
 
 
 class BeamTableError(ValueError):
-    """The beam table file is missing a key or holds an invalid value."""
+    """A beam-grid parameter is invalid."""
 
 
 @dataclass(frozen=True)
 class BeamTable:
-    """Measured beam angles: one elevation per ring plus the azimuth step.
-
-    ``elevation_deg[i]`` belongs to ring ``i``. The tuple is the beam index to
-    angle map; nothing here assumes the manufacturer's laser ordering.
-    """
+    """Uniform beam angles: one elevation per ring plus the azimuth step."""
 
     elevation_deg: tuple[float, ...]
     azimuth_step_deg: float
 
 
-def load_beam_table(path: str | Path = DEFAULT_TABLE_PATH) -> BeamTable:
-    """Load a measured beam table from YAML.
+def load_beam_table() -> BeamTable:
+    """Return the uniform grid over the measured FOV.
 
-    Raises :class:`BeamTableError` with the missing key names when the file is
-    incomplete, and when the angles or step are not finite/positive.
+    Elevation runs from ``ELEVATION_MIN_DEG`` in steps of
+    ``ELEVATION_STEP_DEG`` while staying inside ``ELEVATION_MAX_DEG`` — 30
+    rings here. There is no YAML file any more (ticket 29c mục 6).
     """
-    table_path = Path(path)
-    try:
-        with open(table_path, "r", encoding="utf-8") as handle:
-            data = yaml.safe_load(handle)
-    except OSError as exc:
-        raise BeamTableError(f"cannot read beam table {table_path}: {exc}") from exc
-
-    if not isinstance(data, dict):
-        raise BeamTableError(f"beam table {table_path} must be a mapping")
-
-    missing = [key for key in _REQUIRED_KEYS if key not in data]
-    if missing:
-        raise BeamTableError(
-            f"beam table {table_path} is missing keys: {', '.join(missing)}"
-        )
-
-    try:
-        elevation = np.asarray(data["elevation_deg"], dtype=np.float64).ravel()
-    except (TypeError, ValueError) as exc:
-        raise BeamTableError(
-            f"elevation_deg in {table_path} must be a list of numbers"
-        ) from exc
-    if elevation.size == 0:
-        raise BeamTableError(f"elevation_deg in {table_path} is empty")
-    if not np.isfinite(elevation).all():
-        raise BeamTableError(f"elevation_deg in {table_path} must be finite")
-
-    try:
-        step = float(data["azimuth_step_deg"])
-    except (TypeError, ValueError) as exc:
-        raise BeamTableError(
-            f"azimuth_step_deg in {table_path} must be a number"
-        ) from exc
-    if not np.isfinite(step) or step <= 0.0:
-        raise BeamTableError(
-            f"azimuth_step_deg in {table_path} must be finite and > 0, got {step}"
-        )
-
+    elevation = np.arange(
+        ELEVATION_MIN_DEG,
+        ELEVATION_MAX_DEG,
+        ELEVATION_STEP_DEG,
+        dtype=np.float64,
+    )
+    if elevation.size == 0 or not np.isfinite(elevation).all():
+        raise BeamTableError("uniform elevation grid is empty or non-finite")
     return BeamTable(
         elevation_deg=tuple(float(value) for value in elevation),
-        azimuth_step_deg=step,
+        azimuth_step_deg=AZIMUTH_STEP_DEG,
     )
 
 

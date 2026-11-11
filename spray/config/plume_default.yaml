@@ -18,8 +18,7 @@ cluster_radius_bounds_m: [0.10, 1.00]
 radial_squash: 0.885
 distance_range_m: [1.0, 10.0]
 height_range_m: [0.2, 2.0]
-lateral_sigma_m: 0.5
+lateral_half_width_m: 2.34
 box_margin_m: 0.2
-max_injected_points: 2000
 intensity: 0.0
 ring: 0.0
