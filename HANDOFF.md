@@ -18,6 +18,21 @@ Không đọc lại toàn repo. Không đọc log `/tmp` trừ khi ticket yêu c
 
 ## 2. Đang ở đâu — một đoạn
 
+### Handoff PC (2026-11-11)
+
+- Branch `main`, latest pushed handoff commit will include WIP 29e-d work; **29e-d chưa nghiệm thu**.
+- Worker CommandCode `proc_4a720266bce7` đã kết thúc/interrupted (log cuối `/tmp/t29ed.log`, `EXIT=130`).
+  Nó tạo `scripts/measure_29ed.py` và `docs/measurements/29ed-real-distributions.md`, sửa code generator
+  và tests, nhưng **chưa chạy xong bước 3**. Toàn bộ thay đổi được giữ dưới commit `wip(29e-d)`.
+- Probe hiện có: `r_cl` median 0,271–0,274 m nhưng fit µ/σ lệch paper; `P_det > 1` gộp 1,46 %
+  (dưới stop gate 5%), song dải 15–40 m có 13–15,5 %. `P_det` fit có `p10=nan` và dấu hiệu vấn đề
+  phương pháp; **không dùng các fit này để hiệu chỉnh trước khi audit script/định nghĩa**.
+- Điểm tiếp tục: trên PC đọc `.scratch/spray-augmentation/STATUS.md`, ticket
+  `.scratch/spray-augmentation/issues/29e-d-measure-distributions.md`, log (nếu đã chuyển riêng)
+  `/tmp/t29ed.log`, rồi review `scripts/measure_29ed.py` và file kết quả. Chạy kiểm định độc lập trước khi
+  cắm số vào generator; dừng nếu số đo/định nghĩa còn bất nhất. Không tự nhận ticket đạt.
+- Kiểm tra `git status`; `graphify-out/` là artifact untracked, không cần handoff.
+
 Toàn bộ dây chuyền A/B **đã chạy end-to-end trên Kaggle**: train 2 arm × 2.000 bước (kernel v9) → eval
 4 ô trên 196 frame/16 scene (kernel v13). Kết quả **null**, và đã chẩn đoán được **vì sao** null (mục 11-i):
 plume chỉ thêm ~0,4 % số điểm nên hộp dự đoán dịch trung vị **3 mm**, số hộp không đổi, mAP chỉ nhúc nhích

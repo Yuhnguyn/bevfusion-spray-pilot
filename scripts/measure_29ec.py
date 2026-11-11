@@ -286,6 +286,7 @@ def measure_cell(
                     road_z_m=ROAD_Z_M,
                     rng=np.random.default_rng(seed),
                     capped=result.stats.capped,
+                    vehicle_class=vehicle_class,
                 )
             latency_ms.append((time.perf_counter() - started) * 1000.0)
             capped.append(int(result.stats.capped))

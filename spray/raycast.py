@@ -37,7 +37,26 @@ from spray.beam_model import (
 )
 from spray.plume_state import SprayCluster
 
-__all__ = ["RaycastConfig", "RaycastResult", "RaycastStats", "raycast_frame"]
+__all__ = [
+    "P_DET_MU_BY_CLASS",
+    "P_DET_SIGMA_BY_CLASS",
+    "RaycastConfig",
+    "RaycastResult",
+    "RaycastStats",
+    "p_det_params_for_class",
+    "raycast_frame",
+]
+
+# [ĐO 2026-11-11] Lognormal MLE of ``P_det = n / n_max`` on the ``cal`` split,
+# per vehicle class (``scripts/measure_29ed.py``,
+# ``docs/measurements/29ed-real-distributions.md``). The published profile
+# -2.3/1.1 is kept as the fallback for an unknown class. Note the fitted mean
+# ``e^(mu + sigma^2/2)`` is ~0.5, but the per-ray truncation ``min(1, X)`` makes
+# the effective probability ~0.13, matching the measured mean P_det.
+P_DET_MU_BY_CLASS = {"crafter": -4.064, "golf": -4.415}
+P_DET_SIGMA_BY_CLASS = {"crafter": 2.597, "golf": 2.727}
+PAPER_P_DET_MU = -2.3
+PAPER_P_DET_SIGMA = 1.1
 
 
 @dataclass(frozen=True)
@@ -46,14 +65,15 @@ class RaycastConfig:
 
     ``mean_attenuation_per_m`` enters ``exp(-2 * mean * L)`` [CODE]
     ``dee.cpp:279``. The detection probability is the clamped lognormal of the
-    published profile. ``N(0.5, 0.05)`` is only a **ranking score** for the
+    measured per-class profile; ``p_det_mu`` / ``p_det_sigma`` here are the
+    published fallback and are used whenever a caller passes a config. ``N(0.5, 0.05)`` is only a **ranking score** for the
     strongest-return step: it is not scaled to 0-255 and the emitted detection
     intensity is exactly 0 [PAPER] (over 80 % of real spray returns are 0).
     """
 
     mean_attenuation_per_m: float = 0.02
-    p_det_mu: float = -2.3
-    p_det_sigma: float = 1.1
+    p_det_mu: float = PAPER_P_DET_MU
+    p_det_sigma: float = PAPER_P_DET_SIGMA
     intensity_mu: float = 0.5
     intensity_sigma: float = 0.05
     max_distance_m: float = 100.0
@@ -87,6 +107,18 @@ class RaycastResult:
     stats: RaycastStats
 
 
+def p_det_params_for_class(vehicle_class: str) -> tuple[float, float]:
+    """Measured ``(mu, sigma)`` of the cluster detection probability.
+
+    Falls back to the published profile for a class without a measurement.
+    """
+    key = vehicle_class.lower()
+    return (
+        P_DET_MU_BY_CLASS.get(key, PAPER_P_DET_MU),
+        P_DET_SIGMA_BY_CLASS.get(key, PAPER_P_DET_SIGMA),
+    )
+
+
 def raycast_frame(
     points: np.ndarray,
     clusters: Sequence[SprayCluster],
@@ -96,6 +128,7 @@ def raycast_frame(
     rng: np.random.Generator,
     config: RaycastConfig | None = None,
     capped: int = 0,
+    vehicle_class: str = "crafter",
 ) -> RaycastResult:
     """Cast the uniform beam grid through ``clusters`` for one frame.
 
@@ -106,9 +139,16 @@ def raycast_frame(
 
     Clusters are pre-filtered with an angular box around the cone they subtend,
     so the 54,750-beam grid is never tested against every cluster.
+
+    Without an explicit ``config`` the detection profile is the measured one
+    for ``vehicle_class`` (ticket 29e-d); passing a config overrides it.
     """
     started = time.perf_counter()
-    cfg = config or RaycastConfig()
+    if config is None:
+        mu, sigma = p_det_params_for_class(vehicle_class)
+        cfg = RaycastConfig(p_det_mu=mu, p_det_sigma=sigma)
+    else:
+        cfg = config
     real = _as_points(points)
     cluster_list = list(clusters)
 

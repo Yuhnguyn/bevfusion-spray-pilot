@@ -10,8 +10,10 @@ from spray.beam_model import (
     ELEVATION_MAX_DEG,
     ELEVATION_MIN_DEG,
     ELEVATION_STEP_DEG,
+    beams_intersecting_sphere,
     build_beams,
     load_beam_table,
+    omega_tia_sr,
     ray_directions,
     ray_sphere_intersect,
 )
@@ -52,6 +54,32 @@ def test_build_beams_uses_the_measured_azimuth_step():
     assert elevation.shape == azimuth.shape == (n_elevation * n_azimuth,)
     assert np.unique(azimuth).size == n_azimuth
     assert np.unique(elevation).size == n_elevation
+
+
+def test_omega_tia_is_the_beam_solid_angle_of_the_grid():
+    table = load_beam_table()
+
+    # 0.197307 deg x 0.333 deg in steradians, the ticket-29e-d reference value.
+    assert omega_tia_sr(table) == pytest.approx(2.003e-5, rel=1e-2)
+
+
+def test_beams_intersecting_sphere_matches_the_small_angle_limit():
+    table = load_beam_table()
+    omega = omega_tia_sr(table)
+
+    # r << d: the cone solid angle is pi * r^2 / d^2.
+    expected = np.pi * 0.01**2 / 10.0**2 / omega
+    assert beams_intersecting_sphere(0.01, 10.0, omega) == pytest.approx(
+        expected, rel=1e-3
+    )
+
+
+def test_beams_intersecting_sphere_covers_the_whole_sky_when_inside():
+    omega = 2.003e-5
+
+    assert beams_intersecting_sphere(5.0, 2.0, omega) == pytest.approx(
+        4.0 * np.pi / omega
+    )
 
 
 def test_ray_through_sphere_center_gives_near_and_far_roots():

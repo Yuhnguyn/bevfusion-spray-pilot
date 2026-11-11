@@ -25,8 +25,10 @@ __all__ = [
     "ELEVATION_STEP_DEG",
     "BeamTable",
     "BeamTableError",
+    "beams_intersecting_sphere",
     "build_beams",
     "load_beam_table",
+    "omega_tia_sr",
     "ray_directions",
     "ray_sphere_intersect",
 ]
@@ -121,6 +123,38 @@ def ray_directions(elev_deg, az_deg) -> np.ndarray:
         ],
         axis=-1,
     )
+
+
+def omega_tia_sr(table: BeamTable) -> float:
+    """Solid angle of one beam cell: ``Δaz · Δel`` in steradians."""
+    azimuth_step = np.radians(table.azimuth_step_deg)
+    elevation_step = np.radians(ELEVATION_STEP_DEG)
+    return float(azimuth_step * elevation_step)
+
+
+def beams_intersecting_sphere(
+    radius_m: float, distance_m: float, omega_sr: float
+) -> float:
+    """Number of uniform beams intersecting a sphere, ``n_max`` of eq. (7).
+
+    The sphere subtends ``2π(1 - sqrt(1 - (r/d)^2))`` sr as seen from the
+    sensor, so the expected beam count is that solid angle divided by the
+    per-beam cell ``omega_sr``. When the sensor lies inside the sphere every
+    direction hits it: ``4π / omega_sr``.
+    """
+    if omega_sr <= 0.0:
+        raise ValueError(f"omega_sr must be positive, got {omega_sr}")
+    if distance_m <= 0.0:
+        raise ValueError(f"distance_m must be positive, got {distance_m}")
+    radius = float(radius_m)
+    if radius <= 0.0:
+        return 0.0
+    ratio = radius / float(distance_m)
+    if ratio >= 1.0:
+        solid_angle = 4.0 * np.pi
+    else:
+        solid_angle = 2.0 * np.pi * (1.0 - np.sqrt(1.0 - ratio * ratio))
+    return float(solid_angle / omega_sr)
 
 
 def ray_sphere_intersect(
