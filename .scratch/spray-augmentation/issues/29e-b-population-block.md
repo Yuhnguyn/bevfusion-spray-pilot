@@ -1,7 +1,7 @@
 # 29e-b — Sửa dân số cụm + khối đuôi + phong bì ngang (E2 lần 2)
 
 Type: task
-Status: ready-for-agent
+Status: superseded-by-29e-c  ← đích A3 (mean det/cụm = 47,3) sai: đó là đuôi phân bố, xem 29e-c
 Blocked by: 29e E1 (working tree `885e290` + WIP, 294 passed)
 Owner: PM dispatch → CommandCode
 
