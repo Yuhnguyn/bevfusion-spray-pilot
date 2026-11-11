@@ -1,0 +1,538 @@
+version: semantic-spray-split-v1
+rule: 1:1 trong từng ô (group, object_velocity, distance_to_object); sắp theo tên;
+  xen kẽ cal/held-out; scene dư về cal
+counts:
+  cal: 104
+  held-out: 103
+cells:
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 50.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0000_2021-09-08-14-36-56_0
+    - Crafter_dynamic/0002_2021-09-08-14-38-22_0
+    - Crafter_dynamic/0004_2021-09-08-14-39-45_0
+    held-out:
+    - Crafter_dynamic/0001_2021-09-08-14-37-37_0
+    - Crafter_dynamic/0003_2021-09-08-14-39-03_0
+    - Crafter_dynamic/0005_2021-09-08-14-40-25_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 50.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0006_2021-09-08-14-43-47_0
+    - Crafter_dynamic/0008_2021-09-08-14-45-10_0
+    - Crafter_dynamic/0010_2021-09-08-14-46-31_0
+    held-out:
+    - Crafter_dynamic/0007_2021-09-08-14-44-32_0
+    - Crafter_dynamic/0009_2021-09-08-14-45-57_0
+    - Crafter_dynamic/0011_2021-09-08-14-47-19_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 60.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0012_2021-09-08-14-50-58_0
+    - Crafter_dynamic/0014_2021-09-08-14-52-31_0
+    - Crafter_dynamic/0016_2021-09-08-14-54-03_0
+    held-out:
+    - Crafter_dynamic/0013_2021-09-08-14-51-48_0
+    - Crafter_dynamic/0015_2021-09-08-14-53-22_0
+    - Crafter_dynamic/0017_2021-09-08-14-54-50_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 60.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0018_2021-09-08-14-58-08_0
+    - Crafter_dynamic/0020_2021-09-08-14-59-37_0
+    - Crafter_dynamic/0022_2021-09-08-15-01-04_0
+    held-out:
+    - Crafter_dynamic/0019_2021-09-08-14-58-55_0
+    - Crafter_dynamic/0021_2021-09-08-15-00-20_0
+    - Crafter_dynamic/0023_2021-09-08-15-01-50_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 70.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0024_2021-09-08-15-05-31_0
+    - Crafter_dynamic/0026_2021-09-08-15-06-58_0
+    - Crafter_dynamic/0028_2021-09-08-15-08-26_0
+    held-out:
+    - Crafter_dynamic/0025_2021-09-08-15-06-18_0
+    - Crafter_dynamic/0027_2021-09-08-15-07-43_0
+    - Crafter_dynamic/0029_2021-09-08-15-09-10_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 70.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0030_2021-09-08-15-13-19_0
+    - Crafter_dynamic/0032_2021-09-08-15-14-41_0
+    - Crafter_dynamic/0034_2021-09-08-15-16-02_0
+    held-out:
+    - Crafter_dynamic/0031_2021-09-08-15-14-01_0
+    - Crafter_dynamic/0033_2021-09-08-15-15-24_0
+    - Crafter_dynamic/0035_2021-09-08-15-16-46_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 80.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0036_2021-09-08-15-20-22_0
+    - Crafter_dynamic/0038_2021-09-08-15-21-53_0
+    - Crafter_dynamic/0040_2021-09-08-15-23-26_0
+    held-out:
+    - Crafter_dynamic/0037_2021-09-08-15-21-04_0
+    - Crafter_dynamic/0039_2021-09-08-15-22-40_0
+    - Crafter_dynamic/0041_2021-09-08-15-24-13_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 80.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0042_2021-09-08-15-54-21_0
+    - Crafter_dynamic/0044_2021-09-08-15-55-54_0
+    - Crafter_dynamic/0046_2021-09-08-15-57-24_0
+    held-out:
+    - Crafter_dynamic/0043_2021-09-08-15-55-09_0
+    - Crafter_dynamic/0045_2021-09-08-15-56-38_0
+    - Crafter_dynamic/0047_2021-09-08-15-58-08_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 90.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0048_2021-09-08-16-02-18_0
+    - Crafter_dynamic/0050_2021-09-08-16-04-00_0
+    - Crafter_dynamic/0052_2021-09-08-16-05-38_0
+    held-out:
+    - Crafter_dynamic/0049_2021-09-08-16-03-09_0
+    - Crafter_dynamic/0051_2021-09-08-16-04-48_0
+    - Crafter_dynamic/0053_2021-09-08-16-06-27_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 90.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0054_2021-09-08-16-19-50_0
+    - Crafter_dynamic/0056_2021-09-08-16-21-25_0
+    - Crafter_dynamic/0058_2021-09-08-16-23-01_0
+    held-out:
+    - Crafter_dynamic/0055_2021-09-08-16-20-37_0
+    - Crafter_dynamic/0057_2021-09-08-16-22-11_0
+    - Crafter_dynamic/0059_2021-09-08-16-23-49_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 100.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0060_2021-09-08-16-27-14_0
+    - Crafter_dynamic/0062_2021-09-08-16-28-50_0
+    - Crafter_dynamic/0064_2021-09-08-16-30-25_0
+    held-out:
+    - Crafter_dynamic/0061_2021-09-08-16-28-03_0
+    - Crafter_dynamic/0063_2021-09-08-16-29-34_0
+    - Crafter_dynamic/0065_2021-09-08-16-31-12_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 100.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0066_2021-09-08-16-34-39_0
+    - Crafter_dynamic/0068_2021-09-08-16-36-15_0
+    - Crafter_dynamic/0070_2021-09-08-16-37-49_0
+    held-out:
+    - Crafter_dynamic/0067_2021-09-08-16-35-27_0
+    - Crafter_dynamic/0069_2021-09-08-16-37-02_0
+    - Crafter_dynamic/0071_2021-09-08-16-38-37_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 110.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0072_2021-09-08-16-42-41_0
+    - Crafter_dynamic/0074_2021-09-08-16-44-29_0
+    - Crafter_dynamic/0076_2021-09-08-16-46-13_0
+    held-out:
+    - Crafter_dynamic/0073_2021-09-08-16-43-29_0
+    - Crafter_dynamic/0075_2021-09-08-16-45-17_0
+    - Crafter_dynamic/0077_2021-09-08-16-47-04_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 110.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0078_2021-09-08-17-22-14_0
+    - Crafter_dynamic/0080_2021-09-08-17-23-59_0
+    - Crafter_dynamic/0082_2021-09-08-17-25-45_0
+    held-out:
+    - Crafter_dynamic/0079_2021-09-08-17-23-05_0
+    - Crafter_dynamic/0081_2021-09-08-17-24-52_0
+    - Crafter_dynamic/0083_2021-09-08-17-26-43_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 120.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0084_2021-09-08-17-31-03_0
+    - Crafter_dynamic/0086_2021-09-08-17-32-52_0
+    - Crafter_dynamic/0088_2021-09-08-17-34-42_0
+    held-out:
+    - Crafter_dynamic/0085_2021-09-08-17-31-55_0
+    - Crafter_dynamic/0087_2021-09-08-17-33-43_0
+    - Crafter_dynamic/0089_2021-09-08-17-35-35_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 120.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0090_2021-09-08-17-39-56_0
+    - Crafter_dynamic/0092_2021-09-08-17-41-47_0
+    - Crafter_dynamic/0094_2021-09-08-17-43-37_0
+    held-out:
+    - Crafter_dynamic/0091_2021-09-08-17-40-50_0
+    - Crafter_dynamic/0093_2021-09-08-17-42-41_0
+    - Crafter_dynamic/0095_2021-09-08-17-44-32_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 130.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0096_2021-09-08-17-49-24_0
+    - Crafter_dynamic/0098_2021-09-08-17-51-24_0
+    - Crafter_dynamic/0100_2021-09-08-17-53-31_0
+    held-out:
+    - Crafter_dynamic/0097_2021-09-08-17-50-29_0
+    - Crafter_dynamic/0099_2021-09-08-17-52-29_0
+    - Crafter_dynamic/0101_2021-09-08-17-54-37_0
+  unpaired: false
+- key:
+    group: Crafter_dynamic
+    velocity_kmh: 130.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Crafter_dynamic/0102_2021-09-08-17-59-07_0
+    - Crafter_dynamic/0104_2021-09-08-18-01-09_0
+    - Crafter_dynamic/0106_2021-09-08-18-03-12_0
+    held-out:
+    - Crafter_dynamic/0103_2021-09-08-18-00-12_0
+    - Crafter_dynamic/0105_2021-09-08-18-02-15_0
+    - Crafter_dynamic/0107_2021-09-08-18-04-20_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 50.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0000_2021-09-08-08-27-59_0
+    - Golf_dynamic/0002_2021-09-08-08-29-36_0
+    - Golf_dynamic/0004_2021-09-08-08-31-24_0
+    held-out:
+    - Golf_dynamic/0001_2021-09-08-08-28-38_0
+    - Golf_dynamic/0003_2021-09-08-08-30-30_0
+    - Golf_dynamic/0005_2021-09-08-08-32-12_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 50.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0012_2021-09-08-08-44-47_0
+    - Golf_dynamic/0014_2021-09-08-08-46-28_0
+    - Golf_dynamic/0016_2021-09-08-08-48-18_0
+    held-out:
+    - Golf_dynamic/0013_2021-09-08-08-45-37_0
+    - Golf_dynamic/0015_2021-09-08-08-47-22_0
+    - Golf_dynamic/0017_2021-09-08-08-49-11_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 60.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0018_2021-09-08-08-53-06_0
+    - Golf_dynamic/0020_2021-09-08-08-54-50_0
+    - Golf_dynamic/0022_2021-09-08-08-56-42_0
+    held-out:
+    - Golf_dynamic/0019_2021-09-08-08-54-01_0
+    - Golf_dynamic/0021_2021-09-08-08-55-45_0
+    - Golf_dynamic/0023_2021-09-08-08-57-35_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 60.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0006_2021-09-08-08-36-56_0
+    - Golf_dynamic/0008_2021-09-08-08-38-36_0
+    - Golf_dynamic/0010_2021-09-08-08-40-17_0
+    held-out:
+    - Golf_dynamic/0007_2021-09-08-08-37-37_0
+    - Golf_dynamic/0009_2021-09-08-08-39-19_0
+    - Golf_dynamic/0011_2021-09-08-08-41-11_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 70.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0024_2021-09-08-09-01-17_0
+    - Golf_dynamic/0026_2021-09-08-09-02-56_0
+    - Golf_dynamic/0028_2021-09-08-09-04-31_0
+    held-out:
+    - Golf_dynamic/0025_2021-09-08-09-02-05_0
+    - Golf_dynamic/0027_2021-09-08-09-03-43_0
+    - Golf_dynamic/0029_2021-09-08-09-05-21_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 70.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0030_2021-09-08-09-09-05_0
+    - Golf_dynamic/0032_2021-09-08-09-10-45_0
+    - Golf_dynamic/0034_2021-09-08-09-12-31_0
+    held-out:
+    - Golf_dynamic/0031_2021-09-08-09-09-56_0
+    - Golf_dynamic/0033_2021-09-08-09-11-39_0
+    - Golf_dynamic/0035_2021-09-08-09-13-19_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 80.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0036_2021-09-08-09-16-50_0
+    - Golf_dynamic/0038_2021-09-08-09-18-32_0
+    - Golf_dynamic/0040_2021-09-08-09-20-15_0
+    held-out:
+    - Golf_dynamic/0037_2021-09-08-09-17-40_0
+    - Golf_dynamic/0039_2021-09-08-09-19-22_0
+    - Golf_dynamic/0041_2021-09-08-09-21-07_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 80.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0042_2021-09-08-09-54-42_0
+    held-out:
+    - Golf_dynamic/0047_2021-09-08-09-58-44_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 90.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0048_2021-09-08-10-02-18_0
+    held-out: []
+  unpaired: true
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 90.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0054_2021-09-08-10-12-42_0
+    - Golf_dynamic/0056_2021-09-08-10-14-27_0
+    - Golf_dynamic/0058_2021-09-08-10-16-15_0
+    held-out:
+    - Golf_dynamic/0055_2021-09-08-10-13-34_0
+    - Golf_dynamic/0057_2021-09-08-10-15-18_0
+    - Golf_dynamic/0059_2021-09-08-10-17-03_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 100.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0060_2021-09-08-10-20-38_0
+    - Golf_dynamic/0062_2021-09-08-10-22-39_0
+    - Golf_dynamic/0064_2021-09-08-10-24-27_0
+    held-out:
+    - Golf_dynamic/0061_2021-09-08-10-21-38_0
+    - Golf_dynamic/0063_2021-09-08-10-23-33_0
+    - Golf_dynamic/0065_2021-09-08-10-25-19_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 100.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0066_2021-09-08-10-28-53_0
+    - Golf_dynamic/0068_2021-09-08-10-30-46_0
+    - Golf_dynamic/0070_2021-09-08-10-32-37_0
+    held-out:
+    - Golf_dynamic/0067_2021-09-08-10-29-51_0
+    - Golf_dynamic/0069_2021-09-08-10-31-40_0
+    - Golf_dynamic/0071_2021-09-08-10-33-37_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 110.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0072_2021-09-08-10-37-15_0
+    - Golf_dynamic/0074_2021-09-08-10-39-25_0
+    - Golf_dynamic/0076_2021-09-08-10-41-51_0
+    held-out:
+    - Golf_dynamic/0073_2021-09-08-10-38-23_0
+    - Golf_dynamic/0075_2021-09-08-10-40-32_0
+    - Golf_dynamic/0077_2021-09-08-10-42-46_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 110.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0078_2021-09-08-11-23-11_0
+    - Golf_dynamic/0080_2021-09-08-11-25-05_0
+    - Golf_dynamic/0082_2021-09-08-11-27-05_0
+    held-out:
+    - Golf_dynamic/0079_2021-09-08-11-24-08_0
+    - Golf_dynamic/0081_2021-09-08-11-26-13_0
+    - Golf_dynamic/0083_2021-09-08-11-28-08_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 120.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0084_2021-09-08-11-31-56_0
+    - Golf_dynamic/0086_2021-09-08-11-33-53_0
+    - Golf_dynamic/0088_2021-09-08-11-35-52_0
+    held-out:
+    - Golf_dynamic/0085_2021-09-08-11-32-53_0
+    - Golf_dynamic/0087_2021-09-08-11-34-52_0
+    - Golf_dynamic/0089_2021-09-08-11-36-54_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 120.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0090_2021-09-08-11-40-49_0
+    - Golf_dynamic/0092_2021-09-08-11-42-48_0
+    - Golf_dynamic/0094_2021-09-08-11-44-47_0
+    held-out:
+    - Golf_dynamic/0091_2021-09-08-11-41-50_0
+    - Golf_dynamic/0093_2021-09-08-11-43-50_0
+    - Golf_dynamic/0095_2021-09-08-11-45-47_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 130.0
+    distance_m: 20.0
+  scenes:
+    cal:
+    - Golf_dynamic/0096_2021-09-08-11-51-15_0
+    - Golf_dynamic/0098_2021-09-08-11-53-19_0
+    - Golf_dynamic/0100_2021-09-08-11-55-18_0
+    held-out:
+    - Golf_dynamic/0097_2021-09-08-11-52-19_0
+    - Golf_dynamic/0099_2021-09-08-11-54-19_0
+    - Golf_dynamic/0101_2021-09-08-11-56-17_0
+  unpaired: false
+- key:
+    group: Golf_dynamic
+    velocity_kmh: 130.0
+    distance_m: 30.0
+  scenes:
+    cal:
+    - Golf_dynamic/0102_2021-09-08-12-00-19_0
+    - Golf_dynamic/0104_2021-09-08-12-03-10_0
+    - Golf_dynamic/0106_2021-09-08-12-05-11_0
+    held-out:
+    - Golf_dynamic/0103_2021-09-08-12-02-13_0
+    - Golf_dynamic/0105_2021-09-08-12-04-10_0
+    - Golf_dynamic/0107_2021-09-08-12-06-10_0
+  unpaired: false
+criteria:
+- id: G1
+  quantity: noise_points_per_frame
+  estimator: median
+  floor_rel: 0.15
+  floor_abs: 0.0
+- id: G2
+  quantity: clusters_per_frame
+  estimator: mean
+  floor_rel: 0.2
+  floor_abs: 0.0
+- id: G3
+  quantity: points_per_cluster
+  estimator: median
+  floor_rel: 0.2
+  floor_abs: 0.0
+- id: G4
+  quantity: range_over_extent
+  estimator: median
+  floor_rel: 0.0
+  floor_abs: 0.1
+- id: G5
+  quantity: abs_y_p95_m
+  estimator: p95
+  floor_rel: 0.15
+  floor_abs: 0.0
+- id: G6
+  quantity: height_above_road_m
+  estimator: p5, p50, p95
+  floor_rel: 0.0
+  floor_abs: 0.2
+- id: G7
+  quantity: elevation_deg
+  estimator: median
+  floor_rel: 0.0
+  floor_abs: 0.5
