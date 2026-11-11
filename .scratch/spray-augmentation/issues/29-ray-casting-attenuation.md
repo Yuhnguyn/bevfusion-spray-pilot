@@ -20,6 +20,33 @@
 | **det/cụm (MỚI)** | 807–1.555 điểm ÷ 436 cụm ≈ **2–3,5** det/cụm; đo thật `cal` = **19,4** @100 km/h, **36,2** @130 km/h |
 | **Phân bố ngang (MỚI)** | `plume.py:255` `lateral = rng.normal(0, 0,5)` ⇒ `p95(|lateral|) ≈ 0,98 m`; paper dùng **phân bố đều**, số thật `p95(|y|) = 2,31 m` ⇒ plume bám trục hẹp **~2,4×**, che vật thể nhiều hơn thực |
 
+## SỐ BÀN GIAO TỪ 29d (đo trên `cal` — 104 scene, 6.074 frame; **không dùng `held-out`**)
+
+Cổng chia đã PASS 7/7 ngày 2026-11-11 (`docs/measurements/semantic-spray-cal-vs-heldout.md`).
+Mọi đích dưới đây là số đo trên `cal`; `held-out` chỉ để kiểm, **cấm** dùng để chọn tham số.
+
+| đại lượng | giá trị trên `cal` | dùng cho mục |
+|---|---:|---|
+| chiều cao điểm noise trên mặt đường p5 / med / p95 | **0,111 / 1,197 / 2,264 m** | 3 |
+| p95(\|y\|) trong hệ LiDAR | **2,308 m** | 9 (tham chiếu; phải đo thêm `p95(|y − y_tâm_box|)`) |
+| noise/frame (toàn bộ tốc độ, median) | **188** | 2 |
+| cụm/frame trung bình (mọi tốc độ) | **13,414** | 7 |
+| số frame đo | 6.074 | — |
+
+Bảng cụm/frame và det/cụm theo tốc độ (`docs/measurements/semantic-spray-clusters-by-speed.md`,
+DBSCAN `0,7°` / `minPts = 3`, chỉ scene `cal`):
+
+| km/h | 50 | 60 | 70 | 80 | 90 | 100 | 110 | 120 | 130 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Crafter cụm/frame | 4,18 | 11,31 | 17,42 | 22,02 | 20,69 | **29,24** | 28,49 | 17,58 | **17,69** |
+| Golf cụm/frame | 3,62 | 8,84 | 11,36 | 12,87 | 10,51 | 18,07 | 16,69 | 15,27 | 16,64 |
+| Crafter det/cụm (med) | 7,8 | 5,6 | 5,1 | 14,6 | 15,3 | **19,4** | 16,5 | 53,8 | 36,2 |
+| Crafter noise/frame | 47,6 | 179,9 | 361,2 | 856,0 | 945,2 | **1.382,0** | 1.417,9 | 753,4 | 877,9 |
+
+> **Đính chính so với bản trước:** tiêu chí chiều cao cũ ghi `0,16 / 1,51 / 2,36 m` là đo trên
+> 207 scene (lẫn `held-out`). Đích đúng là **0,111 / 1,197 / 2,264 m** (chỉ `cal`). Các số
+> `807–1.555 điểm/frame` vẫn dùng được, nhưng canvas đích là **570–1.555** (mục 8).
+
 ## Việc phải làm
 
 1. **`intensity` của detection sinh ra = 0.** `[PAPER]`: *"Over 80 % of spray detections from the
@@ -86,7 +113,9 @@
 - [ ] Marker `PLUME_RAYCAST` xuất hiện mỗi frame có plume, đủ 6 khoá.
 - [ ] `intensity` của **100 %** detection sinh ra = **0** (assert trong test).
 - [ ] Điểm thật sau plume có `intensity` giảm; `points_clean` **không đổi** (byte-equal).
-- [ ] Chiều cao điểm sinh ra: p5/med/p95 = **0,16 / 1,51 / 2,36 m** trên mặt đường ±0,15 m.
+- [ ] Chiều cao điểm sinh ra: p5/med/p95 = **0,111 / 1,197 / 2,264 m** (số đo `cal`) trên mặt đường,
+      mỗi phân vị lệch **≤ 0,20 m**; đồng thời elevation median của điểm sinh ra vào **8,9–11,0°**
+      ở 70/100/130 km/h.
 - [ ] Latency **< 100 ms/frame** ở 100 cụm, đo trên laptop, in số thật.
 - [ ] `spray/config/beam_elevation.yaml` không còn tồn tại; không file nào reference.
 - [ ] **Cụm/frame khớp bảng đo `cal` trong ±20 %** tại **cả 9 mốc 50…130 km/h**, cho **cả

@@ -68,7 +68,7 @@ advection hệ ground, `C = −0,15`, vệt 73,4 m @130 km/h) · 29a (lưới ti
 |---|---|---|
 | 1 | `intensity` của detection sinh ra đặt **0** | [PAPER]: *"the final intensity value of the simulated spray detections are set to 0"*; hiện code xuất 72–166 |
 | 2 | Bỏ trần `max_injected_points = 2000`, thay bằng trần theo **số điểm thật của frame** | hình học đúng cho 807–1.555 điểm/frame ⇒ trần tuyệt đối cắt oan |
-| 3 | Khối sau đuôi cao **5–92 % chiều cao box** (0,13–2,41 m với van 2,62 m) thay vì 1,5 m cứng | [ĐO] 939.803 điểm; elevation median 8,9–11,0° so với thật 9,2–9,5° |
+| 3 | Khối sau đuôi cao **5–92 % chiều cao box** (0,13–2,41 m với van 2,62 m) thay vì 1,5 m cứng | [ĐO] 939.803 điểm; elevation median 8,9–11,0° so với thật 9,2–9,5°. **Đo lại trên `cal` sau 29d: p5/med/p95 = 0,111 / 1,197 / 2,264 m** ⇒ đích của 29c là ba số này, không dùng 0,16/1,51/2,36 (bản đo 207 scene cũ) |
 | 4 | Hạ latency **266–476 ms → < 100 ms/frame**; thêm marker `PLUME_RAYCAST` | đo trên 100 cụm, ~1.794 cụm @130 km/h |
 
 **29d là cổng, làm trước hoặc song song:** chia 207 scene thành `cal` / `held-out` (1 scene = 1 lần ghi,
