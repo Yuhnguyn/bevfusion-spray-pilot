@@ -16,8 +16,8 @@
 | Marker | `PLUME_RAYCAST` **chưa tồn tại** |
 | Trần điểm | `plume.py:104` `max_injected_points = 2000` (lỗi D7) |
 | Khối sau đuôi | `plume.py:115–116` cao `1,5 m` cứng |
-| **Số cụm/chu kỳ (MỚI)** | `(0,2·wfh+0,1)·(v−50)` [CODE, dee.cpp] cho **9/15/24** cụm mỗi 0,1 s ở 80/100/130 km/h ⇒ **436 cụm/frame** @130 ướt đẫm; paper (Fig. 11b) là **~75**. Sai **4–6×**, và gán phụ thuộc ẩm vào sai biến |
-| **det/cụm (MỚI)** | 807–1.555 điểm ÷ 436 cụm ≈ **2–3,5** det/cụm; paper Fig. 1 = **14,3** |
+| **Số cụm/chu kỳ (MỚI)** | `(0,2·wfh+0,1)·(v−50)` [CODE, dee.cpp] cho **9/15/24** cụm mỗi 0,1 s ⇒ **184 cụm/frame** @100, **436** @130; đo thật trên `cal` là **29,2** @100 và **17,7** @130 ⇒ vượt **6×** và **25×**, và gán phụ thuộc ẩm vào sai biến |
+| **det/cụm (MỚI)** | 807–1.555 điểm ÷ 436 cụm ≈ **2–3,5** det/cụm; đo thật `cal` = **19,4** @100 km/h, **36,2** @130 km/h |
 | **Phân bố ngang (MỚI)** | `plume.py:255` `lateral = rng.normal(0, 0,5)` ⇒ `p95(|lateral|) ≈ 0,98 m`; paper dùng **phân bố đều**, số thật `p95(|y|) = 2,31 m` ⇒ plume bám trục hẹp **~2,4×**, che vật thể nhiều hơn thực |
 
 ## Việc phải làm
@@ -40,22 +40,31 @@
    vector hoá bằng cách tăng bộ nhớ vượt 2 GB; đo lại bằng `time.perf_counter` và in số.
 5. **Marker mới** mỗi frame: `PLUME_RAYCAST beams=<n> hit=<n> det=<n> att_m=<L> capped=<n> ms=<t>`.
 6. **Xoá** `spray/config/beam_elevation.yaml`; `beam_model.py` chỉ còn lưới đều.
-7. **Tốc độ sinh cụm theo Fig. 11b** `[PAPER-graph]`, `[CHỌN]` cho dạng hàm.
-   Paper §III-B chỉ cho quy tắc (đếm cụm trong vùng lọc rồi chia cho tỉ lệ độ dài vùng / quãng
-   đường một scan), không in hằng số. Suy ngược bằng chính `K(T) = Σ exp(−k·Δt/T)` của `plume.py`:
+7. **Số cụm hiển thị theo bảng đo của chính `cal`, KHÔNG theo Fig. 11b** `[ĐO]` + `[CHỌN]` dạng hàm.
+   Đo lại dataset bằng đúng recipe paper (DBSCAN góc `0,7°`, `minPts = 3`) — bảng đầy đủ ở
+   `docs/measurements/semantic-spray-clusters-by-speed.md`:
 
-   | km/h | paper ướt đẫm | ⇒ cụm/chu kỳ | paper ẩm | ⇒ cụm/chu kỳ | code hiện tại (ướt đẫm / ẩm) |
-   |---:|---:|---:|---:|---:|---:|
-   | 80 | 21 | 2,5 | 10,5 | 1,9 | 9 / 6 |
-   | 100 | 43 | 3,5 | 29,5 | 4,0 | 15 / 10 |
-   | 130 | 74,5 | 4,1 | 41,5 | 4,0 | 24 / 16 |
+   | km/h | 50 | 60 | 70 | 80 | 90 | 100 | 110 | 120 | 130 |
+   |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+   | **Crafter** cụm/frame | 4,2 | 11,3 | 17,4 | 22,0 | 20,7 | **29,2** | 28,5 | 17,6 | **17,7** |
+   | **Golf** cụm/frame | 3,6 | 8,8 | 11,4 | 12,9 | 10,5 | 18,1 | 16,7 | 15,3 | 16,6 |
+   | Crafter det/cụm (median) | 7,8 | 5,6 | 5,1 | 14,6 | 15,3 | **19,4** | 16,5 | 53,8 | 36,2 |
 
-   ⇒ tốc độ sinh **gần phẳng 3,5–4,1/chu kỳ** khi `v ≥ 100` và **gần như độc lập `wfh`**; độ ẩm
-   chỉ tác động qua `T`. Dạng đề nghị: `rate(v) = min(rate_cap, rate_slope·(v − v0))`, **không**
-   chứa `wfh`, `visible = round(rate × K(T(wfh, v)))`. Fit 2 tham số, in bảng before/after.
-   **Không** đổi `T`, không đổi `age > 4T`.
-8. **Canvas điểm phải khớp lại sau khi giảm số cụm.** Với 75 cụm và 14,3 det/cụm ⇒ ~1.070 điểm/frame,
-   đúng cửa sổ đo được 807–1.555. Nếu tổng điểm tụt khỏi cửa sổ thì hiệu chỉnh **median
+   Vì sao không dùng Fig. 11b: figure đó đo ở **50 m**, dataset chỉ có **20 / 30 m**; số đo thực ở
+   130 km/h là **17,7** chứ không phải 75, và cự ly xa cho **ít** cụm hơn (20 m > 30 m khoảng
+   10–20 %) nên ngoại suy 30 → 50 m chỉ làm số **giảm**. Dùng 75 làm đích sẽ đẩy generator lên một
+   con số không tồn tại trong dữ liệu mà nó phải khớp. Mốc paper giữ làm **kiểm tra chéo** ở 100 km/h
+   (paper 33 vs đo 29,2 ✓) và 14,3 det/cụm (đo 19,4 — cùng bậc).
+
+   Dạng hàm: **bảng tra theo lớp xe**, nội suy tuyến tính giữa các mốc 10 km/h — đường cong
+   **không đơn điệu** nên không fit `rate = a·(v − v0)`:
+   `rate(v) = visible_ref(v) / K(T_ref(v))`, `visible = round(rate × K(T(wfh, v)))`, `T_ref` là hằng
+   số thời gian ở mức ẩm chuẩn của dataset. `rate` **không** chứa `wfh`; độ ẩm chỉ tác động qua `T`.
+   Golf có bảng **riêng** (paper `NOT STATED` cho Golf). **Không** đổi `T`, không đổi `age > 4T`.
+8. **Canvas điểm phải khớp lại sau khi giảm số cụm.** Ở 100 km/h: 29,2 cụm × 19,4 det ⇒ **~570
+   điểm/frame** nằm trong cụm; cửa sổ đo thật (label 2) là **807–1.555** điểm/frame, phần dư là
+   điểm rời mà DBSCAN bỏ qua. Generator chỉ sinh detection **trong** cụm ⇒ đích là **570–1.555
+   điểm/frame**, không phải 1.070 như suy từ Fig. 11b. Nếu lệch thì hiệu chỉnh **median
    `points_per_cluster`** (`plume.py:78–88`, đang là `[CODE]`), **không** đổi dạng `P_det`
    (lognormal mỗi cụm Fig. 7 bốc `n`, Bernoulli mỗi tia `n/n_max`) và **không** nâng trần điểm.
 9. **Phân bố ngang của tâm cụm: đều, không Gaussian** `[PAPER]` §III-B:
@@ -80,10 +89,11 @@
 - [ ] Chiều cao điểm sinh ra: p5/med/p95 = **0,16 / 1,51 / 2,36 m** trên mặt đường ±0,15 m.
 - [ ] Latency **< 100 ms/frame** ở 100 cụm, đo trên laptop, in số thật.
 - [ ] `spray/config/beam_elevation.yaml` không còn tồn tại; không file nào reference.
-- [ ] **Cụm/frame khớp Fig. 11b trong ±20 %** tại 80 / 100 / 130 km/h cho **cả** `wfh = 0,5` và
-      `wfh = 1,0` (mốc: 10,5·21·41,5 và 29,5·43·74,5). In bảng paper-vs-code.
-- [ ] **det/cụm** median ở 100 km/h, `wfh = 1,0` trong **12–17** (paper 14,3).
-- [ ] Tổng điểm spray/frame vẫn trong **807–1.555**; `capped` không tăng.
+- [ ] **Cụm/frame khớp bảng đo `cal` trong ±20 %** tại **cả 9 mốc 50…130 km/h**, cho **cả
+      `Crafter` và `Golf`**, ở mức ẩm chuẩn. In bảng đo-vs-code đủ 9 dòng × 2 lớp.
+- [ ] **det/cụm** median ở 100 km/h Crafter trong **15–25** (đo 19,4); ở 130 km/h trong **29–43**
+      (đo 36,2).
+- [ ] Tổng điểm spray/frame trong **570–1.555**; `capped` không tăng.
 - [ ] `p95(|lateral|)` của cụm sinh ra khớp `p95(|y − y_box|)` đo trên `cal` trong **±10 %**; phân bố
       là đều (test: histogram 10 bin, χ² không bác `p > 0,01`), không còn `rng.normal` cho `lateral`.
 - [ ] Biên bản nghiệm thu ghi trong ticket này: số đo trước/sau, phần chưa khớp.

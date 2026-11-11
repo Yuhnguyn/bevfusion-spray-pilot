@@ -262,3 +262,22 @@ Suy ngược bằng `K(T) = Σ_{k=0}^{4T/Δt} exp(−k·Δt/T)` của chính cod
 ⇒ Mọi bảng số của paper (Fig. 4, Fig. 11b, 33 cụm/frame, 14,3 det/cụm, `T @130`) là của **Crafter**.
 Số cho **Golf: NOT STATED**. Vì dataset của mình có cả `Golf_dynamic` (99 scene lận), tham số Golf
 **phải tự đo** trên `cal` — không được suy từ Crafter rồi nhân hệ số tuỳ ý.
+
+### 9.6 ĐÍNH CHÍNH 2026-11-11 (chiều): Fig. 11b KHÔNG dùng được làm đích hiệu chỉnh
+
+Mục 9.1–9.3 ở trên suy ngược từ Fig. 11b (75 cụm/frame @130 km/h, 33 @100, 21 @80) ra tốc độ sinh
+cụm mỗi chu kỳ. Đo lại chính dataset `cal` bằng đúng recipe paper cho kết quả khác:
+
+| km/h | Crafter đo được | Fig. 11b |
+|---:|---:|---:|
+| 80 | 22,0 | 21 ✓ |
+| 100 | **29,2** | 33 ✓ |
+| 130 | **17,7** | 75 ✗ |
+
+Fig. 11 caption ghi rõ *"…from a Crafter **at 50 m distance**"*, còn dataset chỉ có **20 m và 30 m**.
+Cự ly xa cho **ít** cụm hơn (20 m nhiều hơn 30 m 10–20 %) nên ngoại suy 30 → 50 m chỉ làm số giảm,
+không thể thành 75. Noise/frame cũng giảm ở tốc độ cao (1.545 @100 so với 890 @130), tức các scene
+120–130 km/h của dataset nhẹ nước hơn figure.
+
+⇒ Đích hiệu chỉnh là bảng đo `docs/measurements/semantic-spray-clusters-by-speed.md`, không phải
+Fig. 11b. Số paper chỉ dùng làm **kiểm tra chéo** ở 100 km/h. Chi tiết: mục 7 của ticket 29c.
