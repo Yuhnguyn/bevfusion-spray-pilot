@@ -70,18 +70,18 @@ LIFETIME_BASE_S = 0.2
 LIFETIME_SIGMA_S = 0.2
 # [CODE] dee.cpp:446.
 MAX_AGE_FACTOR = 4.0
-# [CODE] dee.cpp:531.
+# [PAPER] arXiv 2212.08558, Fig. 5 / Sec. III-B: r_cl ~ lognormal(mu, sigma)
+# with median e^mu = 0.30 m and mean e^(mu + sigma^2/2) = 0.42 m. One fixed
+# distribution for every speed; the per-km/h median added in 29e was the wrong
+# direction and is gone (ticket 29e-c).
 RADIUS_MU = -1.2
 RADIUS_SIGMA = 0.8
 RADIUS_MAX_M = 1.0
-# [CHỌN 29e] Median radius per km/h of road speed. The paper/code use one fixed
-# lognormal, but the `cal` data show much larger blobs at 130 km/h (49.5 points
-# per cluster at 20 m vs 19.4 at 100 km/h on the whole plume). A fixed radius
-# cannot match det/cluster at both speeds: ray-cast detections per cluster scale
-# with r^2, and a radius tuned for 100 km/h undershoots 130 km/h by ~30 %.
-# 0.0055 m per km/h gives median 0.55 m at 100 km/h and 0.715 m at 130 km/h,
-# which puts det/cluster in the measured windows (see ticket 29e acceptance).
-RADIUS_MEDIAN_PER_KMH = 0.0055
+# [ĐO] p95(|y - y_block|) on the real `cal` labels is 2.43 m. Clusters may
+# drift sideways with the wind, so the lateral offset from the block centre is
+# clamped every step; the paper puts clusters uniformly behind the object and
+# does not model lateral drift beyond the measured plume width.
+LATERAL_CLAMP_M = 2.43
 # [CODE] dee.cpp:540.
 INITIAL_VZ_MAX_MPS = 5.0
 # [PAPER] arXiv 2212.08558, Sec. III-C: drag coefficient C = -0.15 1/m,
@@ -114,8 +114,6 @@ class PlumeStateConfig:
     radius_mu: float = RADIUS_MU
     radius_sigma: float = RADIUS_SIGMA
     radius_max_m: float = RADIUS_MAX_M
-    # Set <= 0 to fall back to the fixed ``radius_mu`` lognormal.
-    radius_median_per_kmh: float = RADIUS_MEDIAN_PER_KMH
     initial_vz_max_mps: float = INITIAL_VZ_MAX_MPS
     drag_mean: float = DRAG_MEAN
     drag_std: float = DRAG_STD
@@ -141,6 +139,11 @@ class SprayCluster:
     object_id: int
     cluster_id: int
     velocity_assumed: bool = False
+    # ``y`` of the spray block centre in the ego frame; the lateral clamp in
+    # :meth:`PlumeState.advance` keeps ``|pos[1] - lateral_center_y|`` inside
+    # :data:`LATERAL_CLAMP_M`. ``None`` disables the clamp (hand-built clusters
+    # in tests).
+    lateral_center_y: float | None = None
 
     def probability(self) -> float:
         """Displayed survival probability ``P_t = exp(-age/T)`` [PAPER] III-C.
@@ -310,17 +313,14 @@ class PlumeState:
         bucket = self._clusters.setdefault(
             (context.scene_token, object_id), []
         )
-        if cfg.radius_median_per_kmh > 0.0:
-            radius_mu = float(
-                np.log(cfg.radius_median_per_kmh * max(v_abs_kmh, 1.0))
-            )
-        else:
-            radius_mu = cfg.radius_mu
+        lateral_center = (
+            float(block_center[1]) if center is not None else float(origin[1])
+        )
         created: list[SprayCluster] = []
         for _ in range(count):
             radius = min(
                 cfg.radius_max_m,
-                float(np.exp(rng.normal(radius_mu, cfg.radius_sigma))),
+                float(np.exp(rng.normal(cfg.radius_mu, cfg.radius_sigma))),
             )
             ttl = max(
                 0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))
@@ -345,6 +345,7 @@ class PlumeState:
                 object_id=object_id,
                 cluster_id=self._next_cluster_id,
                 velocity_assumed=velocity_assumed,
+                lateral_center_y=lateral_center,
             )
             self._next_cluster_id += 1
             bucket.append(cluster)
@@ -392,6 +393,12 @@ class PlumeState:
                             * dt
                         )
                 cluster.pos = cluster.pos + (cluster.vel - ego_velocity) * dt
+                if cluster.lateral_center_y is not None:
+                    cluster.pos[1] = np.clip(
+                        cluster.pos[1],
+                        cluster.lateral_center_y - LATERAL_CLAMP_M,
+                        cluster.lateral_center_y + LATERAL_CLAMP_M,
+                    )
                 cluster.age += dt
         self._counters.alive = self._total_alive()
 

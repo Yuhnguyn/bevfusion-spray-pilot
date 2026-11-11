@@ -48,7 +48,10 @@ _CLUSTER_VISIBLE_BY_SPEED: dict[str, tuple[tuple[float, float], ...]] = {
 
 # [CHỌN] Mức ẩm chuẩn của dataset: 1 mm — cùng giá trị `PlumeContext.wfh_mm`
 # mặc định và mọi phép đo hình học đã công bố. `T_ref` lấy tại mức này.
-_REFERENCE_WATER_FILM_M = 0.001
+# Ticket 29e-c đặt tên và đóng vòng: `rate(v) = visible_ref(v) / K(T_ref)` lấy
+# `T_ref` tại `WFH_REF_MM`, nên `rate` không phụ thuộc `wfh` của frame.
+WFH_REF_MM = 1.0
+_REFERENCE_WATER_FILM_M = WFH_REF_MM / 1000.0
 
 # [CODE] profile VLP-32 `update_cycle_time` = 0.1 s — chu kỳ model tham chiếu sinh cụm.
 # Dùng để cộng dồn số cụm còn sống qua các chu kỳ (hệ số K, ticket 22).
@@ -137,17 +140,17 @@ class PlumeConfig:
     intensity: float = 0.0
     # Cột 5 là ring index; điểm tổng hợp gán ring 0; không dùng cho occlusion.
     ring: float = 0.0
-    # [PAPER] §III-B/§C — khối phun sau đuôi: rộng 3,4 m, cao 0,15–1,00 chiều cao
-    # box, đáy = đáy box + 0,15 chiều cao box. Chỉ đường stateful (ticket 28b/29c)
-    # đọc. Dải 0,05–0,92 của 29c cho detection quá thấp (h med 0,56 m so với đích
-    # 1,197 m) vì cụm nằm dưới trục beam; nâng lên 0,15–1,00 trong ticket 29e.
+    # [ĐO] Khối phun sau đuôi: rộng 3,4 m, cao 5–92 % chiều cao box, đáy = đáy
+    # box + 5 % chiều cao box. Số đo trên `cal`: đỉnh khối thực tế ~90 % chiều
+    # cao box, thân khối bắt đầu ngay trên mặt đường. Chỉ đường stateful
+    # (ticket 28b/29c) đọc. 29e-c trả về đúng dải 0,05–0,92 đã đo.
     #
     # ClassVar cố ý: `spray/config/plume_default.yaml` phải là bản sao khít của
     # mọi field dataclass (tests/test_plume_config_yaml.py). Vẫn đọc được qua
     # `config.tail_block_width_m` v.v.
     water_film_height_mm: ClassVar[float] = 1.0
     tail_block_width_m: ClassVar[float] = 3.4
-    tail_block_height_frac: ClassVar[tuple[float, float]] = (0.15, 1.00)
+    tail_block_height_frac: ClassVar[tuple[float, float]] = (0.05, 0.92)
 
 
 @dataclass
@@ -460,12 +463,13 @@ def inject_plume_stateful(
     - clusters carry a ground-frame velocity, so the ego velocity
       ``[ego_speed_mps, 0, 0]`` is passed to ``advance`` and only the position
       integration happens in the ego frame;
-    - block length ``|v_abs| * dt``, width 3.4 m, height ``0.15–1.00`` of the
-      box height (ticket 29e);
+    - block length ``|v_abs| * dt``, width 3.4 m, height ``0.05–0.92`` of the
+      box height (ticket 29e-c);
     - block centre ``box_pos - (L_box/2 + L_block/2) * [cos yaw, sin yaw]``;
-    - the block bottom sits at 15 % of the box height above the box bottom;
+    - the block bottom sits at 5 % of the box height above the box bottom;
     - clusters are removed once they rise above the box top, so the rise from
-      ``initial_vz`` cannot leave the plume tall after the box disappears.
+      ``initial_vz`` cannot leave the plume tall after the box disappears;
+    - ``|y - y_block|`` is clamped to 2.43 m every step (ticket 29e-c).
 
     Clusters are materialised as points of radius ``cluster.radius`` with the
     per-range point count from ``_POINTS_MEDIAN_BY_RANGE``, ``intensity = 0``

@@ -1,8 +1,12 @@
+import inspect
+
 import numpy as np
 import pytest
 
+from spray import plume_state
 from spray.plume_context import PlumeContext
 from spray.plume_state import (
+    LATERAL_CLAMP_M,
     PlumeState,
     PlumeStateConfig,
     SprayCluster,
@@ -289,6 +293,66 @@ def test_drag_uses_ground_velocity_when_ego_and_object_match_speed():
     for cluster in clusters:
         assert cluster.vel[0] < road_speed - 1.0
         assert cluster.pos[0] < -1.0
+
+
+def test_lateral_offset_is_clamped_to_the_measured_2_43_m():
+    state = PlumeState()
+    config = PlumeStateConfig(
+        lifetime_sigma_s=0.0, drag_mean=0.0, drag_std=0.0, wind_speed_mps=0.0
+    )
+    clusters = _spawn_nonempty(
+        state,
+        9,
+        np.random.default_rng(4),
+        dt=0.1,
+        center=np.array([16.0, 5.0, 0.34]),
+        extents=np.array([1.8, 1.7, 0.75]),
+        config=config,
+    )
+    for cluster in clusters:
+        assert cluster.lateral_center_y == pytest.approx(5.0)
+        cluster.pos[1] = 9.0
+
+    state.advance(0.1)
+
+    for cluster in clusters:
+        assert abs(cluster.pos[1] - 5.0) <= LATERAL_CLAMP_M + 1e-12
+        assert cluster.pos[1] == pytest.approx(5.0 + LATERAL_CLAMP_M)
+
+
+def test_radius_slope_constant_is_removed():
+    # Ticket 29e-c: the per-km/h median radius was the wrong direction; `r_cl`
+    # must be the paper's fixed lognormal (median 0.30 m) at every speed.
+    assert not hasattr(plume_state, "RADIUS_MEDIAN_PER_KMH")
+    assert "radius_median_per_kmh" not in PlumeStateConfig.__dataclass_fields__
+    assert "RADIUS_MEDIAN_PER_KMH" not in inspect.getsource(plume_state)
+
+
+def test_radius_median_does_not_grow_with_speed():
+    def radii(speed_kmh, seed=0):
+        state = PlumeState()
+        rng = np.random.default_rng(seed)
+        context = _context(
+            ego_speed_mps=speed_kmh / 3.6,
+            object_speed_mps=speed_kmh / 3.6,
+        )
+        values = []
+        for frame in range(600):
+            values.extend(
+                cluster.radius
+                for cluster in state.spawn(
+                    context, object_id=0, rng=rng, dt=0.1
+                )
+            )
+        return np.asarray(values)
+
+    slow = radii(100.0)
+    fast = radii(130.0)
+    assert slow.size > 300 and fast.size > 300
+    # Both medians must sit at the paper's 0.30 m (heavy tail, so allow 20 %).
+    assert np.median(slow) == pytest.approx(0.30, rel=0.20)
+    assert np.median(fast) == pytest.approx(0.30, rel=0.20)
+    assert np.median(fast) / np.median(slow) == pytest.approx(1.0, abs=0.15)
 
 
 def test_positive_drag_sample_never_accelerates_a_cluster():

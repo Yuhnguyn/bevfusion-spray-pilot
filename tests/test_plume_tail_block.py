@@ -81,6 +81,12 @@ def test_block_sits_behind_tail_with_fixed_width_and_fraction_height():
     assert np.all(pos[:, 2] <= z_hi + 1e-6)
 
 
+def test_tail_block_fraction_is_the_measured_0_05_to_0_92():
+    # Ticket 29e-c: the block spans 5-92 % of the box height, not the 15-100 %
+    # knob from 29e. Measured on the real `cal` labels.
+    assert PlumeConfig.tail_block_height_frac == (0.05, 0.92)
+
+
 def test_trail_keeps_clusters_alive_from_frame_two():
     state = PlumeState()
 
