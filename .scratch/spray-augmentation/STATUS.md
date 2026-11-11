@@ -260,3 +260,46 @@ Nguyên tắc: **việc quyết định thiết kế làm trước, việc cơ h
 3. Test liên quan pass, `git status` sạch, commit message nêu rõ đã làm gì.
 4. Không mở rộng phạm vi: việc ngoài ticket thì ghi thành ticket mới, không làm kèm.
 5. Nếu bị chặn: dừng, báo PM kèm log + giả thuyết, không tự đổi pin hay version đã chốt.
+
+## 29d — cổng chia `cal`/`held-out` (đóng 2026-11-11)
+
+**Trạng thái: PASS 7/7.** Luật chia hiện hành `v2-parity-flip-by-cell`
+(`SPLIT_VERSION`, commit `09cd650`); ngưỡng cổng là **sàn đóng băng**
+(commit `a82e4e9`).
+
+| vòng | thay đổi | kết quả |
+|---|---|---|
+| v1 | chia 1:1 xen kẽ theo tên trong từng ô | **FAIL 3/7** (G1, G6, G7) |
+| v2 | sắp theo `(itr_after_water, tên)`, đảo parity theo ô | **PASS 7/7** |
+| v3 | `halves()` stratify theo `itr_after_water`, bỏ `max(sàn, 2×Δ_halfsplit)` | **PASS 7/7**, ngưỡng = sàn |
+
+Nguyên nhân v1 FAIL: scene trong một ô được đo ở các chu kỳ thay nước khác
+nhau, nước vơi dần nên noise/frame giảm từ **1.597 (w=1) → 633 (w=6)**. Chia
+theo tên đẩy `cal = {1,3,5}` và `held-out = {2,4,6}` ⇒ Δ noise/frame **−44,6 %**,
+kéo theo G6/G7. v2 cân bằng `w_itr` giữa hai vai (Crafter 9/9 ở cả 6 mốc; Golf
+lệch 1 scene ở mốc 6 vì ô `Golf 90 km/h@20 m` chỉ có 1 scene).
+
+Số chốt (12.080 frame, 0 frame bỏ, `MEASURE_DONE elapsed=1507.8`):
+
+| id | cal | held-out | Δ | sàn | verdict |
+|---|---:|---:|---:|---:|---|
+| G1 noise/frame (median) | 188 | 184 | −2,1 % | 15 % | PASS |
+| G2 cụm/frame (mean) | 13,414 | 13,307 | −0,8 % | 20 % | PASS |
+| G3 điểm/cụm (median) | 6 | 6 | 0 % | 20 % | PASS |
+| G4 `r_range/r_extent` | 1,480 | 1,482 | +0,002 | 0,10 | PASS |
+| G5 p95(\|y\|) | 2,308 | 2,401 | +4,0 % | 15 % | PASS |
+| G6 chiều cao p5/p50/p95 (m) | 0,111 / 1,197 / 2,264 | 0,093 / 1,183 / 2,248 | −0,018 / −0,014 / −0,016 | 0,20 | PASS |
+| G7 elevation median (°) | 7,494 | 7,334 | −0,160 | 0,50 | PASS |
+
+Bài học giữ lại:
+
+- **Ngưỡng cổng không được phụ thuộc dữ liệu.** Bản v2 dùng
+  `max(sàn, 2×Δ_halfsplit)`; khi half-split lệch thành phần nước, Δ_halfsplit
+  phình 5,4 % → 33,5 % và ngưỡng G1 bị nới 15 % → 67 % (cổng tự nới để dễ qua).
+  Sau khi stratify: Δ_halfsplit G1 = **14,9 %**, ngưỡng vẫn 15 %.
+- **Half-split phải stratify cùng khoá với split**, nếu không nó đo confound
+  chứ không đo nhiễu lấy mẫu.
+- **`--measure` ghi đè `docs/measurements/semantic-spray-cal-vs-heldout.md`**
+  và chưa có cờ `--out` ⇒ không chạy smoke `--limit-scenes` trên cây làm việc
+  (đã có lần phải `git checkout` khôi phục). Cần thêm `--out` trước khi dùng
+  cổng cho 29c/31.

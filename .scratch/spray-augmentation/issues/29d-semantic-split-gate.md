@@ -134,3 +134,43 @@ Chi tiết chữ ký hàm, danh sách test và lệnh chạy: `dispatch/dispatch
 - Không dùng `held-out` để chọn tham số; không trộn hai vai.
 - Không thêm dependency (chỉ `numpy` + `yaml` + stdlib).
 - Không tự commit; PM nghiệm thu rồi commit.
+
+## Biên bản nghiệm thu (PM, 2026-11-11)
+
+**Kết luận: cổng đạt, PASS 7/7.** Ba vòng: v1 FAIL 3/7 → v2 PASS (đảo parity
+theo ô, commit `09cd650`) → v3 PASS (ngưỡng = sàn, commit `a82e4e9`).
+
+Số thật của vòng chốt (`docs/measurements/semantic-spray-cal-vs-heldout.md`,
+12.080 frame, 0 frame bỏ):
+
+| id | cal | held-out | Δ | Δ_halfsplit | sàn | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| G1 | 188 | 184 | −2,1 % | 14,9 % | 15 % | PASS |
+| G2 | 13,414 | 13,307 | −0,8 % | 3,4 % | 20 % | PASS |
+| G3 | 6 | 6 | 0 % | 0 % | 20 % | PASS |
+| G4 | 1,480 | 1,482 | +0,002 | 0,007 | 0,10 | PASS |
+| G5 | 2,308 | 2,401 | +4,0 % | 5,5 % | 15 % | PASS |
+| G6 | 0,111 / 1,197 / 2,264 | 0,093 / 1,183 / 2,248 | −0,018 / −0,014 / −0,016 | 0,013 | 0,20 | PASS |
+| G7 | 7,494 | 7,334 | −0,160 | 0,264 | 0,50 | PASS |
+
+Phân bố `itr_after_water` sau khi chốt (`[ĐO]`, đọc trực tiếp `metadata.txt`):
+
+| group | vai | w1 | w2 | w3 | w4 | w5 | w6 | tổng |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Crafter | cal | 9 | 9 | 9 | 9 | 9 | 9 | 54 |
+| Crafter | held-out | 9 | 9 | 9 | 9 | 9 | 9 | 54 |
+| Golf | cal | 9 | 8 | 8 | 8 | 8 | 9 | 50 |
+| Golf | held-out | 9 | 8 | 8 | 8 | 8 | 8 | 49 |
+| cal_a | — | 9 | 9 | 8 | 9 | 8 | 9 | 52 |
+| cal_b | — | 9 | 8 | 9 | 8 | 9 | 9 | 52 |
+
+Phần chưa khớp / còn nợ:
+
+1. Golf lệch 1 scene ở mốc 6 (ô `Golf 90 km/h@20 m` chỉ có 1 scene) — không
+   thể cân bằng hơn vì tổng `1..6 = 21` lẻ. Chấp nhận.
+2. `--measure` chưa có cờ `--out`, ghi đè báo cáo cố định → phải thêm trước khi
+   dùng cổng cho 29c/31.
+3. Cổng chỉ chứng minh **hai vai giống nhau về phân bố**, không chứng minh
+   generator khớp số tuyệt đối với bản đo trên `cal` (việc đó thuộc 29c/31).
+4. `G1` nằm sát sàn (Δ 2,1 % so với 15 %, Δ_halfsplit 14,9 %) — nếu sau này
+   thêm scene, phải chạy lại cổng chứ không suy diễn.

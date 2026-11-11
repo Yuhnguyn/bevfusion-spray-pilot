@@ -39,8 +39,8 @@ tiêu chí đạt; `held-out` không được dùng để chọn tham số.
 |---|---:|---:|
 | cal | 104 | 6074 |
 | held-out | 103 | 6006 |
-| cal_a | 52 | 3029 |
-| cal_b | 52 | 3045 |
+| cal_a | 52 | 3034 |
+| cal_b | 52 | 3040 |
 
 - frame bị bỏ (thiếu file hoặc `labels.size != points.shape[0]`): **0** (cal 0, held-out 0)
 
@@ -111,20 +111,21 @@ từng group và toàn cục. Bảng tính trên toàn bộ split, không phụ 
 
 ## Bảng 2 — 7 tiêu chí đóng băng `[ĐO]`
 
-Ngưỡng hiệu dụng = `max(sàn, 2 × Δ_halfsplit)`; `Δ_halfsplit` là
-chênh giữa hai nửa xen kẽ của `cal` và chỉ là **sàn nhiễu nội tại**
-`[CHỌN]`. G6 PASS khi cả p5, p50, p95 đạt. G2/G3/G4 dùng DBSCAN góc
-theo recipe paper.
+Ngưỡng = sàn đóng băng của từng tiêu chí, không bao giờ nới.
+`Δ_halfsplit` là chênh giữa hai nửa stratify theo
+`(group, itr_after_water)` của `cal`, chỉ để **chẩn đoán** và không
+tham gia verdict `[CHỌN]`. G6 PASS khi cả p5, p50, p95 đạt.
+G2/G3/G4 dùng DBSCAN góc theo recipe paper.
 
-| id | đại lượng | cal | held-out | Δ | Δ_halfsplit | ngưỡng | verdict |
+| id | đại lượng | cal | held-out | Δ | Δ_halfsplit (chẩn đoán) | ngưỡng | verdict |
 |---|---|---:|---:|---:|---:|---:|---|
-| G1 | noise_points_per_frame (median) | 188.000 | 184.000 | -2.1% | 33.5% | 67.0% | PASS |
-| G2 | clusters_per_frame (mean) | 13.414 | 13.307 | -0.8% | 13.6% | 27.3% | PASS |
+| G1 | noise_points_per_frame (median) | 188.000 | 184.000 | -2.1% | 14.9% | 15.0% | PASS |
+| G2 | clusters_per_frame (mean) | 13.414 | 13.307 | -0.8% | 3.4% | 20.0% | PASS |
 | G3 | points_per_cluster (median) | 6.000 | 6.000 | +0.0% | 0.0% | 20.0% | PASS |
-| G4 | range_over_extent (median) | 1.480 | 1.482 | +0.002 | 0.000 | 0.100 | PASS |
-| G5 | abs_y_p95_m (p95) | 2.308 | 2.401 | +4.0% | 7.1% | 15.0% | PASS |
-| G6 | height_above_road_m (p5, p50, p95) | 0.111 / 1.197 / 2.264 | 0.093 / 1.183 / 2.248 | -0.018 / -0.014 / -0.016 | 0.179 | 0.358 | PASS |
-| G7 | elevation_deg (median) | 7.494 | 7.334 | -0.160 | 0.438 | 0.876 | PASS |
+| G4 | range_over_extent (median) | 1.480 | 1.482 | +0.002 | 0.007 | 0.100 | PASS |
+| G5 | abs_y_p95_m (p95) | 2.308 | 2.401 | +4.0% | 5.5% | 15.0% | PASS |
+| G6 | height_above_road_m (p5, p50, p95) | 0.111 / 1.197 / 2.264 | 0.093 / 1.183 / 2.248 | -0.018 / -0.014 / -0.016 | 0.013 | 0.200 | PASS |
+| G7 | elevation_deg (median) | 7.494 | 7.334 | -0.160 | 0.264 | 0.500 | PASS |
 
 ### Bảng phụ — recipe legacy Euclid 0,5 m (chỉ để đối chiếu ticket 16) `[ĐO]`
 
@@ -155,7 +156,9 @@ Recipe này không tham gia cổng; chỉ để so thang số. `17,06` cụm/fra
 
 ## Caveats
 
-- `Δ_halfsplit` chỉ là sàn nhiễu nội tại của `cal`, không phải khoảng tin cậy hình thức `[CHỌN]`.
+- `Δ_halfsplit` chỉ là chẩn đoán nhiễu nội tại của `cal` (hai nửa
+  stratify theo `(group, itr_after_water)`), không phải khoảng tin
+  cậy hình thức và không dùng để nới ngưỡng `[CHỌN]`.
 - Cổng dùng DBSCAN góc `minPts = 3`, `eps = 0,7°`, elevation snap `0,333°`; paper không nói rõ lân cận là hộp hay tròn trong mặt phẳng góc nên dùng đĩa Euclid `[CHỌN]`. Single-linkage 0,5 m chỉ còn là bảng phụ.
 - Paper **không chia scene**: paper giữ điều kiện chưa dùng khi hiệu chỉnh trên cùng bộ dữ liệu (§IV-1) và có bộ spray test riêng 1.463 frame. Split 1:1 theo scene ở đây là `[CHỌN]` của mình, không phải protocol paper.
 - Label `2` của SemanticSpray gồm cả nhiễu không phải spray (mưa, phản xạ), nên mọi đại lượng đều là thống kê của *noise*, không riêng plume.
