@@ -205,7 +205,7 @@ def _is_renamed(step_type):
     return step_type in RENAMED_STEPS
 
 
-def build_pipeline_steps(arm, vendor_pipeline):
+def build_pipeline_steps(arm, vendor_pipeline, sidecar_path=None):
     """Vendor train pipeline with the arm's shared slice put in place.
 
     ``spray.ab_config.train_pipeline`` is the augmentation/format slice only
@@ -218,8 +218,9 @@ def build_pipeline_steps(arm, vendor_pipeline):
 
     arm_steps = {
         step["type"]: copy.deepcopy(step)
-        for step in build_cfg(arm)["train_pipeline"]
+        for step in build_cfg(arm, sidecar_path=sidecar_path)["train_pipeline"]
     }
+    context = arm_steps.pop("SprayContextTransform", None)
     plume = arm_steps.pop("PlumeTransform", None)
 
     steps = []
@@ -237,10 +238,13 @@ def build_pipeline_steps(arm, vendor_pipeline):
             steps.append(replacement)
         elif step_type in arm_steps:
             steps.append(copy.deepcopy(arm_steps[step_type]))
-            if step_type == "RandomFlip3D" and plume is not None:
-                steps.append(copy.deepcopy(plume))
         else:
             steps.append(copy.deepcopy(step))
+        if step_type == "RandomFlip3D":
+            if context is not None:
+                steps.append(copy.deepcopy(context))
+            if plume is not None:
+                steps.append(copy.deepcopy(plume))
     return steps
 
 
@@ -281,14 +285,16 @@ def _set_sweeps_num(pipeline, sweeps_num):
             step["sweeps_num"] = sweeps_num
 
 
-def build_loader(arm, cfg, dataroot, sweeps_num=None):
+def build_loader(arm, cfg, dataroot, sweeps_num=None, sidecar_path=None):
     import torch
     from mmdet3d.datasets import build_dataloader, build_dataset
 
     dataset_cfg = copy.deepcopy(cfg["data"]["train"]["dataset"])
     dataset_cfg["ann_file"] = str(MINI_PKL)
     dataset_cfg["dataset_root"] = str(dataroot)
-    dataset_cfg["pipeline"] = build_pipeline_steps(arm, cfg["data"]["train"]["dataset"]["pipeline"])
+    dataset_cfg["pipeline"] = build_pipeline_steps(
+        arm, cfg["data"]["train"]["dataset"]["pipeline"], sidecar_path=sidecar_path
+    )
     if sweeps_num is not None:
         _set_sweeps_num(dataset_cfg["pipeline"], sweeps_num)
     dataset_cfg["test_mode"] = False
@@ -601,6 +607,7 @@ def main(argv=None):
     # is then a no-op and only re-registers the spray pipeline transforms.
     import mmdet3d.datasets  # noqa: F401
     import spray.plume_transform  # noqa: F401  (registers PlumeTransform)
+    import spray.spray_context_transform  # noqa: F401  (registers context)
 
     probe.setup_pipelines()
 

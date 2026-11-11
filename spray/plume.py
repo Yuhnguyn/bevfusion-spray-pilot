@@ -137,15 +137,17 @@ class PlumeConfig:
     intensity: float = 0.0
     # Cột 5 là ring index; điểm tổng hợp gán ring 0; không dùng cho occlusion.
     ring: float = 0.0
-    # [PAPER] §III-B/§C — khối phun sau đuôi: rộng 3,4 m, cao 5–92 % chiều cao
-    # box, đáy = đáy box + 5 % chiều cao. Chỉ đường stateful (ticket 28b/29c) đọc.
+    # [PAPER] §III-B/§C — khối phun sau đuôi: rộng 3,4 m, cao 0,15–1,00 chiều cao
+    # box, đáy = đáy box + 0,15 chiều cao box. Chỉ đường stateful (ticket 28b/29c)
+    # đọc. Dải 0,05–0,92 của 29c cho detection quá thấp (h med 0,56 m so với đích
+    # 1,197 m) vì cụm nằm dưới trục beam; nâng lên 0,15–1,00 trong ticket 29e.
     #
     # ClassVar cố ý: `spray/config/plume_default.yaml` phải là bản sao khít của
     # mọi field dataclass (tests/test_plume_config_yaml.py). Vẫn đọc được qua
     # `config.tail_block_width_m` v.v.
     water_film_height_mm: ClassVar[float] = 1.0
     tail_block_width_m: ClassVar[float] = 3.4
-    tail_block_height_frac: ClassVar[tuple[float, float]] = (0.05, 0.92)
+    tail_block_height_frac: ClassVar[tuple[float, float]] = (0.15, 1.00)
 
 
 @dataclass
@@ -163,6 +165,11 @@ class PlumeStats:
     capped: int = 0
     wet_points_in: int = 0
     wet_mean_ratio: float = 0.0
+    # Ray-casting counters, filled by ``PlumeTransform`` from ``RaycastStats``.
+    det: int = 0
+    beams_hit: int = 0
+    att_m_total: float = 0.0
+    att_real_points: int = 0
 
 
 @dataclass
@@ -253,11 +260,18 @@ def cluster_count_for_speed(
 def lifetime_time_constant(
     speed_kmh: float, config: PlumeConfig | None = None
 ) -> float:
-    """[CODE] dee.cpp:530 — hằng số thời gian ``T`` (giây) của cụm."""
+    """[CODE] dee.cpp:530 — hằng số thời gian ``T`` (giây) của cụm.
+
+    ``T = 0,02·wfh_mm·(v − 50) + 0,2``. ``water_film_height_m`` is stored in
+    metres (``0.001`` = 1 mm); the reference formula is in millimetres, so the
+    field is converted here. Before ticket 29e it was used as if it already
+    were millimetres, which made ``T`` collapse to ``0.2 s`` at every speed.
+    """
     cfg = config or PlumeConfig()
+    wfh_mm = 1000.0 * cfg.water_film_height_m
     return (
         cfg.lifetime_water_film_coeff
-        * cfg.water_film_height_m
+        * wfh_mm
         * (speed_kmh - cfg.cluster_count_velocity_offset_kmh)
         + cfg.lifetime_base_s
     )
@@ -436,6 +450,7 @@ def inject_plume_stateful(
     config: PlumeConfig | None = None,
     dt: float = _UPDATE_CYCLE_TIME_S,
     wet_ground: WetGroundConfig | None = None,
+    vehicle_class: str = "crafter",
 ) -> PlumeResult:
     """Add a plume that keeps clusters alive across frames.
 
@@ -445,9 +460,12 @@ def inject_plume_stateful(
     - clusters carry a ground-frame velocity, so the ego velocity
       ``[ego_speed_mps, 0, 0]`` is passed to ``advance`` and only the position
       integration happens in the ego frame;
-    - block length ``|v_abs| * dt``, width 3.4 m, height 1.5 m;
+    - block length ``|v_abs| * dt``, width 3.4 m, height ``0.15–1.00`` of the
+      box height (ticket 29e);
     - block centre ``box_pos - (L_box/2 + L_block/2) * [cos yaw, sin yaw]``;
-    - block bottom on the box bottom, so ``z_centre = z_box - h_box/2 + 0.75``.
+    - the block bottom sits at 15 % of the box height above the box bottom;
+    - clusters are removed once they rise above the box top, so the rise from
+      ``initial_vz`` cannot leave the plume tall after the box disappears.
 
     Clusters are materialised as points of radius ``cluster.radius`` with the
     per-range point count from ``_POINTS_MEDIAN_BY_RANGE``, ``intensity = 0``
@@ -473,7 +491,11 @@ def inject_plume_stateful(
     state.advance(
         dt, ego_velocity=np.array([context.ego_speed_mps, 0.0, 0.0])
     )
-    expired = state.prune()
+    ceilings = {}
+    for index, box in enumerate(box_arr):
+        if np.isfinite(box[:7]).all():
+            ceilings[index] = float(box[2] + box[5] / 2.0)
+    expired = state.prune(ceilings=ceilings)
 
     block_length = abs(float(context.object_speed_mps)) * dt
     spawned = 0
@@ -515,6 +537,7 @@ def inject_plume_stateful(
             dt=dt,
             center=center,
             extents=extents,
+            vehicle_class=vehicle_class,
         )
         if created:
             stats.eligible_boxes += 1

@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 
-from spray.plume import PlumeConfig, inject_plume
 from spray.plume_context import (
     PlumeContext,
     PlumeContextError,
@@ -66,29 +65,23 @@ def test_from_sample_without_scene_token_raises():
         )
 
 
-def test_without_context_matches_direct_inject_plume():
+def test_without_context_raises_instead_of_falling_back_to_stateless():
+    # Ticket 29e: the silent fallback to ``inject_plume`` hid ray casting and
+    # attenuation from the A/B. The transform must refuse a missing context.
     points = np.zeros((4, 5), dtype=np.float32)
     boxes = np.array(
         [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 20.0, 0.0]], dtype=np.float32
     )
-    config = PlumeConfig(
-        distance_range_m=(3.0, 6.0),
-        points_per_cluster_sigma=0.0,
-        cluster_radius_sigma=0.0,
-    )
-    transform = PlumeTransform(config=config, seed=11)
-    results = {
-        "points": points,
-        "gt_bboxes_3d": boxes,
-        "metadata": {"token": "scene-legacy", "seed": 11},
-    }
+    transform = PlumeTransform(seed=11)
 
-    out = transform(results)
-    expected = inject_plume(points, boxes, seed=11, token="scene-legacy", config=config)
-
-    assert np.array_equal(out["points"], expected.points)
-    assert np.array_equal(out["points_clean"], expected.points_clean)
-    assert out["spray_stats"]["injected"] == expected.stats.injected
+    with pytest.raises(RuntimeError, match="requires plume_context"):
+        transform(
+            {
+                "points": points,
+                "gt_bboxes_3d": boxes,
+                "metadata": {"token": "scene-legacy", "seed": 11},
+            }
+        )
 
 
 def test_seed_for_changes_with_epoch_and_is_repeatable():

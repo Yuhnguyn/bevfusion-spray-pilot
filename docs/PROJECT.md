@@ -50,7 +50,9 @@ nuscenes_infos_{train,val}.pkl
    ▼ LoadPointsFromFile        points (N,5) = x,y,z,intensity,ring       N ≈ 34.720 [ĐO]
    ▼ GlobalRotScaleTrans       xoay/scale, ghi lidar_aug_matrix
    ▼ RandomFlip3D              lật trái/phải
-   ▼ PlumeTransform (26–29)    context → state.spawn/advance → raycast → points (N+K,5) + points_clean (N,5)
+   ▼ SprayContextTransform (29e)  sidecar tốc độ + ego2global/lidar2ego → plume_context
+   ▼ PlumeTransform (26–29e)      context → state.spawn/advance/prune → raycast
+   │                              → points (real đã attenuate + detections) + points_clean (N,5)
    ▼ DefaultFormatBundle3D     tensor, gom batch
    ▼ BEVFusion.forward (08)
        ├── camera branch: 6 ảnh + points_clean → sparse depth → BEV camera

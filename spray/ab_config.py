@@ -21,6 +21,7 @@ __all__ = [
     "DATASET_CONFIG",
     "KEEP_STEPS",
     "MODEL_CONFIG",
+    "SPEED_INDEX_PATH",
     "SPRAY_CONFIG",
     "SPRAY_PARAMS",
     "TRAIN_SPEC",
@@ -35,6 +36,8 @@ MODEL_CONFIG = (
     CONFIG_DIR / "det/transfusion/secfpn/camera+lidar/swint_v0p075/default.yaml"
 )
 SPRAY_CONFIG = pathlib.Path("spray/config/plume_default.yaml")
+# Written by scripts/build_plume_speed_index.py from the nuScenes infos.
+SPEED_INDEX_PATH = pathlib.Path("data/plume_speed_index.json")
 
 # The augmentation slice shared by both arms, in config order.
 KEEP_STEPS = (
@@ -90,12 +93,24 @@ def _plume_step() -> dict:
     }
 
 
-def train_pipeline(arm: str) -> list[dict]:
+def _context_step(sidecar_path) -> dict:
+    return {
+        "type": "SprayContextTransform",
+        "enabled": True,
+        "sidecar_path": str(sidecar_path),
+        "road_z_m": -0.411,
+        "config": copy.deepcopy(SPRAY_PARAMS),
+    }
+
+
+def train_pipeline(arm: str, sidecar_path=None) -> list[dict]:
     """Return the resolved pipeline slice for ``arm``.
 
     Steps are taken in config order: the five ``KEEP_STEPS`` plus the two
-    formatting steps renamed to their ``Clean*`` replacements.  Arm B inserts
-    one ``PlumeTransform`` right after ``RandomFlip3D``.
+    formatting steps renamed to their ``Clean*`` replacements. Arm B inserts
+    ``SprayContextTransform`` and then ``PlumeTransform`` right after
+    ``RandomFlip3D``: the first one attaches ``plume_context`` from the speed
+    sidecar, the second one consumes it.
     """
     _check_arm(arm)
     raw = load_yaml(DATASET_CONFIG)
@@ -107,26 +122,27 @@ def train_pipeline(arm: str) -> list[dict]:
         elif kind in RENAMED_STEPS:
             steps.append(_rename(resolve(step, raw)))
     if arm == "B":
-        steps = _with_plume(steps)
+        steps = _with_plume(steps, sidecar_path or SPEED_INDEX_PATH)
     return steps
 
 
-def _with_plume(steps: list[dict]) -> list[dict]:
+def _with_plume(steps: list[dict], sidecar_path) -> list[dict]:
     out: list[dict] = []
     for step in steps:
         out.append(step)
         if step["type"] == "RandomFlip3D":
+            out.append(_context_step(sidecar_path))
             out.append(_plume_step())
     return out
 
 
-def build_cfg(arm: str) -> dict:
+def build_cfg(arm: str, sidecar_path=None) -> dict:
     """Return the JSON-serializable config for ``arm``."""
     _check_arm(arm)
     return {
         "arm": arm,
         "train_spec": dict(TRAIN_SPEC),
         "model_config": str(MODEL_CONFIG),
-        "train_pipeline": train_pipeline(arm),
+        "train_pipeline": train_pipeline(arm, sidecar_path=sidecar_path),
         "spray": copy.deepcopy(SPRAY_PARAMS) if arm == "B" else None,
     }

@@ -52,6 +52,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from spray.plume import (
+    PlumeConfig,
+    cluster_rate_for_speed,
+    steady_state_cluster_factor,
+)
+
 # [CODE] dee.cpp:509-512 and the VLP-32 profile (num_clusters_velocity_offset_kmh).
 CLUSTER_COUNT_WFH_COEFF = 0.2
 CLUSTER_COUNT_BASE = 0.1
@@ -68,6 +74,14 @@ MAX_AGE_FACTOR = 4.0
 RADIUS_MU = -1.2
 RADIUS_SIGMA = 0.8
 RADIUS_MAX_M = 1.0
+# [CHỌN 29e] Median radius per km/h of road speed. The paper/code use one fixed
+# lognormal, but the `cal` data show much larger blobs at 130 km/h (49.5 points
+# per cluster at 20 m vs 19.4 at 100 km/h on the whole plume). A fixed radius
+# cannot match det/cluster at both speeds: ray-cast detections per cluster scale
+# with r^2, and a radius tuned for 100 km/h undershoots 130 km/h by ~30 %.
+# 0.0055 m per km/h gives median 0.55 m at 100 km/h and 0.715 m at 130 km/h,
+# which puts det/cluster in the measured windows (see ticket 29e acceptance).
+RADIUS_MEDIAN_PER_KMH = 0.0055
 # [CODE] dee.cpp:540.
 INITIAL_VZ_MAX_MPS = 5.0
 # [PAPER] arXiv 2212.08558, Sec. III-C: drag coefficient C = -0.15 1/m,
@@ -100,6 +114,8 @@ class PlumeStateConfig:
     radius_mu: float = RADIUS_MU
     radius_sigma: float = RADIUS_SIGMA
     radius_max_m: float = RADIUS_MAX_M
+    # Set <= 0 to fall back to the fixed ``radius_mu`` lognormal.
+    radius_median_per_kmh: float = RADIUS_MEDIAN_PER_KMH
     initial_vz_max_mps: float = INITIAL_VZ_MAX_MPS
     drag_mean: float = DRAG_MEAN
     drag_std: float = DRAG_STD
@@ -146,22 +162,41 @@ class PlumeCounters:
     expired: int = 0
 
 
-def cluster_count_for_speed_abs(v_abs_kmh: float, wfh_mm: float) -> int:
-    """Clusters spawned per cycle from the absolute (road) speed.
+def cluster_spawn_rate_for_speed_abs(
+    v_abs_kmh: float, vehicle_class: str = "crafter"
+) -> float:
+    """Clusters **spawned per 0.1 s cycle**, from the ``cal`` table (29e).
 
-    ``mean = (0.2*wfh_mm + 0.1)*(v_abs_kmh - 50)``, then
-    ``n = round(max(0, mean))``. Deterministic, no Poisson draw. ``wfh_mm`` is
-    in millimetres; the 40 km/h activation threshold is separate from the
-    50 km/h offset.
+    ``rate(v) = visible_ref(v) / K(T_ref(v))`` is independent of ``wfh``; the
+    humidity only changes how long a cluster lives (through ``T``). Keeping the
+    rate fractional matters at low speed: rounding 1.44 to 1 would undershoot
+    Golf at 50 km/h by 30 %. :class:`PlumeState` accumulates the fraction over
+    frames, so the long-run spawn rate stays exact while each frame still
+    spawns an integer number of clusters.
+    """
+    if v_abs_kmh <= ACTIVATION_SPEED_KMH:
+        return 0.0
+    return cluster_rate_for_speed(v_abs_kmh, PlumeConfig(), vehicle_class)
+
+
+def cluster_count_for_speed_abs(
+    v_abs_kmh: float, wfh_mm: float, vehicle_class: str = "crafter"
+) -> int:
+    """Clusters **alive in one frame** at steady state.
+
+    ``visible = round(rate * K(T(wfh, v)))`` — the same table as
+    :func:`spray.plume.visible_cluster_count_for_speed`, so the stateful path
+    and the per-frame generator report the same number. The lifetime ``T`` is
+    unchanged (``[CODE] dee.cpp:530``). ``wfh_mm`` is in millimetres.
     """
     if v_abs_kmh <= ACTIVATION_SPEED_KMH or wfh_mm <= 0.0:
         return 0
-    mean = (CLUSTER_COUNT_WFH_COEFF * wfh_mm + CLUSTER_COUNT_BASE) * (
-        v_abs_kmh - VELOCITY_OFFSET_KMH
-    )
-    if mean <= 0.0:
+    rate = cluster_spawn_rate_for_speed_abs(v_abs_kmh, vehicle_class)
+    if rate <= 0.0:
         return 0
-    return int(np.floor(mean + 0.5))
+    config = PlumeConfig(water_film_height_m=wfh_mm / 1000.0)
+    visible = rate * steady_state_cluster_factor(v_abs_kmh, config)
+    return int(np.floor(visible + 0.5))
 
 
 def lifetime_mean_s(v_abs_kmh: float, wfh_mm: float) -> float:
@@ -191,6 +226,7 @@ class PlumeState:
     def __init__(self, config: PlumeStateConfig | None = None) -> None:
         self._config = config or PlumeStateConfig()
         self._clusters: dict[tuple[str, int], list[SprayCluster]] = {}
+        self._spawn_credit: dict[tuple[str, int], float] = {}
         self._scene_token: str | None = None
         self._next_cluster_id = 0
         self._counters = PlumeCounters()
@@ -213,17 +249,20 @@ class PlumeState:
         center: np.ndarray | None = None,
         extents: np.ndarray | None = None,
         config: PlumeStateConfig | None = None,
+        vehicle_class: str = "crafter",
     ) -> list[SprayCluster]:
         """Spawn this cycle's clusters for one object.
 
-        ``n`` and ``T`` use ``v_abs`` (``object_speed_mps``). The initial
-        velocity is the **ground** velocity: ``object_velocity_ego_mps`` plus
-        the ego velocity ``[ego_speed_mps, 0, 0]``. When the caller did not
-        supply the object velocity, it falls back to the object moving along
-        ``+x`` in the ego frame at spawn time, so ``v_ground =
-        [object_speed_mps, 0, 0]``, and the cluster is flagged
-        ``velocity_assumed``. ``age`` starts one cycle behind so the cluster
-        is inactive on its birth frame.
+        ``n`` follows the measured ``cal`` table (ticket 29e): the per-cycle
+        rate is fractional and carried over through ``_spawn_credit`` so the
+        long-run number of live clusters matches the table. ``T`` still uses
+        ``v_abs`` (``object_speed_mps``). The initial velocity is the
+        **ground** velocity: ``object_velocity_ego_mps`` plus the ego velocity
+        ``[ego_speed_mps, 0, 0]``. When the caller did not supply the object
+        velocity, it falls back to the object moving along ``+x`` in the ego
+        frame at spawn time, so ``v_ground = [object_speed_mps, 0, 0]``, and
+        the cluster is flagged ``velocity_assumed``. ``age`` starts one cycle
+        behind so the cluster is inactive on its birth frame.
 
         ``center`` and ``extents`` describe the spray block (centre and half
         sizes in metres); positions are uniform inside it. Passing ``None``
@@ -235,12 +274,17 @@ class PlumeState:
 
         if context.scene_token != self._scene_token:
             self._clusters.clear()
+            self._spawn_credit.clear()
             self._scene_token = context.scene_token
             self._next_cluster_id = 0
             self._counters = PlumeCounters()
 
         v_abs_kmh = context.object_speed_mps * 3.6
-        count = cluster_count_for_speed_abs(v_abs_kmh, context.wfh_mm)
+        rate = cluster_spawn_rate_for_speed_abs(v_abs_kmh, vehicle_class)
+        credit_key = (context.scene_token, object_id)
+        credit = self._spawn_credit.get(credit_key, 0.0) + rate
+        count = int(np.floor(credit + 1e-9))
+        self._spawn_credit[credit_key] = credit - count
         mean_ttl = lifetime_mean_s(v_abs_kmh, context.wfh_mm)
         origin = np.asarray(context.sensor_origin, dtype=np.float64)
 
@@ -266,11 +310,17 @@ class PlumeState:
         bucket = self._clusters.setdefault(
             (context.scene_token, object_id), []
         )
+        if cfg.radius_median_per_kmh > 0.0:
+            radius_mu = float(
+                np.log(cfg.radius_median_per_kmh * max(v_abs_kmh, 1.0))
+            )
+        else:
+            radius_mu = cfg.radius_mu
         created: list[SprayCluster] = []
         for _ in range(count):
             radius = min(
                 cfg.radius_max_m,
-                float(np.exp(rng.normal(cfg.radius_mu, cfg.radius_sigma))),
+                float(np.exp(rng.normal(radius_mu, cfg.radius_sigma))),
             )
             ttl = max(
                 0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))
@@ -345,13 +395,27 @@ class PlumeState:
                 cluster.age += dt
         self._counters.alive = self._total_alive()
 
-    def prune(self) -> int:
-        """Remove clusters with ``age > max_age_factor * T``; return how many."""
+    def prune(
+        self, ceilings: dict[int, float] | None = None
+    ) -> int:
+        """Remove expired clusters and clusters that rose above the block.
+
+        Two rules: ``age > max_age_factor * T`` (``[CODE] dee.cpp:445-450``)
+        and, when ``ceilings`` is given, ``pos[2] > ceiling[object_id]``. The
+        second rule bounds the tail block geometrically: a cluster with
+        ``initial_vz`` up to 5 m/s and no gravity would otherwise drift far
+        above the vehicle (ticket 29e measured h p95 3.216 m against a real
+        2.264 m) instead of dissolving inside the plume.
+        """
         removed = 0
         for key, clusters in list(self._clusters.items()):
+            object_id = key[1]
+            ceiling = None if ceilings is None else ceilings.get(object_id)
             kept = []
             for cluster in clusters:
-                if cluster.age > self._config.max_age_factor * cluster.ttl:
+                expired = cluster.age > self._config.max_age_factor * cluster.ttl
+                above = ceiling is not None and cluster.pos[2] > ceiling
+                if expired or above:
                     removed += 1
                 else:
                     kept.append(cluster)

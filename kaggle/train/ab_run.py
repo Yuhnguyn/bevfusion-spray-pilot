@@ -153,7 +153,7 @@ def set_seeds(seed):
     torch.manual_seed(seed)
 
 
-def build_arm_loader(arm, cfg, dataroot, sweeps_num, steps):
+def build_arm_loader(arm, cfg, dataroot, sweeps_num, steps, sidecar_path=None):
     """Build the arm loader with as many valid samples as the split allows.
 
     ``smoke.build_loader`` sizes its subset from ``smoke.ARM_STEPS * BATCH``
@@ -166,7 +166,9 @@ def build_arm_loader(arm, cfg, dataroot, sweeps_num, steps):
     while need >= 1:
         smoke.ARM_STEPS[arm] = need
         try:
-            return smoke.build_loader(arm, cfg, dataroot, sweeps_num=sweeps_num)
+            return smoke.build_loader(
+                arm, cfg, dataroot, sweeps_num=sweeps_num, sidecar_path=sidecar_path
+            )
         except SystemExit:
             if need == 1:
                 fail("valid_indices", "arm=%s" % arm)
@@ -279,6 +281,11 @@ def parse_args(argv=None):
     parser.add_argument("--arms", nargs="+", default=["A", "B"])
     parser.add_argument("--time-budget-s", type=float, default=9000)
     parser.add_argument("--log-every", type=int, default=100)
+    parser.add_argument(
+        "--sidecar",
+        default=None,
+        help="plume speed index JSON (default: data/plume_speed_index.json)",
+    )
     return parser.parse_args(argv)
 
 
@@ -301,6 +308,7 @@ def main(argv=None):
 
     import mmdet3d.datasets  # noqa: F401
     import spray.plume_transform  # noqa: F401  (registers PlumeTransform)
+    import spray.spray_context_transform  # noqa: F401  (registers context)
 
     probe.setup_pipelines()
 
@@ -359,7 +367,12 @@ def main(argv=None):
         # other's weights.
         set_seeds(spec["seed"])
         loader, step_types = build_arm_loader(
-            arm, cfg, dataroot, args.sweeps_num, spec["steps"]
+            arm,
+            cfg,
+            dataroot,
+            args.sweeps_num,
+            spec["steps"],
+            sidecar_path=args.sidecar,
         )
         try:
             smoke.load_weights(probe, model, checkpoint)

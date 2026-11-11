@@ -7,6 +7,7 @@ from spray.plume_state import (
     PlumeStateConfig,
     SprayCluster,
     cluster_count_for_speed_abs,
+    cluster_spawn_rate_for_speed_abs,
     lifetime_mean_s,
 )
 
@@ -39,13 +40,34 @@ def _cluster(age, ttl):
     )
 
 
-def test_cluster_count_for_speed_abs_uses_mm_water_film():
-    assert cluster_count_for_speed_abs(130.0, 1.0) == 24
-    assert cluster_count_for_speed_abs(80.0, 1.0) == 9
-    assert cluster_count_for_speed_abs(50.0, 1.0) == 0
+def _spawn_nonempty(state, object_id, rng, context=None, **kwargs):
+    """Spawn until at least one cluster exists (rate is fractional in 29e)."""
+    context = context or _context()
+    clusters = []
+    while not clusters:
+        clusters = state.spawn(
+            context, object_id=object_id, rng=rng, **kwargs
+        )
+    return clusters
+
+
+def test_cluster_count_for_speed_abs_uses_the_cal_table_and_mm_water_film():
+    # Ticket 29e: visible = round(rate * K(T(wfh))), same table as the
+    # per-frame generator.
+    assert cluster_count_for_speed_abs(130.0, 1.0) == 18
+    assert cluster_count_for_speed_abs(100.0, 1.0) == 29
+    assert cluster_count_for_speed_abs(50.0, 1.0) == 4
     assert cluster_count_for_speed_abs(40.0, 1.0) == 0
     # Passing metres by mistake gives a different count, so the unit is pinned.
-    assert cluster_count_for_speed_abs(130.0, 0.001) == 8
+    assert cluster_count_for_speed_abs(130.0, 0.001) == 2
+
+
+def test_spawn_rate_is_fractional_and_uses_the_cal_table():
+    # Golf at 50 km/h needs 3.62 visible clusters; a rounded rate of 1 would
+    # undershoot by 30 %, so the rate stays fractional and is accumulated.
+    rate = cluster_spawn_rate_for_speed_abs(50.0, "golf")
+    assert rate == pytest.approx(3.62 / 2.51, rel=0.02)
+    assert cluster_count_for_speed_abs(50.0, 1.0, "golf") == 4
 
 
 def test_lifetime_mean_matches_reference_formula():
@@ -56,26 +78,37 @@ def test_lifetime_mean_matches_reference_formula():
 def test_clusters_from_frame_k_survive_later_frames():
     state = PlumeState()
     config = PlumeStateConfig(lifetime_sigma_s=0.0)
+    rng = np.random.default_rng(3)
 
-    clusters = state.spawn(
-        _context(), object_id=7, rng=np.random.default_rng(3), config=config
-    )
-
-    assert len(clusters) == 24
-    for cluster in clusters:
+    # Ticket 29e: the per-cycle rate at 130 km/h is 0.97, so one call does not
+    # spawn 24 clusters any more. Accumulate a cohort over several cycles.
+    created = []
+    for frame in range(4):
+        created.extend(
+            state.spawn(
+                _context(frame_index=frame),
+                object_id=7,
+                rng=rng,
+                config=config,
+            )
+        )
+    assert created
+    for cluster in created:
         assert cluster.ttl == pytest.approx(1.8)
 
+    alive_before = len(state.alive(7))
     for _ in range(2):
         state.advance(0.1)
-        assert len(state.alive(7)) == 24
+        assert len(state.alive(7)) == alive_before
 
-    # 70 steps leave age at 6.9 s, still below 4*T = 7.2 s.
+    # 68 more steps leave the oldest cohort at age ~6.9 s, still below
+    # 4*T = 7.2 s.
     for _ in range(68):
         state.advance(0.1)
 
     assert all(cluster.age < 4.0 * cluster.ttl for cluster in state.alive(7))
     assert state.prune() == 0
-    assert len(state.alive(7)) == 24
+    assert len(state.alive(7)) == alive_before
 
 
 def test_display_probability_decays_monotonically():
@@ -93,12 +126,14 @@ def test_display_probability_decays_monotonically():
 def test_prune_removes_clusters_past_four_lifetimes():
     state = PlumeState()
     config = PlumeStateConfig(lifetime_sigma_s=0.0)
+    rng = np.random.default_rng(11)
 
-    clusters = state.spawn(
-        _context(), object_id=2, rng=np.random.default_rng(11), config=config
-    )
+    while not state.alive(2):
+        state.spawn(
+            _context(), object_id=2, rng=rng, config=config
+        )
     alive_before = len(state.alive(2))
-    assert alive_before == 24
+    assert alive_before > 0
 
     # 80 steps leave age at 7.9 s, past 4*T = 7.2 s.
     for _ in range(80):
@@ -123,7 +158,7 @@ def test_default_drag_is_the_paper_constant():
             )
         )
 
-    assert len(clusters) >= 20
+    assert len(clusters) >= 15
     for cluster in clusters:
         assert cluster.drag == pytest.approx(-0.15)
 
@@ -133,8 +168,8 @@ def test_drag_reduces_air_velocity_and_zero_drag_keeps_it():
     config = PlumeStateConfig(
         lifetime_sigma_s=0.0, drag_mean=-0.15, drag_std=0.0
     )
-    clusters = state.spawn(
-        _context(), object_id=3, rng=np.random.default_rng(5), config=config
+    clusters = _spawn_nonempty(
+        state, 3, np.random.default_rng(5), config=config
     )
     wind = state.wind
     before = np.array([np.linalg.norm(cluster.vel - wind) for cluster in clusters])
@@ -148,8 +183,8 @@ def test_drag_reduces_air_velocity_and_zero_drag_keeps_it():
     steady_config = PlumeStateConfig(
         lifetime_sigma_s=0.0, drag_mean=0.0, drag_std=0.0
     )
-    steady_clusters = steady.spawn(
-        _context(), object_id=3, rng=np.random.default_rng(5), config=steady_config
+    steady_clusters = _spawn_nonempty(
+        steady, 3, np.random.default_rng(5), config=steady_config
     )
     steady_wind = steady.wind
     before_steady = np.array(
@@ -167,8 +202,8 @@ def test_drag_reduces_air_velocity_and_zero_drag_keeps_it():
 def test_spawn_is_deterministic_by_rng_seed():
     def positions(seed):
         state = PlumeState()
-        clusters = state.spawn(
-            _context(), object_id=4, rng=np.random.default_rng(seed)
+        clusters = _spawn_nonempty(
+            state, 4, np.random.default_rng(seed)
         )
         return np.array([cluster.pos for cluster in clusters])
 
@@ -185,8 +220,8 @@ def test_spawn_velocity_is_ground_velocity():
     state = PlumeState()
     ego_speed = 130.0 / 3.6
 
-    clusters = state.spawn(
-        _context(), object_id=5, rng=np.random.default_rng(0)
+    clusters = _spawn_nonempty(
+        state, 5, np.random.default_rng(0)
     )
     for cluster in clusters:
         # No object velocity supplied: the object runs along +x in the ego
@@ -195,10 +230,11 @@ def test_spawn_velocity_is_ground_velocity():
         assert cluster.velocity_assumed is True
 
     explicit = PlumeState()
-    clusters = explicit.spawn(
-        _context(object_velocity_ego_mps=np.array([0.0, 0.0, 0.0])),
-        object_id=5,
-        rng=np.random.default_rng(0),
+    clusters = _spawn_nonempty(
+        explicit,
+        5,
+        np.random.default_rng(0),
+        context=_context(object_velocity_ego_mps=np.array([0.0, 0.0, 0.0])),
     )
     for cluster in clusters:
         # Same speed as the ego -> ground velocity is the ego velocity.
@@ -211,10 +247,10 @@ def test_cluster_drifts_backwards_in_the_ego_frame():
     config = PlumeStateConfig(
         lifetime_sigma_s=0.0, drag_mean=-0.15, drag_std=0.0
     )
-    clusters = state.spawn(
-        _context(),
-        object_id=5,
-        rng=np.random.default_rng(0),
+    clusters = _spawn_nonempty(
+        state,
+        5,
+        np.random.default_rng(0),
         dt=0.1,
         center=np.array([16.0, 0.0, 0.34]),
         extents=np.array([1.8, 1.7, 0.75]),
@@ -239,8 +275,8 @@ def test_drag_uses_ground_velocity_when_ego_and_object_match_speed():
         drag_std=0.0,
         wind_speed_mps=0.0,
     )
-    clusters = state.spawn(
-        _context(), object_id=6, rng=np.random.default_rng(1), config=config
+    clusters = _spawn_nonempty(
+        state, 6, np.random.default_rng(1), config=config
     )
     road_speed = 130.0 / 3.6
     assert all(
@@ -260,8 +296,8 @@ def test_positive_drag_sample_never_accelerates_a_cluster():
     config = PlumeStateConfig(
         lifetime_sigma_s=0.0, drag_mean=0.12, drag_std=0.0
     )
-    clusters = state.spawn(
-        _context(), object_id=7, rng=np.random.default_rng(2), config=config
+    clusters = _spawn_nonempty(
+        state, 7, np.random.default_rng(2), config=config
     )
     before = [cluster.vel.copy() for cluster in clusters]
 

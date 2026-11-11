@@ -458,7 +458,8 @@ def _survival(clusters: Sequence[SprayCluster]) -> np.ndarray:
     survival = np.zeros(len(clusters), dtype=np.float64)
     for index, cluster in enumerate(clusters):
         if cluster.ttl > 0.0:
-            survival[index] = min(1.0, float(np.exp(-cluster.age / cluster.ttl)))
+            exponent = min(0.0, -cluster.age / cluster.ttl)
+            survival[index] = float(np.exp(exponent))
     return survival
 
 

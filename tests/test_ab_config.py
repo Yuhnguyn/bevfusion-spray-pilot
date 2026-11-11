@@ -53,18 +53,34 @@ def test_training_budget_values_are_shared():
         assert build_cfg("B")["train_spec"][key] == value
 
 
-def test_plume_only_in_arm_b_right_after_random_flip():
+def test_context_and_plume_only_in_arm_b_right_after_random_flip():
     a_types = _types(train_pipeline("A"))
     b_types = _types(train_pipeline("B"))
 
     assert "PlumeTransform" not in a_types
+    assert "SprayContextTransform" not in a_types
     assert b_types.count("PlumeTransform") == 1
-    assert b_types.index("PlumeTransform") == b_types.index("RandomFlip3D") + 1
+    assert b_types.count("SprayContextTransform") == 1
+    flip = b_types.index("RandomFlip3D")
+    assert b_types.index("SprayContextTransform") == flip + 1
+    assert b_types.index("PlumeTransform") == flip + 2
 
 
-def test_pipelines_are_identical_except_plume_step():
+def test_context_step_carries_the_sidecar_path_before_the_plume():
+    steps = train_pipeline("B", sidecar_path="data/custom_index.json")
+    context = steps[[s["type"] for s in steps].index("SprayContextTransform")]
+
+    assert context["sidecar_path"] == "data/custom_index.json"
+    assert context["enabled"] is True
+
+
+def test_pipelines_are_identical_except_the_two_plume_steps():
     a_steps = train_pipeline("A")
-    b_steps = [step for step in train_pipeline("B") if step["type"] != "PlumeTransform"]
+    b_steps = [
+        step
+        for step in train_pipeline("B")
+        if step["type"] not in ("PlumeTransform", "SprayContextTransform")
+    ]
     assert a_steps == b_steps
 
 
