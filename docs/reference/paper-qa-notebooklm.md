@@ -281,3 +281,56 @@ không thể thành 75. Noise/frame cũng giảm ở tốc độ cao (1.545 @100
 
 ⇒ Đích hiệu chỉnh là bảng đo `docs/measurements/semantic-spray-clusters-by-speed.md`, không phải
 Fig. 11b. Số paper chỉ dùng làm **kiểm tra chéo** ở 100 km/h. Chi tiết: mục 7 của ticket 29c.
+
+## 10. Hỏi ngày 2026-11-11 (chiều) — định nghĩa `n`, `n_max`, Fig. 5, Fig. 11a/11b
+
+Nguồn: NotebookLM profile `phk4`, notebook `f2c09ee8-1c5c-45d3-869d-e62559073f1c`, PDF 2212.08558.
+
+### 10.1 `n` và `n_max` trong `P_det = n / n_max`
+
+- **`n` = số detection thực tế thuộc cụm trong frame** — nguyên văn *“the number of detections `n` in
+  a given cluster”*.
+- **`n_max` = số tia Lidar cắt qua khối cầu của cụm** — nguyên văn *“the number of beams
+  `n_max(r_cl, p_cl)` intersecting the spherical representation of the cluster”*.
+- ⇒ Code `spray/raycast.py` tính đúng cả hai; `Ω_tia = 0,19726° × 0,3333° = 2,003e−5 sr` là số tia
+  trên một đơn vị góc, không phải hằng số paper — đó là `[CHỌN]` của mình, đã ghi rõ.
+
+### 10.2 Paper báo mean hay chỉ lognormal?
+
+- Mô hình: **không có mean cố định**; biến thiên `P_det` giữa các cụm fit **lognormal µ = −2,3,
+  σ = 1,09** ⇒ mean `e^{−2,3+1,09²/2} = 0,18`.
+- Số đo: **Fig. 1** (ví dụ 1 frame, Crafter 100 km/h, 50 m) ghi trong khung thông số
+  `Num. Clusters: 33`, **`Mean Det./Cluster: 14.3`**, `Clustered/Total: 84.1 %`.
+- ⇒ Khi so `det/cụm` phải so **cùng một thống kê và cùng điều kiện cự ly**. Con số 14,3 là
+  frame-level ở 50 m; bảng `cal` của mình là **frame-level ở 20/30 m** với `p50 = 6`,
+  `mean = 43,3` (100 km/h) — không mâu thuẫn, nhưng **không được trộn**.
+
+### 10.3 Fig. 5 — phân bố bán kính cụm
+
+- `r_cl` = *“maximum distance of detections to the respective cluster center”* (vì cụm xấp xỉ cầu).
+- Fit **lognormal**, tham số ví dụ **µ = −1,2, σ = 0,8** ⇒ **median = e^{−1,2} = 0,30 m** `[PAPER]`.
+- CDF Fig. 5 cắt 0,5 quanh `10^{−0,5} ≈ 0,3 m` — khớp.
+- ⇒ Hằng số `r_cl` trong `spray/plume.py` **đã đúng paper**, không phải `[CHỌN]`, **không được
+  hiệu chỉnh theo tốc độ**.
+
+### 10.4 Hình dạng cụm và việc gộp cụm
+
+- Cụm là **khối cầu độc lập**, đặt **uniform**; range của detection lấy theo **normal quanh tâm cụm**.
+- Nguyên văn: *“With the independent uniform placement of clusters with different radii, overlapping
+  will occur in random cases. On one hand, overlapping will reduce the calibrated number of clusters.
+  On the other hand, it increases inhomogeneity even further by creating other shapes than spheres.”*
+- ⇒ Gộp cụm là hiện tượng **nổi lên từ overlap**, không phải bước mô hình hoá riêng, không tune.
+
+### 10.5 Fig. 11a / 11b
+
+- **11a** = *“(a) Number of detections”* — **tổng điểm/frame**, 500–1.500 ở 100–130 km/h.
+- **11b** = *“(b) Number of clusters”* — số **cụm**/frame.
+- Caption chung: *“Comparison of simulated and measured numbers of detections and numbers of clusters
+  in the spray plume from a Crafter at 50 m distance”*.
+
+### 10.6 Hệ quả cho thiết kế tiêu chí (2026-11-11)
+
+- **Không** dùng `mean det/cụm` làm tiêu chí: đo trên `cal` (45 frame/ô) cho `p50 = 6`,
+  `mean = 43,3` (100 km/h) và **66,6 % số điểm nằm trong 5 % cụm to nhất** ⇒ mean bị đuôi chi phối.
+- Tiêu chí đúng: **cụm/frame** (Bảng 1), **điểm/frame** (Bảng 1), **p50 điểm/cụm = 6**, hình học
+  3 phân vị chiều cao, `p95|y|`. Chi tiết: ticket `29e-c`.
