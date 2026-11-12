@@ -334,3 +334,44 @@ Nguồn: NotebookLM profile `phk4`, notebook `f2c09ee8-1c5c-45d3-869d-e62559073f
   `mean = 43,3` (100 km/h) và **66,6 % số điểm nằm trong 5 % cụm to nhất** ⇒ mean bị đuôi chi phối.
 - Tiêu chí đúng: **cụm/frame** (Bảng 1), **điểm/frame** (Bảng 1), **p50 điểm/cụm = 6**, hình học
   3 phân vị chiều cao, `p95|y|`. Chi tiết: ticket `29e-c`.
+
+## 11. Hỏi ngày 2026-11-11 (tối) — chồng cụm và cách đặt cụm
+
+### 11.1 Paper KHÔNG giải thích cụm lớn trong dữ liệu đo
+
+Paper **không** có câu nào nói cụm trong dữ liệu đo chứa nhiều cụm nhỏ bị DBSCAN gộp, cũng **không**
+giải thích vì sao số điểm/cụm đo được lớn hơn mô hình cầu. Paper chỉ nói dữ liệu thật không đồng nhất
+(*"clusters with different shape, size and density"*). ⇒ Phần dư điểm trong dữ liệu thật là **quan sát
+của mình**, không phải điều paper đã mô hình hoá.
+
+### 11.2 Chồng cụm là hành vi ĐƯỢC PHÉP của mô hình paper
+
+Nguyên văn:
+
+> *"With the independent uniform placement of clusters with different radii, overlapping will occur in
+> random cases. On one hand, overlapping will reduce the calibrated number of clusters. On the other
+> hand, it increases inhomogeneity even further by creating other shapes than spheres. The final model
+> evaluation will show that the theoretical reduction in clusters will not be significant in the end
+> result, so overlapping is not prohibited in the model."*
+
+⇒ Chồng cụm **không bị cấm**; paper chấp nhận nó và cho rằng mức giảm số cụm không đáng kể.
+
+### 11.3 Cách đặt cụm — uniform, độc lập, giới hạn theo quỹ đạo xe
+
+> *"To simulate clusters, spheres are positioned with a uniform distribution in the region behind every
+> moving object according to the empirical values for the number of clusters and the distribution of
+> cluster radii. A uniform distribution was chosen as a first estimate, as no other form of distribution
+> was visible."*
+
+> *"The initialization of clusters is restricted to the vehicle trajectory and no clusters are spawned
+> randomly in the scene."*
+
+⇒ Đặt **uniform, độc lập từng cụm**, nhưng trong **vùng sau xe** (nhỏ), không rải khắp scene.
+
+### 11.4 Hệ quả cho 29e-d-ii
+
+- Đo `overlap_frac` là đo **đúng đại lượng paper mô tả** (overlap do đặt uniform trong vùng hẹp).
+- Nếu generator hiện có `overlap_frac` thấp hơn nhiều so với `cal`, nguyên nhân là **vùng đặt quá
+  rộng** hoặc **cụm quá nhỏ so với vùng**, không phải "thiếu cơ chế gộp cụm".
+- Sửa đúng hướng paper: **giữ uniform + độc lập**, chỉ thu hẹp vùng đặt cho khớp mật độ đo được.
+  Không thêm bước "gom cụm theo nhóm" — paper không có bước đó.
