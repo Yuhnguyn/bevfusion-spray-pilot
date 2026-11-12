@@ -61,6 +61,11 @@ PAPER_PDET = (-2.3, 1.09, 0.18)
 PAPER_ELONG = 1.48
 PAPER_NEAR_CLUSTERS = 20.4
 FIELDS = ("d", "n", "r_cl", "n_max", "p_det", "elong")
+# Ticket 29e-d-ii bug 2: the lognormal MLE of ``P_det`` is driven by the tail
+# (merged clusters with ``P_det`` up to ~40). The fit to compare against the
+# paper is the one on the near-sphere, un-merged subset.
+FILTER_ELONG_MAX = 1.2
+FILTER_P_DET_MAX = 1.0
 
 
 def cal_scenes() -> set[str]:
@@ -318,15 +323,16 @@ def fit_lognormal(values: np.ndarray) -> tuple[float, float]:
 def _stats(values: np.ndarray, quantiles=(50.0, 90.0, 99.0)) -> dict:
     data = np.asarray(values, dtype=np.float64)
     data = data[np.isfinite(data)]
+    wanted = sorted({10.0, 50.0, 90.0, 99.0} | set(quantiles))
     out = {"n": int(data.size), "mean": float("nan"), "median": float("nan")}
-    for q in {10.0, 50.0, 90.0, 99.0} | set(quantiles):
+    for q in wanted:
         out[f"p{q:g}"] = float("nan")
     if data.size == 0:
         return out
     out.update(
         {"mean": float(data.mean()), "median": float(np.median(data))}
     )
-    for q in quantiles:
+    for q in wanted:
         out[f"p{q:g}"] = float(np.percentile(data, q))
     return out
 
@@ -341,6 +347,13 @@ def _fit_row(values: np.ndarray) -> dict:
         float(np.exp(mu + 0.5 * sigma * sigma)) if np.isfinite(mu) else float("nan")
     )
     return stats
+
+
+def _unmerged_mask(data: dict[str, np.ndarray]) -> np.ndarray:
+    """Near-sphere, un-merged clusters (ticket 29e-d-ii bug 2)."""
+    return (data["elong"] <= FILTER_ELONG_MAX) & (
+        data["p_det"] <= FILTER_P_DET_MAX
+    )
 
 
 def _bucket_masks(values: np.ndarray) -> list[np.ndarray]:
@@ -358,6 +371,13 @@ def _fmt(value: float, digits: int = 3) -> str:
     return "nan" if not np.isfinite(value) else f"{value:.{digits}f}"
 
 
+def _fmt_sig(value: float) -> str:
+    """Three significant digits; keeps the tiny ``p10`` values readable."""
+    if not np.isfinite(value):
+        return "nan"
+    return f"{value:.3g}"
+
+
 def render(cells: list[dict], omega_sr: float, generated: list[dict] | None) -> str:
     lines: list[str] = [
         "# 29e-d — đo `r_cl` và `P_det` trên `cal` theo định nghĩa paper",
@@ -372,6 +392,8 @@ def render(cells: list[dict], omega_sr: float, generated: list[dict] | None) -> 
         "`r_cl` = **max** khoảng cách điểm → tâm, đúng định nghĩa paper.",
         "- `n_max` = `Ω_cầu(r_cl, d) / Ω_tia`; `P_det = n / n_max`.",
         "- `elong` = `(range max − range min) / r_cl` (G4 của 29d = 1,480).",
+        f"- Fit `P_det` so với paper đọc trên tập lọc `elong ≤ {FILTER_ELONG_MAX:g}` và "
+        f"`P_det ≤ {FILTER_P_DET_MAX:g}` (cụm gần cầu, chưa bị gộp); xem §2.",
         "",
     ]
 
@@ -445,7 +467,7 @@ def render(cells: list[dict], omega_sr: float, generated: list[dict] | None) -> 
         stats = _fit_row(data["p_det"])
         lines.append(
             f"| {label} | {stats['n']} | {_fmt(stats['median'])} | "
-            f"{_fmt(stats['mean'])} | {_fmt(stats.get('p10', float('nan')))} | "
+            f"{_fmt(stats['mean'])} | {_fmt_sig(stats.get('p10', float('nan')))} | "
             f"{_fmt(stats['p90'])} | {_fmt(stats['mu'])} | {_fmt(stats['sigma'])} | "
             f"{_fmt(stats['fit_mean'])} | −2,3; 1,09; 0,18 |"
         )
@@ -461,28 +483,77 @@ def render(cells: list[dict], omega_sr: float, generated: list[dict] | None) -> 
         lines.append(
             f"| {cell['group']} | {cell['speed']:g} | {stats['n']} | "
             f"{_fmt(stats['median'])} | {_fmt(stats['mean'])} | "
-            f"{_fmt(stats.get('p10', float('nan')))} | {_fmt(stats['p90'])} | "
+            f"{_fmt_sig(stats.get('p10', float('nan')))} | {_fmt(stats['p90'])} | "
             f"{_fmt(stats['mu'])} | {_fmt(stats['sigma'])} | "
             f"{_fmt(stats['fit_mean'])} | {share:.1f} % |"
         )
 
     lines += ["", "### Theo lớp × dải cự ly", ""]
     lines.append(
-        "| lớp | dải (m) | cụm | median | mean | p10 | p90 | fit µ | fit σ | P_det>1 |"
+        "| lớp | dải (m) | cụm | n_max median | median | mean | p10 | p90 | fit µ | fit σ | P_det>1 |"
     )
-    lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+    lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for group in GROUPS:
         data = _stack([cell for cell in cells if cell["group"] == group])
         for index, mask in enumerate(_bucket_masks(data["d"])):
             part = data["p_det"][mask]
             stats = _fit_row(part)
             share = float(np.mean(part > 1.0)) * 100.0 if part.size else float("nan")
+            beam = data["n_max"][mask]
+            n_max_median = (
+                float(np.median(beam)) if beam.size else float("nan")
+            )
             lines.append(
                 f"| {group} | {_bucket_label(index)} | {stats['n']} | "
+                f"{_fmt(n_max_median, 1)} | "
                 f"{_fmt(stats['median'])} | {_fmt(stats['mean'])} | "
-                f"{_fmt(stats.get('p10', float('nan')))} | {_fmt(stats['p90'])} | "
+                f"{_fmt_sig(stats.get('p10', float('nan')))} | {_fmt(stats['p90'])} | "
                 f"{_fmt(stats['mu'])} | {_fmt(stats['sigma'])} | {share:.1f} % |"
             )
+
+    lines += [
+        "",
+        "### Fit lognormal trên tập lọc `elong ≤ 1,2` và `P_det ≤ 1`",
+        "",
+        "Lỗi 2 của ticket 29e-d-ii: MLE trên toàn bộ cụm bị đuôi chi phối (cụm đã gộp có "
+        "`P_det` tới ~40) nên `µ`/`σ` phồng và mean suy ra ~0,5 trong khi mean đo được ~0,11. "
+        "Dưới đây là fit trên **cụm gần cầu, chưa gộp**; cột `cụm` là số cụm còn lại sau lọc. "
+        "Fit này **không** được dùng ở đâu khác — `spray/` vẫn giữ `P_DET_MU_BY_CLASS` cũ.",
+        "",
+    ]
+    lines.append(
+        "| lớp | cụm | / tổng | median | mean | p10 | p90 | fit µ | fit σ | fit mean | paper (−2,3; 1,09; 0,18) |"
+    )
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|")
+    for label, data in [("gộp", all_data)] + [
+        (group, _stack([cell for cell in cells if cell["group"] == group]))
+        for group in GROUPS
+    ]:
+        mask = _unmerged_mask(data)
+        stats = _fit_row(data["p_det"][mask])
+        lines.append(
+            f"| {label} | {stats['n']} | {stats['n'] / max(data['p_det'].size, 1) * 100.0:.1f} % | "
+            f"{_fmt(stats['median'])} | {_fmt(stats['mean'])} | "
+            f"{_fmt_sig(stats.get('p10', float('nan')))} | {_fmt(stats['p90'])} | "
+            f"{_fmt(stats['mu'])} | {_fmt(stats['sigma'])} | "
+            f"{_fmt(stats['fit_mean'])} | −2,3; 1,09; 0,18 |"
+        )
+
+    lines += ["", "### Fit trên tập lọc theo lớp × tốc độ", ""]
+    lines.append(
+        "| lớp | km/h | cụm | / tổng | median | mean | fit µ | fit σ | fit mean |"
+    )
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+    for cell in cells:
+        mask = _unmerged_mask(cell)
+        stats = _fit_row(cell["p_det"][mask])
+        lines.append(
+            f"| {cell['group']} | {cell['speed']:g} | {stats['n']} | "
+            f"{stats['n'] / max(cell['p_det'].size, 1) * 100.0:.1f} % | "
+            f"{_fmt(stats['median'])} | {_fmt(stats['mean'])} | "
+            f"{_fmt(stats['mu'])} | {_fmt(stats['sigma'])} | "
+            f"{_fmt(stats['fit_mean'])} |"
+        )
 
     lines += ["", "## 3. `elong`", ""]
     lines.append("| lớp | cụm | median | p10 | p90 | G4 29d |")
@@ -494,7 +565,7 @@ def render(cells: list[dict], omega_sr: float, generated: list[dict] | None) -> 
         stats = _stats(data["elong"], quantiles=(10.0, 90.0))
         lines.append(
             f"| {label} | {stats['n']} | {_fmt(stats['median'])} | "
-            f"{_fmt(stats.get('p10', float('nan')))} | "
+            f"{_fmt_sig(stats.get('p10', float('nan')))} | "
             f"{_fmt(stats.get('p90', float('nan')))} | 1,480 |"
         )
 
@@ -566,11 +637,15 @@ def _print_summary(cells: list[dict], omega_sr: float, generated: list[dict] | N
         radius = _fit_row(data["r_cl"])
         p_det = _fit_row(data["p_det"])
         share = float(np.mean(data["p_det"] > 1.0)) * 100.0
+        unmerged = _unmerged_mask(data)
+        filtered = _fit_row(data["p_det"][unmerged])
         print(
             f"{group}: r_cl mu={radius['mu']:.3f} sigma={radius['sigma']:.3f} "
             f"median={radius['fit_median']:.3f} m | "
             f"P_det mu={p_det['mu']:.3f} sigma={p_det['sigma']:.3f} "
-            f"mean={p_det['fit_mean']:.3f} | P_det>1 {share:.2f} %"
+            f"mean={p_det['fit_mean']:.3f} | P_det>1 {share:.2f} % | "
+            f"filtered n={filtered['n']} mu={_fmt(filtered['mu'])} "
+            f"sigma={_fmt(filtered['sigma'])} fit_mean={_fmt(filtered['fit_mean'])}"
         )
     share_all = float(np.mean(all_data["p_det"] > 1.0)) * 100.0
     print(f"omega_tia = {omega_sr:.6e} sr | P_det>1 (gộp) = {share_all:.2f} %")
