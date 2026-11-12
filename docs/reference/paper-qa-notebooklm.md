@@ -476,3 +476,59 @@ tốc độ cao ⇒ `vz·T` = 3,0–4,5 m > trần 2,62 m ⇒ cụm bị xoá oa
 
 ⇒ **Sửa đúng theo paper: bỏ `vz` (đặt 0) và bỏ trần.** Chiều cao plume khi đó đến thuần từ vị trí đặt
 uniform trong khối 5–92 % chiều cao box, đúng như paper mô tả.
+
+## 14. Hỏi ngày 2026-11-12 — paper khớp đến mức nào (SỐ CỤ THỂ)
+
+### 14.1 Fig. 11a/11b — số của CHÍNH PAPER, đo vs mô phỏng (50 m, Crafter, fully covered)
+
+| km/h | đo: cụm | đo: điểm | sim: cụm | sim: điểm | sim/đo (cụm) | sim/đo (điểm) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 80 | 20 | 250 | 10 | 250 | **0,50** | 1,00 |
+| 100 | 43 | 1.000 | 30 | 550 | **0,70** | **0,55** |
+| 130 | 70 | 1.500 | 105 | 1.300 | **1,50** | 0,87 |
+
+⇒ **Mô phỏng của paper lệch tới 2× (cụm @80) và 1,8× (điểm @100)**. Paper tự thừa nhận:
+
+> *"The detection counts per velocity lie within the spread of the measurements. **Just at 100 and 110 km/h
+> with a fully covered pavement, the simulated numbers are noticeably lower.**"*
+
+> *"Both simulation and measurement show a similar range of cluster counts with an upwards trend over object
+> speed suggesting a realistic modeling of the inhomogeneity."*
+
+### 14.2 Điểm/cụm TĂNG theo tốc độ — paper xác nhận
+
+Từ chính bảng 14.1 (đo): 250/20 = **12,5** @80 · 1.000/43 = **23,2** @100 · 1.500/70 = **21,4** @130.
+Fig. 1 (100 km/h, 50 m): **`Mean Det./Cluster: 14.3`**, `Num. Clusters: 33`, `Clustered/Total: 84.1 %`.
+
+⇒ Điểm/cụm **không phẳng**; tăng từ 12,5 lên ~21–23 rồi bão hoà. **PM đã sai** khi nói "thật phẳng ở 6" —
+6 là **p50**, còn mean thật là 43,3 @100 → 48,6 @130 (tăng, đúng như paper).
+
+### 14.3 Ba điểm paper tự nhận là CHƯA khớp
+
+1. **Điểm @100–110 km/h thấp hơn thật** (550 vs 1.000 @100).
+2. **Attenuation yếu ở 80–110 km/h**: *"detections in the simulation are visible at a greater distance, so
+   the attenuation is not as strong as in the measurements for those speeds."*
+3. **Cụm @130 km/h cao hơn thật** (105 vs 70).
+
+### 14.4 Giới hạn paper tự nêu (Discussion §V)
+
+- *"there is a limited amount of objects behind the spray plume"* — ít vật thể phía sau plume.
+- *"the spray clusters are generated for each individual moving object… there is no interaction"*.
+- *"occlusion by objects that do not generate detections themselves… is not covered"*.
+- *"with higher resolutions, a problem with the spherical cluster representation might appear. The problem
+  can become especially pronounced in close proximity to the sensor"*.
+- *"consider only a single echo"* — bỏ qua multi-echo.
+
+### 14.5 Kết quả A/B của paper (để so sánh với mình)
+
+PV-RCNN, AP 0–50 m: wet road **57,97 → 75,36** (+17,4); watered road **51,34 → 59,41** (+8,1).
+Voxel-RCNN: 61,04 → 61,66 (wet); 56,20 → 60,48 (watered).
+
+### 14.6 Hệ quả cho tiêu chí của mình (2026-11-12)
+
+- Đích đúng **không phải** "khớp thật 100 %" — paper khớp trong **spread** của đo đạc, sai số ±50 % ở
+  một số mốc, và tự ghi rõ chỗ lệch.
+- Tiêu chí nên đặt theo **spread**, không theo một con số: mỗi mốc tốc độ có nhiều scene, lấy khoảng
+  đo được, mô phỏng nằm trong khoảng đó là đạt.
+- `alive` **không phải** đại lượng so được: `P_t = exp(−age/T)` làm cụm già gần như vô hình
+  (P = 1,8 % ở `age = 4T`), nên đếm cụm "còn sống" phồng lên bằng cụm không sinh được điểm.
