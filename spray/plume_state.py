@@ -48,8 +48,7 @@ Sign conventions follow the reference implementation
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Mapping
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -71,16 +70,11 @@ LIFETIME_BASE_S = 0.2
 LIFETIME_SIGMA_S = 0.2
 # [CODE] dee.cpp:446.
 MAX_AGE_FACTOR = 4.0
-# [ĐO 2026-11-11] Lognormal MLE of ``r_cl`` on the ``cal`` split, per vehicle
-# class (``scripts/measure_29ed.py``, ``docs/measurements/29ed-real-distributions.md``).
-# The paper's fixed -1.2/0.8 was measured on a VW Crafter with a VLP-32C; on our
-# label-2 clusters DBSCAN chains points along scan lines, so the fitted tail is
-# heavier (sigma 1.69/1.81) and p99 (~12 m) far exceeds the 1.0 m cap. The cap
-# stays because a 12 m sphere is not a plume cluster; the tail is reported, not
-# re-created.
-RADIUS_MU_BY_CLASS = {"crafter": -0.928, "golf": -0.850}
-RADIUS_SIGMA_BY_CLASS = {"crafter": 1.686, "golf": 1.811}
-# Fallback for a class without a measurement; still the published profile.
+# [PAPER] arXiv 2212.08558: ``r_cl`` is lognormal with median 0.30 m (-1.2/0.8).
+# Ticket 29e-d-iii: the per-class MLE fits of 29e-d were dropped. On our label-2
+# clusters DBSCAN chains points along scan lines, so the fitted tail is dominated
+# by merged clusters (p99 ~12 m) and the fitted median (0.395 m) does not
+# reproduce the measured median (0.271 m). The paper constants stay.
 RADIUS_MU = -1.2
 RADIUS_SIGMA = 0.8
 RADIUS_MAX_M = 1.0
@@ -115,18 +109,13 @@ class PlumeStateConfig:
     paper's constant (``drag_std = 0``), but the knobs stay so a caller can
     still sample it.
 
-    ``radius_mu`` / ``radius_sigma`` are keyed by vehicle class: the measured
-    ``r_cl`` fits differ between the Crafter and the Golf (ticket 29e-d).
+    ``radius_mu`` / ``radius_sigma`` are the paper's lognormal for ``r_cl``.
     """
 
     lifetime_sigma_s: float = LIFETIME_SIGMA_S
     max_age_factor: float = MAX_AGE_FACTOR
-    radius_mu: Mapping[str, float] = field(
-        default_factory=lambda: dict(RADIUS_MU_BY_CLASS)
-    )
-    radius_sigma: Mapping[str, float] = field(
-        default_factory=lambda: dict(RADIUS_SIGMA_BY_CLASS)
-    )
+    radius_mu: float = RADIUS_MU
+    radius_sigma: float = RADIUS_SIGMA
     radius_max_m: float = RADIUS_MAX_M
     initial_vz_max_mps: float = INITIAL_VZ_MAX_MPS
     drag_mean: float = DRAG_MEAN
@@ -190,6 +179,10 @@ def cluster_spawn_rate_for_speed_abs(
     Golf at 50 km/h by 30 %. :class:`PlumeState` accumulates the fraction over
     frames, so the long-run spawn rate stays exact while each frame still
     spawns an integer number of clusters.
+
+    ``vehicle_class`` only selects the visible-cluster table; the cluster
+    radius and ``P_det`` are the paper's lognormals for every class
+    (ticket 29e-d-iii).
     """
     if v_abs_kmh <= ACTIVATION_SPEED_KMH:
         return 0.0
@@ -331,13 +324,10 @@ class PlumeState:
             float(block_center[1]) if center is not None else float(origin[1])
         )
         created: list[SprayCluster] = []
-        class_key = vehicle_class.lower()
-        radius_mu = float(cfg.radius_mu.get(class_key, RADIUS_MU))
-        radius_sigma = float(cfg.radius_sigma.get(class_key, RADIUS_SIGMA))
         for _ in range(count):
             radius = min(
                 cfg.radius_max_m,
-                float(np.exp(rng.normal(radius_mu, radius_sigma))),
+                float(np.exp(rng.normal(cfg.radius_mu, cfg.radius_sigma))),
             )
             ttl = max(
                 0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))

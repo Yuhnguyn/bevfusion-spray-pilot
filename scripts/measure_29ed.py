@@ -283,7 +283,6 @@ def collect_generated(
                     road_z_m=ROAD_Z_M,
                     rng=np.random.default_rng(seed),
                     capped=result.stats.capped,
-                    vehicle_class=vehicle_class,
                 )
             detections = np.asarray(ray.detections, dtype=np.float32)
             measured = (
