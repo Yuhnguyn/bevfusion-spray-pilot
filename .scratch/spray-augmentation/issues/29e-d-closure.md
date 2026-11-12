@@ -54,7 +54,7 @@ Bằng chứng định lượng cho hạn chế đó, đo trên `cal`:
 
 | # | Tiêu chí | Kết quả |
 |---|---|---|
-| A1 | cụm/frame 9 mốc × 2 lớp ±20 % | **ĐẠT** |
+| A1 | cụm/frame 9 mốc × 2 lớp ±20 % | **KHÔNG ĐẠT** — tiêu chí SAI, xem `29f-0-table1-unit.md`: A1 so `visible_cluster_count_for_speed` (số lý thuyết) với Bảng 1 (cụm DBSCAN). Số thật: **12,9 vs 21,8 = 0,59×** |
 | A2 | điểm/frame 570–1.555 | **KHÔNG ĐẠT — chuyển thành chẩn đoán**, lý do ở trên |
 | A3 | p50 điểm/cụm = 6 ± 2 | **ĐẠT** (5–6) |
 | A4 | chiều cao p5/med/p95 | **KHÔNG ĐẠT** — p5 0,437 vs 0,111; cùng nguyên nhân mảng nước liền |
@@ -66,8 +66,8 @@ Bằng chứng định lượng cho hạn chế đó, đo trên `cal`:
 | A10 | thiếu `plume_context` ⇒ `RuntimeError` | **ĐẠT** |
 | A11 | fit trên dữ liệu sinh lệch ≤ 25 % | **KHÔNG ĐẠT** — `P_det` median −54 %; cùng nguyên nhân |
 
-**7/11 đạt.** Ba mục trượt (A2, A4, A11) **cùng một nguyên nhân**: mô hình cầu không tạo được mảng
-nước liền ở cự ly gần. Không phải ba lỗi.
+**6/11 đạt.** Bốn mục trượt (A1, A2, A4, A11). A1 trượt vì **tiêu chí sai** (so hai đại lượng khác
+nhau, xem `29f-0-table1-unit.md`); A2/A4/A11 cùng nguyên nhân mảng nước liền.
 
 ## Đã revert (không giữ)
 
