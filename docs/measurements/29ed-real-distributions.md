@@ -181,3 +181,14 @@ Lỗi 2 của ticket 29e-d-ii: MLE trên toàn bộ cụm bị đuôi chi phối
 | Golf_dynamic | 110 | 3 | 90 | 13.93 |
 | Golf_dynamic | 120 | 3 | 90 | 12.27 |
 | Golf_dynamic | 130 | 3 | 90 | 14.12 |
+
+## 5. A11 — fit trên dữ liệu sinh ra so với `cal`
+
+Cùng recipe đo trên detection ray-cast của đường stateful đã nối. Ngưỡng A11: lệch ≤ 25 % ở median và mean của fit.
+
+| lớp | đại lượng | cal fit µ | gen fit µ | cal median | gen median | Δmedian | cal mean | gen mean | Δmean |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Crafter_dynamic | `r_cl` | -0.928 | -0.698 | 0.395 | 0.498 | +25.9 % | 1.636 | 1.574 | -3.8 % |
+| Crafter_dynamic | `p_det` | -4.064 | -4.849 | 0.017 | 0.008 | -54.4 % | 0.501 | 0.160 | -68.1 % |
+| Golf_dynamic | `r_cl` | -0.850 | -1.083 | 0.428 | 0.339 | -20.8 % | 2.204 | 0.977 | -55.7 % |
+| Golf_dynamic | `p_det` | -4.415 | -4.510 | 0.012 | 0.011 | -9.0 % | 0.498 | 0.185 | -62.9 % |
