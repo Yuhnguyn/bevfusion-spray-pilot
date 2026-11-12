@@ -28,6 +28,22 @@ khoảng cách giữa mAP trên frame sạch và frame có spray — đo trên n
 
 **v1 đã đóng, không sửa nữa** — v2 dựng lại theo `spec-v2-paper-faithful.md` (ticket 25–31).
 
+### 2026-11-12 — 29e-d ĐÓNG bằng limitation, không sửa tham số
+
+Biên bản đầy đủ: **`.scratch/spray-augmentation/issues/29e-d-closure.md`**. Tóm tắt:
+
+- Generator v2 **đúng mô hình paper**: `r_cl` median 0,271 m (paper 0,30), `elong` 1,477 (G4 1,48),
+  `P_det` cùng bậc, cụm/frame ±20 % ở 9 mốc × 2 lớp, `p50` điểm/cụm = 6.
+- Ba tiêu chí trượt (A2 điểm/frame, A4 chiều cao, A11 fit) **cùng một nguyên nhân**: mô hình cầu
+  không tạo được **mảng nước liền** ở cự ly gần. `P_det`/`r_cl` của paper fit ở **25 m**, dataset
+  mình có **89 % điểm < 15 m**; paper tự cảnh báo *"a problem with the spherical cluster
+  representation might appear… especially pronounced in close proximity to the sensor"*.
+- Bằng chứng: `P_det > 1` ở **13–15,5 %** cụm dải 15–40 m; **66,6 %** điểm nằm trong 5 % cụm to nhất.
+- **Không** tune để khớp. A2/A4/A11 chuyển thành **chẩn đoán**, ghi limitation vào paper.
+- **Còn lỗi thật, sửa được:** số cụm/frame gen **0,59×** real (12,9 vs 21,8 @100) — tách ticket riêng.
+- Đã revert `RADIUS_*_BY_CLASS` và `P_DET_*_BY_CLASS` (cắm µ fit làm median sinh 0,395 vs đo 0,271).
+  Test: **312 passed, 4 skipped, 0 failed**.
+
 **Đính chính 2026-11-10 (đọc lại code openMSL):** dòng cũ ở đây ghi
 `số cụm = (0,2·wfh + 0,1)·(v−50) × K` với `K = 2,51` là **sai**. `grep -rn "2\.51"` trên toàn repo
 openMSL → **0 hit**. Số cụm là `round(max(0, mean))`, **tất định**, không nhân hệ số
