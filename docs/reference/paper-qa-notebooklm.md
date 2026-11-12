@@ -428,3 +428,51 @@ Tiêu chí A2 (điểm/frame = 570–1.555) đặt theo **số đo của dataset
 theo mô hình paper hiệu chuẩn ở 25 m với giả thiết cầu. Hai bên đo ở điều kiện khác nhau ⇒ A2 chỉ
 có thể đạt nếu thêm cơ chế ngoài paper (mảng nước liền). Quyết định: **giữ A2 làm mục tiêu chẩn
 đoán, không dùng làm điều kiện chặn**, và ghi rõ trong paper là limitation có trích dẫn §12.3.
+
+## 13. Hỏi ngày 2026-11-12 — trọng lực, `vz`, chiều cao plume
+
+### 13.1 Paper KHÔNG có trọng lực, KHÔNG có phương trình riêng cho `z`
+
+Chuyển động chỉ gồm **vận tốc ban đầu + drag + gió**:
+
+> `F_D = ½ ρ_air c_D A v_rel²`
+> `v_cl = ∫₀ᵗ (ρ_air c_D A / 2m)(v_w + v_cl)² dt + v₀`
+> `v_cl,k = C·(v_w + v_cl,k−1)²·Δt + v_cl,k−1`, với `C = −0,15 m⁻¹`, `Δt = 100 ms`
+> `p_cl,k = p_cl,k−1 + Δt·v_cl,k`
+
+Không có số hạng `g`, không có phương trình riêng cho trục `z`.
+
+### 13.2 Paper KHÔNG có `vz` — vận tốc ban đầu = vận tốc xe
+
+> *"Hence, during generation of a cluster, the velocity of the moving object is set as an
+> initial cluster velocity."*
+
+⇒ `v₀` **thuần ngang**, không thành phần thẳng đứng.
+
+### 13.3 Paper KHÔNG định nghĩa chiều cao plume
+
+Từ *"height"* trong paper chỉ dùng cho **water film height** (độ dày màng nước) hoặc **góc elevation**
+của LiDAR. Vị trí cụm đặt **uniform trong khối phía sau xe**. Cụm **không rơi**, chỉ mờ dần theo
+`P_t = e^{−t/T}`.
+
+### 13.4 Paper KHÔNG so phân bố `z` — chỉ so 3 thứ
+
+> *"These metrics indicate that the number of detections produced by spray, distance distribution and
+> inhomogeneity of the simulation are within the range of the measurements."*
+
+Ba metric: **tổng điểm** (Fig. 11a), **phân bố theo cự ly** (Fig. 12), **số cụm** (Fig. 11b). Không có
+so sánh phân bố chiều cao.
+
+### 13.5 Hệ quả — hai sai lệch cộng dồn trong code của mình (2026-11-12)
+
+| # | code hiện tại | paper | nhãn |
+|---|---|---|---|
+| 1 | `INITIAL_VZ_MAX_MPS = 5.0`, `vz ~ U(0, 5)` mỗi cụm | **không có `vz`** | `[CODE] dee.cpp:540` — **không phải paper** |
+| 2 | `prune(ceilings=...)` xoá cụm vượt đỉnh box 2,62 m | **không có luật này** | `[CHỌN]` của mình, thêm để bù (1) |
+
+Hai thứ này **bù nhau**: thêm `vz` làm cụm bay lên, rồi thêm trần để chặn. Hệ quả đo được: `T` dài ở
+tốc độ cao ⇒ `vz·T` = 3,0–4,5 m > trần 2,62 m ⇒ cụm bị xoá oan ⇒ `alive/target` giảm đơn điệu
+2,34 → 0,71 từ 50 → 130 km/h.
+
+⇒ **Sửa đúng theo paper: bỏ `vz` (đặt 0) và bỏ trần.** Chiều cao plume khi đó đến thuần từ vị trí đặt
+uniform trong khối 5–92 % chiều cao box, đúng như paper mô tả.
