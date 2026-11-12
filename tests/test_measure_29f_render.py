@@ -23,6 +23,10 @@ def _cell(group: str, speed: float, alive_ratio: float) -> dict:
         "frames": 90,
         "alive": alive_ratio * 10.0,
         "alive_vs_target": 1.0,
+        "visible_vs_real": 0.5,
+        "h_p5": 0.1,
+        "h_med": 1.2,
+        "h_p95": 2.3,
         "visible": 5.0,
         "dbscan": 5.0,
         "covered": 5.0,
@@ -60,7 +64,7 @@ def _cells(ratios: list[float]) -> list[dict]:
 )
 def test_section_3_counts_cells_below_the_stop_gate(ratios, below):
     body = render(_cells(ratios), 1.5)
-    section = body.split("## 3. Kết luận cửa chặn")[1]
+    section = body.split("## 3. Kết luận cửa chặn")[1].split("## 4.")[0]
 
     assert f"{below}/{len(ratios)} ô có `alive` ≤ {STOP_GATE:g}×" in section
     assert f"{below}/{len(ratios)} ô có `alive` > {STOP_GATE:g}×" not in section
@@ -70,7 +74,7 @@ def test_section_3_never_reports_more_below_than_cells():
     """The 29f bug: 16/18 reported below while 16 cells were *above*."""
     ratios = [0.5, 0.6] + [1.1] * 16
     body = render(_cells(ratios), 1.5)
-    section = body.split("## 3. Kết luận cửa chặn")[1]
+    section = body.split("## 3. Kết luận cửa chặn")[1].split("## 4.")[0]
 
     assert re.search(r"2/18 ô có `alive` ≤", section)
     assert not re.search(r"16/18 ô có `alive` ≤", section)

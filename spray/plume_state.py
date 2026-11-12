@@ -83,8 +83,13 @@ RADIUS_MAX_M = 1.0
 # clamped every step; the paper puts clusters uniformly behind the object and
 # does not model lateral drift beyond the measured plume width.
 LATERAL_CLAMP_M = 2.43
-# [CODE] dee.cpp:540.
-INITIAL_VZ_MAX_MPS = 5.0
+# [PAPER] arXiv 2212.08558 Sec. III-C: no vertical initial velocity; v0 = object
+# velocity, purely horizontal. The paper has no gravity and no z equation, so a
+# cluster never rises on its own (ticket 29h). ``dee.cpp:540`` does draw a
+# ``vz``, but that is the reference code, not the paper. The spawn line
+# ``vz = rng.uniform(0, cfg.initial_vz_max_mps)`` is kept: to re-enable it,
+# change this constant only.
+INITIAL_VZ_MAX_MPS = 0.0
 # [PAPER] arXiv 2212.08558, Sec. III-C: drag coefficient C = -0.15 1/m,
 # constant. See the module docstring for how this differs from dee.cpp:542.
 DRAG_MEAN = -0.15
@@ -412,24 +417,20 @@ class PlumeState:
     def prune(
         self, ceilings: dict[int, float] | None = None
     ) -> int:
-        """Remove expired clusters and clusters that rose above the block.
+        """Remove expired clusters.
 
-        Two rules: ``age > max_age_factor * T`` (``[CODE] dee.cpp:445-450``)
-        and, when ``ceilings`` is given, ``pos[2] > ceiling[object_id]``. The
-        second rule bounds the tail block geometrically: a cluster with
-        ``initial_vz`` up to 5 m/s and no gravity would otherwise drift far
-        above the vehicle (ticket 29e measured h p95 3.216 m against a real
-        2.264 m) instead of dissolving inside the plume.
+        The only rule is ``age > max_age_factor * T`` (``[CODE]
+        dee.cpp:445-450``), which the paper also describes. ``ceilings`` is
+        accepted for backwards compatibility and ignored: the box-top ceiling
+        was a ``[CHỌN]`` of ours with no paper source, added only to cancel the
+        unsourced ``initial_vz``; both are gone in ticket 29h, so a cluster is
+        never removed for its height.
         """
         removed = 0
         for key, clusters in list(self._clusters.items()):
-            object_id = key[1]
-            ceiling = None if ceilings is None else ceilings.get(object_id)
             kept = []
             for cluster in clusters:
-                expired = cluster.age > self._config.max_age_factor * cluster.ttl
-                above = ceiling is not None and cluster.pos[2] > ceiling
-                if expired or above:
+                if cluster.age > self._config.max_age_factor * cluster.ttl:
                     removed += 1
                 else:
                     kept.append(cluster)

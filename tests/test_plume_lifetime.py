@@ -355,6 +355,39 @@ def test_radius_median_does_not_grow_with_speed():
     assert np.median(fast) / np.median(slow) == pytest.approx(1.0, abs=0.15)
 
 
+def test_spawn_has_no_vertical_velocity():
+    # [PAPER] arXiv 2212.08558 Sec. III-C: "the velocity of the moving object is
+    # set as an initial cluster velocity" -- purely horizontal. The paper has no
+    # gravity and no vertical term, so v0_z is zero (ticket 29h).
+    state = PlumeState()
+    clusters = []
+    for frame in range(40):
+        clusters.extend(
+            state.spawn(
+                _context(frame_index=frame), object_id=0, rng=np.random.default_rng(frame)
+            )
+        )
+    assert clusters
+    for cluster in clusters:
+        assert cluster.vel[2] == 0.0
+
+
+def test_clusters_are_not_pruned_for_rising_above_the_box():
+    # Ticket 29h: the ceiling prune had no paper source; it only cancelled the
+    # (also unsourced) initial vz. A cluster above the box top must stay alive
+    # as long as ``age <= 4*T``.
+    state = PlumeState()
+    config = PlumeStateConfig(lifetime_sigma_s=0.0)
+    clusters = _spawn_nonempty(
+        state, 0, np.random.default_rng(0), config=config
+    )
+    for cluster in clusters:
+        cluster.pos[2] = 50.0
+
+    assert state.prune() == 0
+    assert len(state.alive(0)) == len(clusters)
+
+
 def test_positive_drag_sample_never_accelerates_a_cluster():
     state = PlumeState()
     config = PlumeStateConfig(

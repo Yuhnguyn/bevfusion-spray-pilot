@@ -228,6 +228,7 @@ def collect_cell(
     covered_per_frame: list[int] = []
     largest_cover_per_frame: list[int] = []
     det_per_frame: list[int] = []
+    det_z: list[np.ndarray] = []
     capped = 0
     frames = 0
     for scene in scenes:
@@ -283,6 +284,8 @@ def collect_cell(
             covered_per_frame.append(covered)
             largest_cover_per_frame.append(largest)
             det_per_frame.append(int(detections.shape[0]))
+            if detections.shape[0]:
+                det_z.append(detections[:, 2].astype(np.float64))
             frames += 1
     alive_mean = float(np.mean(alive_per_frame)) if frames else float("nan")
     visible_mean = (
@@ -296,7 +299,18 @@ def collect_cell(
     det_mean = float(np.mean(det_per_frame)) if frames else float("nan")
     real = float(REAL_DBSCAN[(group, speed_kmh)])
     real_per_frame = real / FRAMES_PER_CELL
+    # Height of the generated detections above the road, same as
+    # ``measure_29ec.py``: ``det_z - ROAD_Z_M``.
+    heights = np.concatenate(det_z) - ROAD_Z_M if det_z else np.zeros(0)
+    h_p5, h_med, h_p95 = (
+        (float(value) for value in np.percentile(heights, [5, 50, 95]))
+        if heights.size
+        else (float("nan"),) * 3
+    )
     return {
+        "h_p5": h_p5,
+        "h_med": h_med,
+        "h_p95": h_p95,
         "group": group,
         "speed": speed_kmh,
         "scenes": [scene.name for scene in scenes],
@@ -317,6 +331,9 @@ def collect_cell(
             alive_mean / float(cluster_count_for_speed_abs(speed_kmh, WFH_MM, vehicle_class))
             if cluster_count_for_speed_abs(speed_kmh, WFH_MM, vehicle_class) > 0
             else float("nan")
+        ),
+        "visible_vs_real": (
+            visible_mean / real_per_frame if real_per_frame > 0.0 else float("nan")
         ),
         "capped": capped,
         # Steady-state analytic values, for the branch decision.
@@ -353,7 +370,11 @@ def render(cells: list[dict], radius_scale: float) -> str:
         "- `alive` = số cụm còn sống trong state ngay trước khi ray-cast "
         "(`state.all_alive()`), trung bình theo frame.",
         "- `visible` = số cụm `alive` có ≥ 1 detection nằm trong cầu "
-        f"`|p − tâm| ≤ {radius_scale:g}·r` của cụm (gán detection cho cầu gần nhất).",
+        f"`|p − tâm| ≤ {radius_scale:g}·r` của cụm (gán detection cho cầu gần nhất). "
+        "`visible/real` = `visible` / `real/frame`.",
+        "- `h p5/med/p95` = phân vị 5 / 50 / 95 của chiều cao detection sinh ra so với "
+        "mặt đường, `det_z − ROAD_Z_M` (cùng cách tính `measure_29ec.py`), gộp mọi "
+        "detection của ô.",
         "- `dbscan` = số cụm DBSCAN dựng lại từ detection của frame (≥ 3 điểm), "
         "trung bình theo frame.",
         "- `phủ` = tổng số cụm `alive` khác nhau mà các cụm DBSCAN phủ (mỗi điểm "
@@ -376,19 +397,27 @@ def render(cells: list[dict], radius_scale: float) -> str:
         "`real/frame` ở đây, không phải cụm `alive` của generator. A1 so "
         "`visible_cluster_count_for_speed` (cụm **alive**) với bảng DBSCAN ⇒ A1 đạt "
         "là **trùng hợp đơn vị**, không phải bằng chứng generator khớp.",
+        "- **Lỗi đơn vị của ticket**: \"12,9 cụm gen @100\" là **cụm/frame** (`29ed3` "
+        "§2), còn \"21,8 cụm real @100\" là **tổng 90 frame** của cùng bảng (§1 "
+        "`29ed3` ghi `cụm gen` 1160 = 12,9 × 90) ⇒ tỉ lệ đúng là 12,9 / 21,79 = "
+        "**0,59×**, không phải 12,9 / 1961.",
         "",
         "## 1. Theo lớp × tốc độ",
         "",
-        "| lớp | km/h | frame | alive | alive/target | visible | dbscan | phủ | "
+        "| lớp | km/h | frame | alive | alive/target | visible | visible/real | "
+        "h p5/med/p95 (m) | dbscan | phủ | "
         "phủ max | alive_not_dbscan | det_per_alive | real/frame | Δ | "
         "alive/real | dbscan/real | alive target | rate | rate·T/Δt | T (s) | capped |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for cell in cells:
         lines.append(
             f"| {cell['group']} | {cell['speed']:g} | {cell['frames']} | "
             f"{_fmt(cell['alive'], 2)} | {_fmt(cell['alive_vs_target'], 2)} | "
             f"{_fmt(cell['visible'], 2)} | "
+            f"{_fmt(cell['visible'] / cell['real_per_frame'], 2)} | "
+            f"{_fmt(cell['h_p5'], 3)} / {_fmt(cell['h_med'], 3)} / "
+            f"{_fmt(cell['h_p95'], 3)} | "
             f"{_fmt(cell['dbscan'], 2)} | {_fmt(cell['covered'], 2)} | "
             f"{_fmt(cell['largest_cover'], 2)} | "
             f"{_fmt(cell['alive_not_dbscan'], 2)} | "
@@ -449,11 +478,10 @@ def render(cells: list[dict], radius_scale: float) -> str:
         "",
         "## 4. Cơ chế đo được",
         "",
-        "- `alive` chạy **cao hơn** `alive target` (1,0–2,2×): `T` bốc `N(T, 0,2 s)` và bị "
-        "kẹp ≥ 0, nên một phần cụm sống tới ~4·(T + 2σ) = 5,6·T và trạng thái giữ "
-        "nhiều cụm hơn `rate·K`. Thử riêng (không ghi vào bảng): tắt hẳn prune theo "
-        "trần cũng chỉ lên 9,2 / 66,6 cụm @50 / @100 ⇒ prune theo trần **không** phải "
-        "chỗ mất cụm.",
+        "- **29h:** bỏ `vz` + bỏ trần làm `alive` **tăng** ở mọi ô (vd Crafter@70: 26,5 → "
+        "38,7), tức trần cũ đã xoá một phần cụm thật. Nhưng `alive` vượt `target` xa hơn "
+        "(2,3–3,0× ở 50–70 km/h) vì `T ~ N(T, 0,2 s)` kẹp ≥ 0 cho đuôi sống tới ~5,6·T, và "
+        "`visible/real` > 1,25 ở 50–80 km/h ⇒ số cụm **nhìn thấy** vượt nhãn thật.",
         "- `visible` / `alive` ≈ 0,47 (Crafter) và 0,71 (Golf): mỗi cụm chỉ có "
         "`det_per_alive` ≈ 4–29 detection, trong khi DBSCAN cần ≥ 3 điểm **và** 3 điểm "
         "đó phải nằm trong 0,7° của nhau.",
@@ -471,7 +499,74 @@ def render(cells: list[dict], radius_scale: float) -> str:
         "phần lớn cụm DBSCAN ở ảnh ghép **không phải** cụm plume.",
         "",
     ]
+    lines += _criteria(cells, radius_scale)
     return "\n".join(lines)
+
+
+# Ticket 29h acceptance thresholds.
+ALIVE_TARGET_RANGE = (0.95, 1.05)
+VISIBLE_REAL_RANGE = (0.75, 1.25)
+# A4 of 29e-d (real label-2 detections above the road).
+H_REFERENCE = (0.111, 1.197, 2.264)
+H_TOLERANCE_M = 0.20
+H_STOP_GATE_M = 0.35
+
+
+def _criteria(cells: list[dict], radius_scale: float) -> list[str]:
+    """F1-F3 verdicts of ticket 29h, per cell and for the pooled height."""
+    lines = [
+        "## 5. Tiêu chí 29h (F1–F3)",
+        "",
+        f"- **F1** `alive/target` ∈ [{ALIVE_TARGET_RANGE[0]:g}, "
+        f"{ALIVE_TARGET_RANGE[1]:g}] ở 9 mốc × 2 lớp.",
+        f"- **F2** `visible/real` ∈ [{VISIBLE_REAL_RANGE[0]:g}, "
+        f"{VISIBLE_REAL_RANGE[1]:g}] ở 9 mốc × 2 lớp.",
+        "- **F3** `h p5/med/p95` = 0,111 / 1,197 / 2,264 ± "
+        f"{H_TOLERANCE_M:g} m (A4 của 29e-d), tính **gộp** mọi detection của cả "
+        "18 ô (mỗi ô 90 frame) để cùng đơn vị với A4.",
+        "",
+        "| tiêu chí | đạt | trượt |",
+        "|---|---|---|",
+    ]
+    for label, key, bounds in (
+        ("F1 alive/target", "alive_vs_target", ALIVE_TARGET_RANGE),
+        ("F2 visible/real", "visible_vs_real", VISIBLE_REAL_RANGE),
+    ):
+        ok = [
+            f"{cell['group']}@{cell['speed']:g}"
+            for cell in cells
+            if bounds[0] <= cell[key] <= bounds[1]
+        ]
+        bad = [
+            f"{cell['group']}@{cell['speed']:g} ({cell[key]:.2f})"
+            for cell in cells
+            if not bounds[0] <= cell[key] <= bounds[1]
+        ]
+        lines.append(
+            f"| {label} | {len(ok)}/{len(cells)} | {', '.join(bad) or '—'} |"
+        )
+
+    p5 = float(np.median([cell["h_p5"] for cell in cells]))
+    med = float(np.median([cell["h_med"] for cell in cells]))
+    p95 = float(np.median([cell["h_p95"] for cell in cells]))
+    worst = max(
+        abs(cell["h_p95"] - H_REFERENCE[2]) for cell in cells
+    )
+    lines += [
+        "",
+        f"`h` gộp 18 ô (median của phân vị từng ô): **{p5:.3f} / {med:.3f} / "
+        f"{p95:.3f}** vs {H_REFERENCE[0]:.3f} / {H_REFERENCE[1]:.3f} / "
+        f"{H_REFERENCE[2]:.3f}.",
+        "",
+        f"| F3 p5 | F3 med | F3 p95 | lệch p95 lớn nhất một ô | cửa chặn "
+        f"(>{H_STOP_GATE_M:g} m) |",
+        "|---|---|---|---|---|",
+        f"| {_fmt(p5 - H_REFERENCE[0], 3)} | {_fmt(med - H_REFERENCE[1], 3)} | "
+        f"{_fmt(p95 - H_REFERENCE[2], 3)} | {worst:.3f} | "
+        f"{'DỪNG' if worst > H_STOP_GATE_M else 'qua'} |",
+        "",
+    ]
+    return lines
 
 
 def main() -> None:

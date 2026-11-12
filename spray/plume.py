@@ -467,8 +467,9 @@ def inject_plume_stateful(
       box height (ticket 29e-c);
     - block centre ``box_pos - (L_box/2 + L_block/2) * [cos yaw, sin yaw]``;
     - the block bottom sits at 5 % of the box height above the box bottom;
-    - clusters are removed once they rise above the box top, so the rise from
-      ``initial_vz`` cannot leave the plume tall after the box disappears;
+    - clusters are removed only once ``age > 4*T``; there is no height
+      ceiling and no initial ``vz`` (ticket 29h, [PAPER] arXiv 2212.08558), so
+      the plume height comes purely from where the block places the clusters;
     - ``|y - y_block|`` is clamped to 2.43 m every step (ticket 29e-c).
 
     Clusters are materialised as points of radius ``cluster.radius`` with the
@@ -495,11 +496,7 @@ def inject_plume_stateful(
     state.advance(
         dt, ego_velocity=np.array([context.ego_speed_mps, 0.0, 0.0])
     )
-    ceilings = {}
-    for index, box in enumerate(box_arr):
-        if np.isfinite(box[:7]).all():
-            ceilings[index] = float(box[2] + box[5] / 2.0)
-    expired = state.prune(ceilings=ceilings)
+    expired = state.prune()
 
     block_length = abs(float(context.object_speed_mps)) * dt
     spawned = 0
