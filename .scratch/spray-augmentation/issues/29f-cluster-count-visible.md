@@ -19,11 +19,11 @@ nước liền. Nhưng còn một lỗi **khác bản chất và sửa được*
 Nguồn: `docs/measurements/29ed3-gen-overlap.md` §2 (cột `cụm real` vs `cụm gen`).
 
 Nghịch lý cần giải thích: tiêu chí **A1 (cụm/frame ±20 % Bảng 1) lại ĐẠT**. Hai con số đo khác nhau vì
-**đơn vị đếm khác nhau**:
+**đơn vị đếm khác nhau** — và A1 vì thế là **tiêu chí sai**, không phải bằng chứng đạt:
 
-- A1 đếm **cụm còn sống** (`state.all_alive()`) — đơn vị của Bảng 1.
-- `29ed3` đếm **cụm DBSCAN dựng lại từ detection sinh ra** — sau khi ray-cast, chỉ cụm nào có ≥ 3
-  detection mới thành cụm.
+- A1 so `visible_cluster_count_for_speed` (**số lý thuyết** `round(rate × K)`) với Bảng 1 (**cụm DBSCAN**
+  trên điểm thật) ⇒ hai đại lượng khác nhau, xem `29f-0-table1-unit.md`.
+- `29ed3` đếm **cụm DBSCAN dựng lại từ detection sinh ra** — đại lượng model thật sự nhìn thấy.
 
 ⇒ Cụm **sinh ra đủ** nhưng **không đủ detection để DBSCAN nhận ra**. Đây là cùng gốc với `P_det` thấp
 (0,47×), nhưng **khác triệu chứng**: nó làm hỏng cả *số cụm* mà model nhìn thấy, không chỉ số điểm.
@@ -76,8 +76,8 @@ sửa bảng theo số đo, ghi `[ĐO 2026-11-12]`.
 |---|---|---|
 | D1 | bảng `alive`/`visible`/`dbscan` | đủ 18 ô, không `nan` |
 | D2 | đơn vị đếm của Bảng 1 | xác nhận được, ghi rõ |
-| D3 | cụm DBSCAN gen vs real | **≥ 0,85×** ở @100 và @130 |
-| D4 | cụm/frame alive | ±20 % Bảng 1 (giữ A1) |
+| D3 | **cụm DBSCAN gen vs real (tiêu chí THAY THẾ A1)** | **≥ 0,85×** ở @100 và @130, ±20 % ở 9 mốc × 2 lớp |
+| D4 | `visible_cluster_count_for_speed` vs Bảng 1 | **chẩn đoán, KHÔNG phải tiêu chí** — A1 cũ so số lý thuyết với cụm DBSCAN nên vô nghĩa (`29f-0-table1-unit.md`). In ra để đối chiếu, không chặn |
 | D5 | test | xanh, **≥ 312 passed**, 0 failed |
 | D6 | `points_clean` | byte-equal |
 | D7 | `capped` | 0 ở 4 tốc độ |

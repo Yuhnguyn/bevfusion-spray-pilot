@@ -23,8 +23,11 @@ detection, ≥ 3 điểm), `alive_not_dbscan = alive − dbscan`, `det_per_alive
 
 ### Việc 2 — xác nhận đơn vị đếm của Bảng 1
 
-Đọc `docs/measurements/semantic-spray-clusters-by-speed.md`. Xác nhận Bảng 1 đếm **cụm DBSCAN** hay
-**cụm "còn sống"**. Ghi rõ một dòng trong báo cáo. Nếu Bảng 1 đếm DBSCAN thì A1 đạt là trùng hợp.
+**Đã xác nhận bởi PM (2026-11-12, `29f-0-table1-unit.md`): Bảng 1 đếm cụm DBSCAN trên điểm thật.**
+Bạn chỉ cần ghi lại một dòng xác nhận trong báo cáo, không cần điều tra lại.
+
+Hệ quả: **A1 là tiêu chí SAI** (so `visible_cluster_count_for_speed` lý thuyết với cụm DBSCAN). Tiêu chí
+thay thế là **D3**. `visible_cluster_count_for_speed` chỉ còn là **chẩn đoán**, in ra để đối chiếu.
 
 ### Việc 3 — sửa, theo kết quả việc 1
 
