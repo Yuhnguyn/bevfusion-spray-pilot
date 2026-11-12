@@ -375,3 +375,56 @@ Nguyên văn:
   rộng** hoặc **cụm quá nhỏ so với vùng**, không phải "thiếu cơ chế gộp cụm".
 - Sửa đúng hướng paper: **giữ uniform + độc lập**, chỉ thu hẹp vùng đặt cho khớp mật độ đo được.
   Không thêm bước "gom cụm theo nhóm" — paper không có bước đó.
+
+## 12. Hỏi ngày 2026-11-12 — `P_det` hiệu chuẩn ở cự ly nào
+
+### 12.1 Định nghĩa
+
+> *"A beam generates only a detection in a certain cluster with a detection probability given as
+> `P_det = n / n_max(r_cl, p_cl)`, (5) with the number of detections `n` in a given cluster and the
+> number of beams `n_max(r_cl, p_cl)` intersecting the spherical representation of the cluster. The
+> maximum number of possible detections in a spherical cluster representation depends on the cluster
+> radius and the cluster position with respect to the beam pattern of the sensor."*
+
+⇒ `P_det` là **hằng số theo cụm**, không điều chỉnh theo range. `n_max` tự giảm theo `1/d²`.
+
+### 12.2 `P_det` và `r_cl` được hiệu chuẩn ở **25 m**, không phải 50 m
+
+> *"probability distributions for all clusters in the spray plume with a vehicle distance of **25 m**
+> are shown in Fig. 7. The variations of detection probabilities between clusters are fitted to a
+> lognormal distribution."*
+
+> *"The dashed distribution is a lognormal distribution derived as a mean from fitted distributions to
+> the measurements of all velocities. The parameters of the distribution are `µ = −2.3` and `σ = 1.09`."*
+
+⇒ Cả `r_cl` (µ = −1,2, σ = 0,8) và `P_det` (µ = −2,3, σ = 1,09) đều fit ở **25 m** `[PAPER]`.
+
+### 12.3 Paper TỰ CẢNH BÁO mô hình cầu hỏng ở cự ly gần
+
+> *"Moreover, with higher resolutions, a problem with the spherical cluster representation might
+> appear. The problem can become especially pronounced in **close proximity to the sensor** and is to be
+> evaluated in future work."*
+
+⇒ Đây là hạn chế **paper tự thừa nhận**, chưa được giải quyết.
+
+### 12.4 Hệ quả cho dataset SemanticSpray của mình (2026-11-12)
+
+| | paper | dataset mình |
+|---|---|---|
+| cự ly hiệu chuẩn | **25 m** | 20 m và 30 m |
+| phân bố điểm thật | — | **89 % điểm của Crafter@100 nằm < 15 m** |
+
+- Dataset mình có **phần lớn điểm ở cự ly gần hơn nhiều** so với nơi paper hiệu chuẩn.
+- Ở cự ly gần, `n_max` rất lớn (nhiều tia cắt cầu) nhưng thật lại có **cụm khổng lồ** do nước liền
+  mảng ⇒ `P_det` đo được **> 1** ở 13–15,5 % cụm trong dải 15–40 m. Đây **chính là** hiện tượng paper
+  cảnh báo: mô hình cầu không còn đúng khi gần cảm biến.
+- ⇒ **Không thể** khớp điểm/frame ở dải gần bằng mô hình cầu + `P_det` hằng số. Đây là **giới hạn
+  của mô hình paper**, không phải lỗi cài đặt. Phải ghi vào paper như limitation, không được tune
+  tham số để che.
+
+### 12.5 Điều chỉnh kỳ vọng cho tiêu chí A2
+
+Tiêu chí A2 (điểm/frame = 570–1.555) đặt theo **số đo của dataset ở 20/30 m**, trong khi generator
+theo mô hình paper hiệu chuẩn ở 25 m với giả thiết cầu. Hai bên đo ở điều kiện khác nhau ⇒ A2 chỉ
+có thể đạt nếu thêm cơ chế ngoài paper (mảng nước liền). Quyết định: **giữ A2 làm mục tiêu chẩn
+đoán, không dùng làm điều kiện chặn**, và ghi rõ trong paper là limitation có trích dẫn §12.3.
