@@ -425,22 +425,25 @@ def render(cells: list[dict], radius_scale: float) -> str:
         )
 
     chosen = branch(cells)
-    high = [
+    # Cells *under* the gate (``<=``, same predicate as ``branch``). The 29f
+    # worker counted the cells *above* the gate and printed them as "≤".
+    low = [
         f"{cell['group']}@{cell['speed']:g}"
         for cell in cells
-        if cell["alive_ratio"] > STOP_GATE
+        if cell["alive_ratio"] <= STOP_GATE
     ]
     lines += ["", "## 3. Kết luận cửa chặn", ""]
     if chosen == "3b":
         lines.append(
-            f"**Nhánh 3b (sinh cụm):** {len(high)}/18 ô có `alive` ≤ "
-            f"{STOP_GATE:g}× real/frame. Cụm không được sinh đủ, ray-cast không "
-            "phải chỗ mất cụm."
+            f"**Nhánh 3b (sinh cụm):** {len(low)}/{len(cells)} ô có `alive` ≤ "
+            f"{STOP_GATE:g}× real/frame ({', '.join(low)}). Cụm không được sinh "
+            "đủ, ray-cast không phải chỗ mất cụm."
         )
     else:
         lines.append(
-            f"**Nhánh 3a (ray-cast):** {len(high)}/18 ô có `alive` > "
-            f"{STOP_GATE:g}× real/frame — cụm sinh đủ, mất ở khâu ray-cast / DBSCAN."
+            f"**Nhánh 3a (ray-cast):** {len(low)}/{len(cells)} ô có `alive` ≤ "
+            f"{STOP_GATE:g}× real/frame ({', '.join(low) or 'không ô nào'}) — "
+            "cụm sinh đủ, mất ở khâu ray-cast / DBSCAN."
         )
     lines += [
         "",
@@ -454,13 +457,14 @@ def render(cells: list[dict], radius_scale: float) -> str:
         "- `visible` / `alive` ≈ 0,47 (Crafter) và 0,71 (Golf): mỗi cụm chỉ có "
         "`det_per_alive` ≈ 4–29 detection, trong khi DBSCAN cần ≥ 3 điểm **và** 3 điểm "
         "đó phải nằm trong 0,7° của nhau.",
-        "- `dbscan` (chỉ detection) ≈ 0,43–0,92× real/frame với Crafter, 0,43–0,73× "
+        "- `dbscan` (chỉ detection) ≈ 0,52–0,92× real/frame với Crafter, 0,43–0,73× "
         "với Golf ở 50–90 km/h, nhưng **> 1×** với Golf ở 100–130 km/h — cột `phủ` "
-        "giải thích: DBSCAN **gộp** nhiều cụm `alive` thành một cụm. Detection của "
-        "một cụm nằm rải trong ~1,5·r quanh tâm (p50 0,33–0,61 m), trong khi "
-        "`eps = 0,7°` ở 10–20 m chỉ là 0,12–0,24 m ⇒ cụm 0,3 m **không tách được** "
-        "thành một cụm DBSCAN riêng. Vì vậy `dbscan` là **cận dưới** của số cụm "
-        "generator, không phải phép đếm 1-1.",
+        "giải thích: `phủ` luôn > `dbscan` (ví dụ Crafter@60: 17,3 cụm `alive` bị "
+        "5,8 cụm DBSCAN gộp, có cụm DBSCAN phủ 7,6 cụm) ⇒ DBSCAN **gộp** nhiều cụm "
+        "thành một. Detection của một cụm nằm rải trong ~1,5·r quanh tâm (p50 "
+        "0,33–0,61 m), trong khi `eps = 0,7°` ở 10–20 m chỉ là 0,12–0,24 m ⇒ cụm "
+        "0,3 m **không tách được** thành một cụm DBSCAN riêng. Vì vậy `dbscan` là "
+        "**cận dưới** của số cụm generator, không phải phép đếm 1-1.",
         "- **Ảnh ghép không dùng được**: đo riêng 3 frame Crafter@100, DBSCAN trên "
         "`real_points` + detection (đúng đầu vào `PlumeTransform`) cho 21–29 cụm, "
         "trong đó **điểm thật một mình đã 12–20 cụm** (mưa, phản xạ, điểm trên xe) ⇒ "
