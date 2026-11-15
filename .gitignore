@@ -26,3 +26,6 @@ venv/
 
 # PM profile data — không thuộc tài liệu dự án
 .scratch/hermes-pm/
+
+# graphify artifact (generated graph output)
+graphify-out/
