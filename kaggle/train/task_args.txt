@@ -1,1 +1,0 @@
---task=ab-eval --ckpt-dir=/kaggle/input/bevfusion-spray-ckpt --limit=0
