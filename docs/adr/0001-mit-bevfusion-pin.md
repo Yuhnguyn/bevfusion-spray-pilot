@@ -16,7 +16,7 @@ Không dùng HEAD `326653d`. Kiểm tra bằng `git -C mit/bevfusion rev-parse -
 
 ## Consequences
 
-- Checkpoint fused load được mà không phải sửa code hay shape.
+- Checkpoint LiDAR-only load được mà không phải sửa code hay shape.
 - Không có các tính năng depth mới của HEAD; chấp nhận được vì chúng không thuộc câu hỏi nghiên cứu.
 - Mọi config snapshot và report phải ghi commit này; nếu ai đó build từ HEAD thì kết quả không so sánh được.
 - Nếu buộc phải lên HEAD: set `add_depth_features: false` và `height_expand: false`, rồi chạy lại smoke test trước khi dùng.

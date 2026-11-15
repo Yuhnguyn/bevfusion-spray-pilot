@@ -1,38 +1,63 @@
-# BEVFusion spray pilot (MIT)
+# BEVFusion trên SemanticSpray++ — hướng spray thật
 
-Mục tiêu: đo **BEVFusion (LiDAR + 6 camera) mất bao nhiêu mAP khi có spray plume** từ xe phía trước
-trên đường ướt, và **augmentation plume có làm giảm mức mất đó không**. Đây không phải bài toán
-robustness dưới lỗi cảm biến.
+Câu hỏi: **khi train BEVFusion LiDAR-only trên frame đã bỏ điểm spray, việc chèn thêm spray
+tổng hợp lúc train có giảm số hộp dương tính giả trên spray thật không, và có mất recall xe
+thật không?**
 
-Cách làm: train hai arm A/B trên cùng frame — A train sạch, B train sạch + plume — rồi đo paired
-trên cùng eval set; thêm arm B0 (lọc spray rồi detect, không train) làm mốc. Detection chạy trên
-**nuScenes**; **SemanticSpray chỉ dùng để hiệu chỉnh simulator** (`docs/adr/0003`).
+Đại lượng cần làm nhỏ: **số hộp dương tính giả mỗi frame** (FP/frame) trên tập test spray thật.
+Đại lượng phải giữ: **recall xe thật**.
 
-## Trạng thái (2026-11-11)
+Detection chạy trên **SemanticSpray++** (spray thật, box thật), không phải nuScenes. Đây là
+điểm khác biệt so với nhánh `main` — nhánh đó đo trên nuScenes với plume tổng hợp và đóng lại
+làm bản đối chứng.
 
-- **Generator đang ở v2**, chưa quay lại A/B. v1 đã đóng sau khi audit tìm ra 8 lỗi cấu trúc
-  (`docs/history/plume-v1-defects.md`) và kết quả A/B của v1 là **null** với chẩn đoán rõ cơ chế
-  (`STATUS.md` mục "Dừng shift 2026-11-09").
-- Code hiện có: `spray/plume.py` (vỏ + khối sau đuôi), `plume_state.py` (sinh/trôi/tan cụm),
-  `plume_context.py`, `plume_transform.py` (pipeline + `points_clean`), `raycast.py` (cast beam,
-  `P_det`, attenuation, strongest-return), `beam_model.py`, `wet_ground.py` (mặc định tắt),
-  `spray_stats.py`, `proxy_eval/` (matcher + adapter output MIT).
-- Test: **239 passed, 4 skipped** trên laptop CPU (không cần GPU, không cần mmcv).
-- Đang làm **29c** (sửa `intensity = 0`, bỏ trần 2.000, khối theo phân số chiều cao box, hạ latency
-  < 100 ms/frame), sau đó **29d** là cổng nghiệm thu. Chi tiết: `.scratch/spray-augmentation/STATUS.md`.
-- Nguồn sự thật của tiến độ: `.scratch/spray-augmentation/STATUS.md`.
-- Bản đồ tài liệu: **`docs/README.md`** (reference / measurements / history / audit); cửa vào: `docs/PROJECT.md`.
-- ADR: `docs/adr/0001` pin MIT `da93b27`, `0002` plume-only (đã bị `0004` thay), `0003` SemanticSpray
-  chỉ để hiệu chỉnh, `0004` v2 mở wet-ground + attenuation + state.
+## Ba nhánh thí nghiệm
+
+| Nhánh | Train trên | Trả lời |
+|---|---|---|
+| Model 0 | không train, dùng checkpoint `lidar-only-det.pth` | Mức hỏng gốc của model nuScenes với spray thật |
+| Arm A | 16 scene sạch (đã bỏ điểm `label == 2`) | Chỉ fine-tune, không augment, được gì |
+| Arm B | 16 scene sạch + spray tổng hợp, p = 0,5 | Augment thêm được gì so với Arm A |
+
+Arm A là nhóm đối chứng: B so với A mới là so đúng, vì hai nhánh giống nhau mọi thứ trừ một
+biến duy nhất.
+
+## Dữ liệu
+
+207 scene SemanticSpray++, **36 scene có box 3D** (2.587 frame, 2.595 box). Lớp: Car 1.362,
+Van 1.225, Other Vehicle 8 (bỏ). Không có calibration 6 camera → chỉ chạy LiDAR-only.
+
+Chia theo tốc độ để test là tốc độ chưa thấy:
+
+| Split | Tốc độ (km/h) | Scene | Frame | Spray p50/frame |
+|---|---|---|---|---|
+| train | 60, 80, 100, 120 | 16 | 1.124 | 378 |
+| val | 70, 110 | 8 | 509 | 499 |
+| **test** | **50, 90, 130** | **12** | **954** | **142** |
+
+## Trạng thái (2026-11-15)
+
+- Nhánh `sspp` tách từ `main` @ `f3fb7d2`. Đã dọn sạch dây nuScenes; test còn **151 passed**.
+- Kế hoạch đầy đủ: `.hermes/plans/2026-11-13_171500-sspp-plan-ngan.md` (5 bước thi công).
+- Việc kế tiếp: **bước 2 — dataset adapter** (`spray/sspp_adapter.py` + `scripts/build_sspp_split.py`).
+- Chưa có kết quả nào. Mọi con số trong `docs/measurements/semantic-spray-*.md` là đo trên
+  dataset, không phải kết quả detector.
 
 ## Cấu trúc
 
-- `mit/bevfusion` — working copy, pin `da93b27` (`mit/PIN.md`).
-- `third_party/` — clone tham chiếu BEVFusion + devkit SemanticSpray, read-only.
-- `data/` — nuScenes mirror info + SemanticSpray 31 GB, gitignore.
-- `spray/`, `proxy_eval/`, `scripts/`, `tests/`, `kaggle/`, `docs/`.
+- `mit/bevfusion` — working copy, pin `da93b27` (`mit/PIN.md`). `third_party/` là clone read-only.
+- `data/SemanticSprayDataset` — 31 GB, gitignore.
+- `spray/` — sinh plume (`plume*`, `raycast`, `beam_model`, `wet_ground`) + đo spray thật
+  (`semantic_stats`, `semantic_split`, `spray_stats`).
+- `proxy_eval/` — matcher BEV IoU + bootstrap theo scene.
+- `scripts/` — ba script: tải dataset, build/verify split, đo thống kê.
+- `docs/measurements/` — bốn báo cáo số đo; `docs/reference/paper-qa-notebooklm.md` — hỏi đáp
+  nguyên văn với paper.
 
-## Legacy (local only)
+## Hạn chế đã biết
 
-`kernel/`, `interactive/`, `results/phase-b1-nuscenes-mini/` là harness cũ chạy BEVFusion của
-OpenMMLab. Giữ local, không commit, **không phải bằng chứng cho pilot** và nằm ngoài phạm vi.
+1. **1 box/frame, 2 lớp.** mAP trên một object là nhiễu; báo FP/frame và recall làm thước chính.
+2. **Không có frame sạch.** Mọi frame đều có spray; frame "sạch" chỉ tồn tại bằng cách xoá điểm
+   `label == 2`.
+3. **Không có calibration camera** → không chạy được nhánh fusion, chỉ LiDAR-only.
+4. **Số tuyệt đối không chuyển sang nuScenes đô thị.** Chỉ delta ghép cặp là chuyển được.
