@@ -1,101 +1,173 @@
 # Root cause: vì sao plume sinh ra thưa và vỡ vụn hơn spray thật
 
-Đo ngày 2026-11-17 trên `sspp` @ `bad0f4b`. Script: `scripts/diag_plume_gap.py`,
-`diag_spray_location.py`, `diag_cluster_extent.py`, `diag_spray_source.py`,
-`diag_drift_wet.py`, `diag_steady_state.py`, `diag_table_check.py`.
+Đo ngày 2026-11-17 trên `sspp` @ `bad0f4b`. Script: `scripts/diag_*.py`
+(`diag_plume_gap`, `diag_spray_location`, `diag_cluster_extent`, `diag_spray_source`,
+`diag_drift_wet`, `diag_steady_state`, `diag_table_check`, `diag_verify_conventions`,
+`diag_inside_box`).
 
 Nhãn: `[ĐO]` đo trên máy này · `[TÍNH]` suy ra từ công thức trong code.
+**Bản 2**: sửa 4 chỗ số do lỗi quy ước z, thêm 2 lỗi quy ước trục.
 
 ---
 
-## 0. Số đo nền — thật vs sinh
+## 0. Quy ước box của adapter — nền của mọi phép đo
 
-| v (km/h) | thật điểm/frame | sinh det/frame | tỉ lệ | thật điểm/cụm | sinh điểm/cụm | thật z trên mặt đường (p50) | sinh z trên mặt đường (p50) |
-|---|---|---|---|---|---|---|---|
-| 60 | 174–203 | 192–316 | 1,1–1,6 | 6–8 | 4–17 | 1,6 | 1,6 |
-| 100 | 1766–2791 | 123–909 | **0,07–0,32** | 27–69 | 5–10 | 1,8–3,3 | 1,6–1,9 |
-| 120 | 1001–2748 | 111–514 | **0,11–0,19** | 20–31 | 5–9 | 1,5–3,3 | 1,6–1,9 |
+`spray/sspp_adapter.py:117,141` ghi `box[2] = center3D.z − size3D.z/2` = **đáy box**,
+và `box[3], box[4] = size_x, size_y` = **(dài, rộng)**.
 
-Ở 60 km/h generator khớp. Từ 100 km/h trở lên sụp còn 7–32%.
+Đo xác nhận `[ĐO]` (scene 0060 f=16): `box[2] = −0,107`; điểm LiDAR trong footprint
+có `z_min = −0,23`, `z_p50 = 1,77`. Nếu `box[2]` là tâm thì `z_min` phải ≈ −1,42.
+⇒ **`box[2]` là đáy.** Extent thật của điểm: dọc 4,70 m / ngang 2,11 m, khớp
+`box[3]=6,83` là dài, `box[4]=2,42` là rộng.
 
-## 1. Lỗi số học: số cụm sống gấp 4× mục tiêu `[TÍNH]`
+Script đo cũ tính `road_z = box[2] − h/2` — **sai 1,31 m** (đúng phải là `box[2]`).
+
+---
+
+## 1. Số nền — thật vs sinh (đã sửa road_z)
+
+| v (km/h) | thật điểm/frame | sinh det/frame | tỉ lệ | thật z trên đường p50 | p95 | nóc xe |
+|---|---|---|---|---|---|---|
+| 60 | 174–203 | 192–316 | 1,1–1,6 | 0,7–0,8 | 2,0 | 2,4–2,5 |
+| 100 | 1766–2791 | 123–909 | **0,07–0,32** | 0,75–1,89 | 2,00–2,51 | 2,31–2,51 |
+| 120 | 1001–2748 | 111–514 | **0,11–0,19** | 1,18–1,89 | 2,16–2,88 | 2,34–2,56 |
+
+**Sửa lại kết luận cũ**: spray thật **không** cao hơn nóc xe ở median
+(p50 = 0,75–1,89 m so với nóc 2,3–2,6 m). Chỉ đuôi p95 mới chạm nóc.
+Bản trước ghi 1,5–3,3 m là do road_z sai.
+
+---
+
+## 2. Lỗi số học: số cụm sống gấp 4× mục tiêu `[TÍNH]`
 
 `rate(v) = visible(v) / K` với `K = Σ_{k=0}^{4T/Δt} exp(−k·Δt/T) ≈ T/Δt`
 (`plume.py:214-231`, `:283-298`).
 
-Nhưng `prune()` xoá cứng khi `age > 4T`, **không có thinning xác suất**
-(`plume_state.py:417-440`). Nên số cụm tích luỹ thực tế là `rate × 4T/Δt`, không
-phải `rate × K`:
+`prune()` xoá **cứng** khi `age > 4T`, không thinning xác suất
+(`plume_state.py:417-440`). Tích luỹ thực tế là `rate × 4T/Δt`:
 
 ```
 alive = rate × 4T/Δt = 4 × rate × K = 4 × visible
 ```
 
-Đo xác nhận (chạy 120 frame, box 22 m, ego = object):
+Đo (chạy 120 frame, box 22 m, ego = object):
 
-| v | visible (bảng) | rate | 4T/Δt | rate×4T/Δt | alive đo được | ratio |
+| v | visible (bảng) | rate | 4T/Δt | rate×4T/Δt | alive đo | ratio |
 |---|---|---|---|---|---|---|
 | 60 | 11,3 | 2,54 | 16 | 40,6 | 46 | 4,1× |
 | 100 | 29,2 | 2,38 | 48 | 114 | 119 | 4,1× |
 | 120 | 17,6 | 1,08 | 64 | 69 | 76 | 4,3× |
 
-Hệ quả: cùng một ngân sách detection bị rải lên **4× số cụm**, mỗi cụm yếu đi
-4× (`survival = exp(−age/T)` trong `raycast.py:270-273` bù lại tổng số, nhưng
-không bù lại cấu trúc). Đây chính là **nguyên nhân vỡ vụn**.
+**Nguyên nhân chính của vỡ vụn**: cùng ngân sách detection rải lên 4× số cụm.
 
-## 2. Điểm mỗi cụm thiếu 6–8× `[ĐO]`
+---
 
-Thật: 27–69 điểm/DBSCAN-cluster (median 55,6 @ 100 km/h).
-Sinh: 5–10 điểm/cluster.
+## 3. Phân bố điểm/cụm: đuôi nặng, không phải median `[ĐO]`
 
-`_POINTS_MEDIAN_BY_RANGE` (14 điểm @ 10–20 m) chỉ dùng cho đường materialise
-`injected` — đường này **không đi ra output** (`plume_transform.py:129-142`).
-Số điểm thật sự ra output do raycast quyết: mỗi tia cắt cụm × P_det lognormal
-median 0,10. Quá ít tia cắt mỗi cụm ⇒ quá ít điểm.
+| | mean | median | p95 | max |
+|---|---|---|---|---|
+| THẬT @100–120 | 20–69 | **5–8** | 63–311 | **228–1238** |
+| SINH | ~8–10 | 4–6 | 18–33 | 20–210 |
 
-## 3. Chưa đạt trạng thái dừng ở tốc độ cao `[TÍNH]`
+Median gần nhau. Khác biệt nằm ở **đuôi**: thật có cụm DBSCAN 982–1238 điểm
+(single-linkage nối chuỗi theo tia quét), sinh max ~91.
 
-`4T/Δt` = 64 frame @ 120 km/h, 72 frame @ 130. Scene SSPP chỉ 53–67 frame.
-⇒ Plume vẫn đang **tăng dần** khi scene kết thúc, chưa bao giờ ổn định.
+⇒ Mục tiêu **không** phải "cụm nào cũng 55 điểm" (bản trước ghi sai do so mean),
+mà là tái tạo đuôi nặng + tổng điểm/frame.
 
-## 4. Chiều cao thấp hơn thật 0,5–1,4 m `[ĐO]`
+---
 
-Thật @ 100–120 km/h: z p50 = 1,5–3,3 m **trên mặt đường** (cao hơn nóc xe 2,62 m).
-Sinh: 1,6–1,9 m trên mặt đường.
+## 4. Generator đặt khối thấp hơn 1,31 m `[ĐO]`
 
-**Sửa lại kết luận trước**: khi xem hình tôi nói "sinh bay cao hơn" — SAI, vì
-so z tuyệt đối mà không trừ `road_z` (road_z = −1,4…−1,7). Thật cao hơn.
+`plume.py:514`: `box_bottom = z − height/2`, nhưng `z` đã là đáy box.
 
-## 5. Wet ground gần như không tác dụng `[ĐO]`
+| | khối z |
+|---|---|
+| code hiện tại | [−2,78, −0,50] (đo được −2,72…−2,49) |
+| nếu `box_bottom = z` | [−1,47, +0,81] |
 
-`points_in` = 0–310 trên ~20.000 điểm/frame ⇒ **0–1,5%** điểm bị ảnh hưởng.
-Trên dải đường tổng hợp 2.000 điểm: `boosted=1375`, `attenuated=625` — 69% điểm
-bị **tăng** cường độ, không phải giảm. Cần review `wet_ground.py:175-210`.
+Khối chui **dưới mặt đường** 1,31 m. Unit test `test_plume_tail_block.py:71`
+dùng box kiểu tâm nên không bắt được lỗi tích hợp này.
 
-## 6. Bảng calibration: đúng ±40% trừ mốc 120 `[ĐO]`
+---
+
+## 5. Generator đọc nhầm trục: rộng thay vì dài `[ĐO]`
+
+`plume.py:511`: `_, length, height, yaw = box[3:7]` ⇒ `length = box[4] = 2,42`
+(rộng) thay vì `box[3] = 6,83` (dài).
+
+Hệ quả: `offset = length/2 + block_length/2` = 1,21 + 1,39 = 2,60 m thay vì
+3,42 + 1,39 = 4,81 m ⇒ khối đặt **gần đuôi hơn 2,2 m** và chồng lấn vào thân box.
+
+---
+
+## 6. `_inside_box` cũng đọc nhầm trục `[ĐO]`
+
+`plume.py:728` unpack `width, length = box[3], box[4]` theo quy ước nuScenes
+`(w, l, h)`, nhưng adapter ghi `(l, w, h)`.
+
+Đo trực tiếp: box `[6,83 dài, 2,42 rộng]`, điểm ở 2,0 m **dọc** trục xe (trong box
+thật) → `_inside_box` trả **False**; điểm ở 2,0 m **ngang** (ngoài box thật) →
+trả **True**. Vùng loại điểm đang bị xoay 90°: 2,42 dài × 6,83 rộng.
+
+---
+
+## 7. Wet ground: rất tác dụng, nhưng tác dụng NGƯỢC `[ĐO]`
+
+Với `road_z` sai (−1,42): `points_in = 183` (0,6%) — bản trước kết luận
+"vô tác dụng", SAI.
+
+Với `road_z` đúng (−0,11): `points_in = 12.475` (**42,1%** điểm/frame),
+`attenuated = 721`, `boosted = 11.754`, `mean_ratio = 1,029`.
+
+⇒ Wet ground chạm 42% điểm, nhưng **94% trong số đó bị tăng** cường độ thay vì
+giảm. Ngược ý định "mặt ướt làm yếu return". Cần review `wet_ground.py:175-210`.
+
+---
+
+## 8. Độ dài scene: vấn đề của scene ngắn ở tốc độ cao `[ĐO]`
+
+Toàn train (16 scene): min 40, p25 60, median 70, p75 76, max 107 frame.
+
+- chưa đạt dừng @120 km/h (cần 64 frame): **5/16 scene = 31%**
+- chưa đạt dừng @100 km/h (cần 48 frame): **1/16 = 6%**
+
+Bản trước ghi "scene 53–67 frame" chỉ đúng cho 3 scene đã đo.
+
+---
+
+## 9. Spray thật không bám đuôi xe dẫn đường `[ĐO]`
+
+Scene 0060 (box giữ x≈22–24 m suốt 40 frame, ego 100 km/h):
+- spray_x p50 trôi **+12,2 m → −6,6 m**;
+- `near_ego(d<10 m)` tăng 31% → 86%;
+- `in_tail` (sau đuôi box) giảm 68% → 8%;
+- azimuth: chỉ 0,1–4% ở hai bên.
+
+Spray được hắt ra rồi **ego lái xuyên qua**, nên trong hệ ego nó trôi ngược và
+cuối cùng phủ kín vùng **trước** cảm biến. Khối đuôi mô phỏng đúng lúc sinh,
+nhưng thiếu giai đoạn spray cũ lấp đầy vùng trước ego.
+
+---
+
+## 10. Bảng calibration: đúng ±40% trừ mốc 120 `[ĐO]`
 
 Đo lại toàn train (DBSCAN 0,7°/minPts 3): crafter 60→11,0 (bảng 11,3 ✓),
 80→20,0 (22,0 ✓), 100→33,0 (29,2 ✓), **120→11,0 (bảng 17,6, lệch 1,6×)**.
 Golf tương tự. Bảng không phải nguyên nhân chính.
 
-## 7. Spray thật là gì — quan trọng cho thiết kế
-
-`[ĐO]` trên scene 0060 (box giữ x≈22–24 m suốt 40 frame, ego 100 km/h):
-- spray_x p50 trôi từ **+12,2 m → −6,6 m** trong 40 frame;
-- `near_ego(d<10 m)` tăng 31% → 86%;
-- `in_tail` (vùng sau đuôi box) giảm 68% → 8%;
-- azimuth: 0,1–4% ở hai bên, còn lại dồn trước/sau theo trục x.
-
-Nghĩa là spray thật **không bám đuôi xe dẫn đường** — nó được hắt ra rồi ego
-lái xuyên qua, nên trong hệ ego nó trôi ngược về phía và vượt qua ego. Khối
-đuôi cố định trong `inject_plume_stateful` mô phỏng đúng *lúc sinh*, nhưng
-thiếu việc spray cũ phải **lấp đầy cả vùng trước ego** sau vài chục frame.
+---
 
 ## Thứ tự sửa đề xuất
 
-1. **Sửa hệ số 4×** (rate dùng `4T/Δt` thay `K`, hoặc thinning xác suất trong
-   `prune`) — rẻ nhất, sửa đúng gốc vỡ vụn.
-2. **Tăng điểm/cụm** — nới P_det hoặc tăng bán kính cụm để nhiều tia cắt hơn.
-3. **Nâng khối sinh** lên 0,4–1,0 chiều cao box thay vì 0,05–0,92.
-4. **Wet ground**: review nhánh boost; nếu không sửa được thì tắt và ghi rõ.
-5. **Scene ngắn**: chấp nhận, hoặc warm-up state từ frame âm (không có dữ liệu).
+| # | Việc | Loại | Rủi ro |
+|---|---|---|---|
+| 1 | `box_bottom = z` (bỏ `− h/2`) | lỗi quy ước | thấp, 1 dòng |
+| 2 | `length = box[3]` (không phải `box[4]`) | lỗi quy ước | thấp, 1 dòng |
+| 3 | `_inside_box`: `length, width = box[3], box[4]` | lỗi quy ước | thấp |
+| 4 | Sửa hệ số 4×: `rate = visible/(4T/Δt)` hoặc thinning trong `prune` | lỗi số học | trung bình (đổi test) |
+| 5 | Wet ground: review nhánh boost | cần điều tra | trung bình |
+| 6 | Đuôi phân bố điểm/cụm (P_det, bán kính) | tinh chỉnh | trung bình |
+| 7 | Vùng trước ego (spray cũ trôi qua) | thiết kế | cao, cần bàn |
+
+Ba việc đầu là **sửa lỗi**, không phải chỉnh tham số — phải làm trước khi train.
