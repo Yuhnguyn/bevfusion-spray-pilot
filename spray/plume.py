@@ -472,6 +472,10 @@ def inject_plume_stateful(
       the plume height comes purely from where the block places the clusters;
     - ``|y - y_block|`` is clamped to 2.43 m every step (ticket 29e-c).
 
+    Boxes follow the adapter convention (``spray/sspp_adapter.py:117,141``):
+    ``box[2]`` is the box **bottom** (not its centre), ``box[3]`` the length
+    along the yaw axis and ``box[4]`` the width across it.
+
     Clusters are materialised as points of radius ``cluster.radius`` with the
     per-range point count from ``_POINTS_MEDIAN_BY_RANGE``, ``intensity = 0``
     and ``ring = -1`` (not assigned yet). The marker line is printed once per
@@ -507,11 +511,13 @@ def inject_plume_stateful(
         if not _in_range(box[:3], cfg.point_cloud_range):
             continue
 
+        # 9 cột theo spray/sspp_adapter.py:117,141: box[2] = ĐÁY box (không phải
+        # tâm), box[3] = dài (dọc yaw), box[4] = rộng (ngang yaw), box[5] = cao.
         x, y, z = (float(value) for value in box[:3])
-        _, length, height, yaw = (float(value) for value in box[3:7])
+        length, _, height, yaw = (float(value) for value in box[3:7])
         offset = length / 2.0 + block_length / 2.0
         frac_lo, frac_hi = cfg.tail_block_height_frac
-        box_bottom = z - height / 2.0
+        box_bottom = z
         block_bottom = box_bottom + frac_lo * height
         block_top = box_bottom + frac_hi * height
         center = np.array(
@@ -725,8 +731,10 @@ def _thin_radial(offsets: np.ndarray, u: np.ndarray, squash: float) -> np.ndarra
 
 
 def _inside_box(points: np.ndarray, box: np.ndarray, margin: float) -> np.ndarray:
-    # 9 cột: (x, y, z, w, l, h, yaw, vx, vy), w = ngang, l = dọc yaw — nuscenes_converter.py:250
-    cx, cy, cz, width, length, height, yaw = (float(v) for v in box[:7])
+    # 9 cột theo adapter (spray/sspp_adapter.py:117,141):
+    # (x, y, z_bottom, size_x, size_y, size_z, yaw, vx, vy) trong đó
+    # box[2] = ĐÁY box, box[3] = DÀI (dọc yaw), box[4] = RỘNG (ngang yaw).
+    cx, cy, cz, length, width, height, yaw = (float(v) for v in box[:7])
     dx = points[:, 0] - cx
     dy = points[:, 1] - cy
     cos_yaw = np.cos(-yaw)
@@ -736,6 +744,6 @@ def _inside_box(points: np.ndarray, box: np.ndarray, margin: float) -> np.ndarra
     return (
         (np.abs(local_x) <= length / 2.0 + margin)
         & (np.abs(local_y) <= width / 2.0 + margin)
-        & (points[:, 2] >= cz - height / 2.0 - margin)
-        & (points[:, 2] <= cz + height / 2.0 + margin)
+        & (points[:, 2] >= cz - margin)
+        & (points[:, 2] <= cz + height + margin)
     )

@@ -1,9 +1,13 @@
 """Ticket 28b: tail block, stateful plume trail, marker and gap.
 
 The spray block is fixed in size: length ``|v_abs| * dt``, width 3.4 m,
-height 1.5 m, bottom on the box bottom.  Clusters are kept alive across frames
-by :class:`spray.plume_state.PlumeState`, so the trail is continuous instead of
-being rebuilt from scratch every frame.
+height 5–92 % of the box height above the box bottom.  Clusters are kept alive
+across frames by :class:`spray.plume_state.PlumeState`, so the trail is
+continuous instead of being rebuilt from scratch every frame.
+
+``BOX`` uses the adapter convention (``spray/sspp_adapter.py:117,141``):
+``box[2]`` is the box **bottom**, ``box[3]`` the length along the yaw axis and
+``box[4]`` the width across it.
 """
 
 import numpy as np
@@ -17,8 +21,21 @@ DT = 0.1
 SPEED_KMH = 80.0
 SPEED_MPS = SPEED_KMH / 3.6
 TOKEN = "scene-tail-block"
+BOX_HEIGHT = 2.62
 BOX = np.array(
-    [[23.2, 0.0, 0.899, 2.42, 6.83, 2.62, 0.0, SPEED_MPS, 0.0]],
+    [
+        [
+            23.2,
+            0.0,
+            0.899 - BOX_HEIGHT / 2.0,
+            6.83,
+            2.42,
+            BOX_HEIGHT,
+            0.0,
+            SPEED_MPS,
+            0.0,
+        ]
+    ],
     dtype=np.float32,
 )
 
@@ -67,8 +84,9 @@ def test_block_sits_behind_tail_with_fixed_width_and_fraction_height():
     block_len = SPEED_MPS * DT
     x_lo = 23.2 - 6.83 / 2.0 - block_len
     x_hi = 23.2 - 6.83 / 2.0
-    height = 2.62
-    box_bottom = 0.899 - height / 2.0
+    height = BOX_HEIGHT
+    # box[2] is the box bottom already, so no height is subtracted.
+    box_bottom = BOX[0][2]
     frac_lo, frac_hi = PlumeConfig.tail_block_height_frac
     z_lo = box_bottom + frac_lo * height
     z_hi = box_bottom + frac_hi * height
