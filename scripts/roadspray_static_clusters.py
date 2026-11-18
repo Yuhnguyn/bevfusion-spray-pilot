@@ -140,20 +140,20 @@ def _fit_plane(points: np.ndarray) -> tuple[float, float, float]:
     return float(coef[0]), float(coef[1]), float(coef[2])
 
 
-def ground_relative_height(points: np.ndarray,
-                           rng: np.random.Generator) -> np.ndarray:
-    """Do cao tung diem so voi mat duong, fit bang RANSAC.
+def fit_ground_plane(points: np.ndarray,
+                    rng: np.random.Generator) -> tuple[float, float, float] | None:
+    """Fit mat duong bang RANSAC, tra ve (a, b, c) cua z = a*x + b*y + c.
 
     Sensor VLP32 nam cao 1,686 m tren moc sau nen mat duong o ``z ~ -1,69``
-    trong khung ``velodyne`` — **khong** phai ``z ~ 0``. RANSAC chon mat phang
-    co nhieu inlier nhat trong cac diem thap (``z < 0``, cu ly <= 40 m), rang
-    buoc phap tuyen gan thang dung, roi refine bang binh phuong toi thieu.
+    trong khung ``velodyne`` — **khong** phai ``z ~ 0`` (do lai: z ~ -2,01).
+    RANSAC chon mat phang co nhieu inlier nhat trong cac diem thap
+    (``z < 0``, cu ly <= 40 m), rang buoc phap tuyen gan thang dung, roi refine
+    bang binh phuong toi thieu.
     """
-    height = points[:, 2].copy()
     far = np.linalg.norm(points[:, :3], axis=1)
     candidate = np.nonzero((points[:, 2] < 0.0) & (far <= GROUND_MAX_RANGE))[0]
     if candidate.size < 500:
-        return height
+        return None
     sample = candidate if candidate.size <= 4000 else rng.choice(
         candidate, size=4000, replace=False)
     xyz = points[sample, :3]
@@ -169,7 +169,7 @@ def ground_relative_height(points: np.ndarray,
         if count > best_count:
             best_count, best_coef = count, coef
     if best_coef is None or best_count < 500:
-        return height
+        return None
     coef = best_coef
     for _ in range(2):
         residual = np.abs(xyz[:, 2] - (coef[0] * xyz[:, 0]
@@ -178,8 +178,22 @@ def ground_relative_height(points: np.ndarray,
         if keep.sum() < 500:
             break
         coef = _fit_plane(xyz[keep])
-    return points[:, 2] - (coef[0] * points[:, 0] + coef[1] * points[:, 1]
-                           + coef[2])
+    return coef
+
+
+def height_above_plane(points: np.ndarray,
+                       coef: tuple[float, float, float]) -> np.ndarray:
+    a, b, c = coef
+    return points[:, 2] - (a * points[:, 0] + b * points[:, 1] + c)
+
+
+def ground_relative_height(points: np.ndarray,
+                           rng: np.random.Generator) -> np.ndarray:
+    """``height_above_plane`` voi mat phang fit tai cho (tien loi cho 1 frame)."""
+    coef = fit_ground_plane(points, rng)
+    if coef is None:
+        return points[:, 2].copy()
+    return height_above_plane(points, coef)
 
 
 def background_lookup(clouds: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
