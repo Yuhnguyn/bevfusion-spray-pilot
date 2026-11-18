@@ -134,6 +134,24 @@ Với `road_z` đúng (−0,11): `points_in = 12.475` (**42,1%** điểm/frame),
 ⇒ Wet ground chạm 42% điểm, nhưng **94% trong số đó bị tăng** cường độ thay vì
 giảm. Ngược ý định "mặt ướt làm yếu return". Cần review `wet_ground.py:175-210`.
 
+> **ĐÃ SỬA 2026-11-18** (giai đoạn A2 của `.scratch/roadspray-cal/plan.md`).
+> `wet_ground.py` viết lại theo đúng nguồn paper dùng: Hahner et al. 2022
+> (arXiv 2203.15118) §3.1 + Algorithm 2 — Fresnel/Snell cho màng nước mỏng và chuỗi
+> phản xạ vô hạn (Eq. 12–17, 19–20). Bản cũ port `simulate_wet_pavement` của
+> `openMSL/.../DetectionEnvironmentalEffects.cpp`, không phải nguồn paper trích.
+> Nhánh "boost" không còn: `ratio = (1−γ) + γ·T_total/ρ0 ≤ 1`.
+> Đo lại trên frame thật (`Crafter_dynamic/0000`, frame 10, `road_z = −0,411`):
+> `points_in = 23.265` (**79,9 %**, band `ε_g = 0,5 m`) · `mean_ratio = 0,597`
+> (wfh 0,5 mm) → **0,194** (1,0 mm) → **0,033** (1,2 mm, γ = 1) ·
+> `mean_alpha_deg = 88,9°` · `removed = 0` (`intensity_floor = 0`). Càng xa càng
+> grazing càng mất — đúng chiều Fresnel.
+> Caveat phải khai: band 0,5 m tính theo mặt phẳng đường nên **9,2 % điểm
+> `label == 1`** (bánh/cản dưới xe dẫn) cũng nằm trong band và bị giảm cường độ,
+> dù chúng chỉ chiếm **0,14 %** tổng điểm trong band. Chấp nhận được nhưng phải ghi
+> vào Limitations, vì Arm B khác Arm A ở cả wet ground lẫn plume (method đầy đủ).
+> Test: `tests/test_wet_ground_hahner.py` (5 test) + `tests/test_wet_ground.py` +
+> `tests/test_plume_wet_integration.py` (assert `wet ground must not boost`).
+
 ---
 
 ## 8. Độ dài scene: vấn đề của scene ngắn ở tốc độ cao `[ĐO]`

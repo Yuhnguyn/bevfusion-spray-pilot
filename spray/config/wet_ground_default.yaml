@@ -1,16 +1,17 @@
-# Wet-ground attenuation parameters — exact copy of spray.wet_ground.WetGroundConfig
-# defaults. Source: simulate_wet_pavement, DetectionEnvironmentalEffects.cpp:305-380
-# (openMSL/sl-1-2-reflection-based-lidar-object-model, MPL-2.0). Disabled by default
-# in ticket 27a; ticket 27b wires the function into the stateful plume pipeline.
+# Wet-ground attenuation parameters - exact copy of spray.wet_ground.WetGroundConfig
+# defaults. Source: Hahner et al. (2022), "LiDAR Snowfall Simulation for 3D
+# Object Detection", arXiv 2203.15118, section 3.1 and Algorithm 2 (the wet road
+# model Linnhoff et al. 2022 use). Disabled by default; the stateful plume wires
+# the function in when a WetGroundConfig with enabled=true is passed.
 #
 # Kept in its own file on purpose: spray/config/plume_default.yaml is an exact copy
 # of the PlumeConfig fields (tests/test_plume_config_yaml.py) and is passed straight
 # to PlumeConfig(**config) by PlumeTransform, so a foreign top-level block may not
 # live there.
 enabled: false
-z_tolerance_m: 0.2
-y_window_m: [2.0, 7.0]
-pavement_depth_m: 0.0005
+epsilon_g_m: 0.5
+pavement_depth_m: 0.0012
+water_film_mm: 0.0
 n_air: 1.0003
-n_w: 1.33
-intensity_scale: 0.3
+n_water: 1.33
+intensity_floor: 0.0

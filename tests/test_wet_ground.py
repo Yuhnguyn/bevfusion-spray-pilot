@@ -1,17 +1,10 @@
-"""Tests for ``spray.wet_ground`` (ticket 27a).
+"""Tests for ``spray.wet_ground`` (Hahner et al. 2022, Algorithm 2).
 
-The module ports ``simulate_wet_pavement`` from
-``DetectionEnvironmentalEffects.cpp:305-380`` (MPL-2.0).  These tests pin the
-contract of the brief: a copy is returned, only column 3 changes, no point is
-removed, and the real frame in the local SemanticSpray release produces a
-non-trivial attenuation.
-
-Note on water-film direction: eq. 19 uses
-``gamma = clip(wfh / pavement_depth, 0, 1)`` with ``pavement_depth = 0.5 mm``,
-so ``gamma`` saturates at ``wfh = 0.5 mm``.  In the source formula the wet term
-``t_p`` is smaller than the dry term ``Gamma``, so more water means a *lower*
-retained intensity.  Test 3 pins that direction instead of the brief's
-"mean_ratio increases" sentence, which contradicts the formula.
+The module rebuilds the return of a wet pavement using the Fresnel/Snell chain
+of arXiv 2203.15118 section 3.1.  These tests pin the contract: a copy is
+returned, only column 3 changes, the default ``intensity_floor`` removes no
+point, a dry film is a no-op, and more water attenuates more up to the
+pavement thread depth.
 """
 
 from __future__ import annotations
@@ -33,10 +26,10 @@ ROAD_Z_M = -0.411
 def _cloud() -> np.ndarray:
     """One point per regime, all with distinct intensities.
 
-    Row 0: on the road, y inside (2, 7) -> attenuated.
-    Row 1: on the road, y outside (2, 7) -> boosted.
+    Row 0-1: on the road plane -> attenuated by the wet film.
     Row 2: 1.5 m above the road -> untouched.
     """
+
     return np.array(
         [
             [10.0, 4.0, ROAD_Z_M, 200.0, 3.0],
@@ -55,14 +48,17 @@ def test_disabled_returns_an_untouched_copy_and_zero_stats(capsys):
     assert out is not points
     assert np.array_equal(out, points)
     assert stats.points_in == 0
-    assert stats.attenuated == 0
-    assert stats.boosted == 0
+    assert stats.points_removed == 0
     assert stats.mean_ratio == 0.0
+    assert stats.mean_alpha_deg == 0.0
     marker = capsys.readouterr().out.strip()
-    assert marker == "WET_GROUND_STATS points_in=0 attenuated=0 boosted=0 mean_ratio=0.000"
+    assert marker == (
+        "WET_GROUND_STATS points_in=0 removed=0 "
+        "mean_ratio=0.000 mean_alpha_deg=0.0"
+    )
 
 
-def test_three_regimes_attenuate_boost_and_leave_high_points_alone():
+def test_road_points_attenuate_and_high_points_are_untouched():
     points = _cloud()
     config = WetGroundConfig(enabled=True)
 
@@ -70,12 +66,11 @@ def test_three_regimes_attenuate_boost_and_leave_high_points_alone():
         points, road_z_m=ROAD_Z_M, wfh_mm=1.0, config=config
     )
 
-    assert out[0, 3] < points[0, 3], "in-window road point must be attenuated"
-    assert out[1, 3] > points[1, 3], "out-of-window road point must be boosted"
+    assert out[0, 3] < points[0, 3], "road point must be attenuated"
+    assert out[1, 3] < points[1, 3], "road point must be attenuated"
     assert out[2, 3] == points[2, 3], "point 1.5 m above the road must be untouched"
     assert stats.points_in == 2
-    assert stats.attenuated == 1
-    assert stats.boosted == 1
+    assert stats.points_removed == 0
 
 
 def test_mean_ratio_falls_with_water_film_and_saturates_at_pavement_depth():
@@ -91,12 +86,12 @@ def test_mean_ratio_falls_with_water_film_and_saturates_at_pavement_depth():
 
     ratios = [
         apply_wet_ground(points, road_z_m=ROAD_Z_M, wfh_mm=w, config=config)[1].mean_ratio
-        for w in (0.0, 0.1, 0.25, 0.5)
+        for w in (0.0, 0.3, 0.6, 1.2)
     ]
 
     assert all(a > b for a, b in zip(ratios, ratios[1:])), ratios
     saturated = apply_wet_ground(
-        points, road_z_m=ROAD_Z_M, wfh_mm=1.0, config=config
+        points, road_z_m=ROAD_Z_M, wfh_mm=2.0, config=config
     )[1].mean_ratio
     assert saturated == pytest.approx(ratios[-1])
 
@@ -125,11 +120,11 @@ def test_real_semantic_spray_frame(capsys):
     print(
         "real frame: "
         f"points_in={stats.points_in} "
-        f"attenuated={stats.attenuated} "
-        f"boosted={stats.boosted} "
-        f"mean_ratio={stats.mean_ratio:.4f}"
+        f"removed={stats.points_removed} "
+        f"mean_ratio={stats.mean_ratio:.4f} "
+        f"mean_alpha_deg={stats.mean_alpha_deg:.2f}"
     )
     assert len(out) == len(points)
     assert stats.points_in > 0
-    assert stats.attenuated > 0
-    assert 0.2 <= stats.mean_ratio <= 1.0
+    assert stats.points_removed == 0
+    assert 0.0 < stats.mean_ratio < 1.0

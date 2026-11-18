@@ -1,8 +1,10 @@
-"""Ticket 27b: wet-ground attenuation wired into the stateful plume.
+"""Wet-ground attenuation wired into the stateful plume.
 
-Wet ground is applied to the cloud used as the plume background *before* the
-injected points are appended.  ``points_clean`` stays the untouched camera
-input, and the feature is off by default so the legacy call path is unchanged.
+Wet ground (Hahner et al. 2022, Algorithm 2) is applied to the cloud used as
+the plume background *before* the injected points are appended.
+``points_clean`` stays the untouched camera input, and the feature is off by
+default so the legacy call path is unchanged.  The model can only attenuate a
+road return, never brighten it.
 """
 
 from __future__ import annotations
@@ -110,7 +112,10 @@ def test_pavement_point_attenuates_background_but_not_points_clean():
     )
 
     assert np.array_equal(result.points_clean[:, 3], points[:, 3])
-    assert result.points[: len(points)][0, 3] < points[0, 3]
+    background = result.points[: len(points)]
+    assert background[0, 3] < points[0, 3]
+    assert background[1, 3] < points[1, 3]
+    assert np.all(background[:, 3] <= points[:, 3]), "wet ground must not boost"
     assert result.stats.wet_points_in == 2
     assert 0.0 < result.stats.wet_mean_ratio < 1.0
 
