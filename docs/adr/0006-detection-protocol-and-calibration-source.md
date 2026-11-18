@@ -56,6 +56,49 @@ Pre-registration ghi ở `.scratch/roadspray-cal/plan.md` §4.
 **tuyệt đối** dùng human box. Giữ một cặp A/B **human-only** làm đối chứng để kết luận không phụ
 thuộc lượng data. Gate: `purity ≥ 0,7` và `n_primary ≥ 50`.
 
+## Thi hành D2 — kết quả đo (2026-11-18)
+
+D2 được thi hành bằng một phép đo mới trên RoadSpray `*_static`, không nhãn, ghi đầy đủ ở
+`docs/measurements/roadspray-static-clusters-by-speed.md`. Tóm tắt những gì **quyết định ADR**:
+
+**Cách đo (mỗi thành phần có nguồn, không tự đặt).** Vùng đo = **hộp ngay sau đuôi xe** (Paper A §II
+*"The initialization of clusters is restricted to the vehicle trajectory"*; §III-B đếm *"in a spray
+filter region behind the vehicle"* rồi chia cho `độ dài vùng / quãng xe đi 1 scan` ⇒ độ dài vùng tự
+triệt tiêu). Kích thước lấy từ `define_spray_volumes()` của code tác giả: **rộng 3,4 m, cao 1,5 m**.
+Tách spray không cần nhãn bằng **range-image nền** (ego đỗ ⇒ mỗi tia luôn trả về cùng vật thể).
+Định vị xe bằng track ibeo `ns == 'Car'`; mặt đuôi xác định từ điểm cao > 1,6 m (plume paper ≤ 1,5 m).
+Chỉ đo bag `object_direction = +1` (ego thấy đuôi xe; `−1` là ngược chiều, plume bị che).
+
+**Kết quả (Crafter, 54 bag / 1 558 frame, CI95 bootstrap ở mức bag):**
+
+| km/h | 60 | 70 | 80 | 90 | 100 | 110 | 120 | 130 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| cụm/frame | 11,5 | 19,0 | 25,8 | 27,3 | 28,5 | 25,9 | 20,5 | 22,0 |
+
+Đối chứng âm (cùng hộp, **phía trước** xe) = 0,5–1,0 cụm/frame: nhiễu cảnh bị loại bằng hình học.
+
+**Kiểm chứng chéo ba nguồn độc lập:**
+
+| Cặp so sánh | Kết quả |
+|---|---|
+| static vs bảng SSPP cũ (`cal`, 45 frame/ô) | tỉ lệ **1,13×** (0,91–1,32), Pearson **r = 0,79**, cùng chạm đáy 120 km/h |
+| bảng SSPP **per-fold không leak** vs static | r = 0,77 (bảng fold khô hơn vì 10/12 scene `itr` 2–6) |
+| bảng cũ vs SSPP ở **đúng điều kiện eval** (`itr = 1`, 2 scene/ô) | lệch 12,2 %, **r = 0,98** |
+
+⇒ Hệ quả cho D2: **bảng cũ không sai số, nó chỉ bị leak.** Đổi nguồn sang static là sửa *protocol*,
+không sửa *con số*; độ dịch trung bình ~1,13×, nằm trong dải bất định.
+
+**Độ bất định phải khai kèm (quan trọng cho D3).** Thống kê ±10 % (đã nhỏ sau khi tăng lên 54 bag),
+nhưng **định nghĩa vùng** chi phối: bề dày lát cự ly từ 1,0 → 6,0 m làm số cụm đổi **17,9 ↔ 39,8**
+(2,2×) tại 100 km/h. Nên bảng chỉ xác định tới **±30–40 %**. **Cổng B (`sinh/thật ∈ [0,7; 1,5]`) và
+mọi claim từ bảng phải đọc cùng dải này**; không được coi bảng là số chính xác.
+
+**Trạng thái thi hành:** Crafter ✅. **Golf chưa đo** — `Golf_static.zip` (5 460 144 118 B) chưa tải
+xong (server tudatalib trả 403 toàn cục ngày 2026-11-18 sau nhiều lần tải; còn 85 MB đã lấy, đổi tên
+`Golf_static.zip.part`). `_CLUSTER_VISIBLE_BY_SPEED` trong `spray/plume.py` **vẫn là bảng SSPP `cal`
+cũ** cho tới khi có Golf. Fallback của D2 (eval trên 18 held-out scene) **không cần dùng**, vì bảng
+per-fold không leak đã có (`docs/measurements/sspp-cluster-table-folds.md`) để kiểm chứng chéo.
+
 ## Consequences
 
 **Được:**
@@ -85,6 +128,8 @@ thuộc lượng data. Gate: `purity ≥ 0,7` và `n_primary ≥ 50`.
 - Generator được chứng minh không thể khớp spray thật (chốt chặn B hoặc C thất bại) → câu hỏi
   nghiên cứu phải đổi, không chỉ đổi protocol.
 - Box 3D được công bố cho cả 207 scene → bỏ D4, dùng human box toàn bộ.
+- `Golf_static` lấy được → đo nốt dòng Golf và đưa bảng static vào `_CLUSTER_VISIBLE_BY_SPEED`.
+- Bảng static lệch bảng per-fold > 1,5× sau khi có Golf → kiểm lại phương pháp đo.
 
 ## Liên quan
 
