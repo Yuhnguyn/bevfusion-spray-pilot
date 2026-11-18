@@ -51,39 +51,51 @@ ly**, nên hai điểm cùng tia cách nhau 5 m và 20 m vẫn là hàng xóm. �
 lát dày `Δ` rồi gom cụm trong từng lát phá được hiện tượng này, và đúng tinh thần paper —
 *"object distance of 25 m … distinct and stable clusters are observed"*.
 
+Tham số chốt trước `[CHỌN]`: `L = 20 m`, `Δ = 2,5 m`, `W = 3,4 m`, `H = 1,5 m`, xe ở 18–38 m.
+
 ## 4. Kết quả `[ĐO]`
 
-Crafter, `itr_after_water = 1`, frame có xe ở **18–38 m**, hộp dài 20 m, 18 bag / 295 frame:
+**54 bag, 1 558 frame, 8 tốc độ** (tất cả mức nước; `direction = +1`; CI95 bootstrap ở mức **bag**):
 
-| Tốc độ | cụm/frame (Δ=2,5) | điểm/frame | đối chứng phía trước xe |
-|---:|---:|---:|---:|
-| 70 | 19,8 | 356 | 0,7 |
-| 80 | 29,3 | 366 | 0,6 |
-| 90 | 31,4 | 425 | 0,5 |
-| 100 | 28,1 | 510 | 0,8 |
-| 110 | 30,2 | 474 | 0,5 |
-| 120 | 15,0 | 266 | 0,5 |
-| 130 | 24,2 | 423 | 0,5 |
+| Tốc độ | bag | frame | **cụm/frame** | CI95 | điểm/frame | Δ=1,0 | Δ=6,0 |
+|---:|---:|---:|---:|---|---:|---:|---:|
+| 60 | 1 | 20 | **11,5** | – (1 bag) | 272 | 15,9 | 7,7 |
+| 70 | 8 | 116 | **19,0** | [15,7; 22,3] | 348 | 27,7 | 10,8 |
+| 80 | 8 | 86 | **25,8** | [23,2; 28,5] | 389 | 34,9 | 16,7 |
+| 90 | 7 | 60 | **27,3** | [21,9; 32,6] | 435 | 38,4 | 16,3 |
+| 100 | 8 | 56 | **28,5** | [25,5; 31,6] | 502 | 39,8 | 17,9 |
+| 110 | 5 | 22 | **25,9** | [14,7; 37,0] | 432 | 34,2 | 14,6 |
+| 120 | 7 | 30 | **20,5** | [16,2; 24,9] | 324 | 26,1 | 12,5 |
+| 130 | 8 | 42 | **22,0** | [18,4; 25,6] | 374 | 32,8 | 14,8 |
 
-Đối chứng âm (hộp cùng kích thước **phía trước** xe) = **0–0,8 cụm/frame**. Nhiễu lá cây — vốn cho
-**98 cụm/frame** khi đếm cả khung — đã bị loại hoàn toàn bằng ràng buộc hình học.
+Đối chứng âm (hộp cùng kích thước **phía trước** xe) = **0,5–1,0 cụm/frame** ở mọi tốc độ. Nhiễu lá
+cây — vốn cho **98 cụm/frame** khi đếm cả khung — đã bị loại hoàn toàn bằng ràng buộc hình học.
 
-**Hai phép đo độc lập khớp nhau:**
+**Đường cong không đơn điệu là thật, không phải nhiễu mẫu:** đỉnh **28,5 @100 km/h** rơi còn
+**20,5 @120 km/h** (−28 %), và hai CI95 **không chồng nhau** ([25,5; 31,6] vs [16,2; 24,9]).
 
-| Tốc độ | static (bảng trên) | SSPP `cal` (bảng hiện tại) | tỉ lệ |
-|---:|---:|---:|---:|
-| 70 | 19,8 | 17,42 | 1,14 |
-| 80 | 29,3 | 22,02 | 1,33 |
-| 90 | 31,4 | 20,69 | 1,52 |
-| 100 | 28,1 | 29,24 | 0,96 |
-| 110 | 30,2 | 28,49 | 1,06 |
-| 120 | 15,0 | 17,58 | 0,85 |
-| 130 | 24,2 | 17,69 | 1,37 |
+**Mức nước (itr_after_water 1/3/5) không cho xu hướng rõ:** ví dụ 100 km/h → 28,4 / 30,0 / 27,1;
+120 km/h → 15,0 / 24,0 / 25,0 (mẫu 1–3 bag/ô). **Chưa kết luận được** giả thuyết "nhiều nước → nhiều cụm".
 
-Tỉ lệ trung bình **1,18** (0,85–1,52), Pearson `r = 0,64`, Spearman `ρ = 0,64`. Cả hai **cùng không
-đơn điệu và cùng chạm đáy ở 120 km/h**.
+### Kiểm chứng chéo với bảng SSPP hiện tại `[ĐO]`
 
-**Plume xa dần theo tốc độ** — điểm/frame theo độ sâu sau đuôi:
+| Tốc độ | static (bảng trên) | SSPP `cal` (bảng hiện tại) | tỉ lệ | SSPP nằm trong CI95 của static? |
+|---:|---:|---:|---:|---|
+| 70 | 19,0 | 17,42 | 1,09 | có |
+| 80 | 25,8 | 22,02 | 1,17 | không |
+| 90 | 27,3 | 20,69 | 1,32 | không |
+| 100 | 28,5 | 29,24 | 0,97 | có |
+| 110 | 25,9 | 28,49 | 0,91 | có |
+| 120 | 20,5 | 17,58 | 1,17 | có |
+| 130 | 22,0 | 17,69 | 1,24 | không |
+
+Tỉ lệ trung bình **1,13** (0,91–1,32), Pearson **r = 0,792**. Hai bộ dữ liệu khác nhau (ego đỗ vs
+ego bám sau), hai cách tách điểm khác nhau (range-image vs nhãn ngữ nghĩa), vẫn cho **cùng hình dạng
+đường cong, kể cả cùng chạm đáy ở 120 km/h**.
+
+### Plume xa dần theo tốc độ `[ĐO]`
+
+Điểm/frame theo độ sâu sau đuôi (Δ=2,5):
 
 | Tốc độ | 0–4 m | 4–8 m | 8–12 m | 12–16 m | 16–20 m |
 |---:|---:|---:|---:|---:|---:|
@@ -98,28 +110,29 @@ Tỉ lệ trung bình **1,18** (0,85–1,52), Pearson `r = 0,64`, Spearman `ρ =
 
 | Nguồn | Độ lớn |
 |---|---|
-| Bề dày lát `Δ` (1,0 → 6,0 m), tại 100 km/h | **19,5 – 37,8 cụm** (1,94×) |
+| **Bề dày lát `Δ`** (1,0 → 6,0 m), tại 100 km/h | **17,9 – 39,8 cụm** (2,2×) ← **chi phối** |
+| Mẫu (bag-level bootstrap) | CI95 ≈ **±10 %** ở hầu hết tốc độ; ±40 % ở 110 km/h (chỉ 5 bag) |
 | Độ dài hộp `L` (2,8 → 20 m) | 1,0 → 28,9 cụm (không bất biến) |
-| Mẫu (6–19 frame/tốc độ) | CI95 cỡ **±35 %** |
 
-⇒ Bảng chỉ xác định được tới **±30–40 %**. Không được dùng nó như một con số chính xác, và cổng B
-(`sinh/thật ∈ [0,7; 1,5]`) phải được đọc cùng độ bất định này.
+⇒ Sau khi tăng mẫu, **sai số thống kê đã nhỏ (±10 %) nhưng sai số định nghĩa vùng vẫn ~2×**. Bảng chỉ
+xác định được tới **±30–40 %**, và cổng B (`sinh/thật ∈ [0,7; 1,5]`) phải được đọc cùng độ bất định này.
 
 ## 6. Hệ quả cho dự án
 
 1. **V2 giải được mà không cần tin một con số duy nhất:** chọn bảng **static** làm bảng calibration
    (đúng D2, không leak) và dùng bảng **SSPP tính lại trên scene không thuộc tập test** làm **kiểm
-   chứng chéo**; hai bên lệch ≤ 1,5× ở mọi tốc độ đo được.
+   chứng chéo**; hai bên lệch ≤ 1,32× ở mọi tốc độ đo được.
 2. Vì sai số chủ yếu là **định nghĩa vùng** chứ không phải nguồn dữ liệu, việc đổi nguồn từ SSPP
    sang RoadSpray **không làm thay đổi kết luận khoa học** — nó chỉ làm protocol sạch leak.
-3. `[CHỌN]` chốt trước khi dùng: `L = 20 m`, `Δ = 2,5 m`, `W = 3,4 m`, `H = 1,5 m`, chỉ
-   `direction = +1`, chỉ `itr_after_water` tách riêng. Mọi báo cáo phải in kèm dải `Δ` và số frame.
+3. Hình dạng đường cong (tăng tới ~100 km/h rồi giảm) **được xác nhận độc lập hai lần**, nên bảng
+   tra cứu không-tham-số hoá (như code hiện tại) là lựa chọn đúng; **không** fit `a·(v−50)`.
 
 ## 7. Còn thiếu
 
-- **50 và 60 km/h** chưa có bag `direction = +1`, `water = 1` (18 bag chọn ra không phủ hai mốc này).
+- **60 km/h** chỉ có 1 bag (20 frame) ⇒ dòng đó chưa dùng được.
 - **Golf** chưa đo (`Golf_static.zip` 5 460 144 118 B chưa tải; link REST đã có).
-- Chưa chạy đủ 3 mức nước ⇒ chưa kiểm được giả thuyết "nhiều nước → nhiều cụm".
+- Mức nước: mẫu 1–3 bag/ô, chưa kết luận.
+- 81 bag được chọn nhưng chỉ 54 bag cho dữ liệu (số còn lại track ibeo < 5 mẫu hoặc 0 frame khớp).
 
 ## 8. Hạ tầng
 
@@ -127,3 +140,4 @@ Tỉ lệ trung bình **1,18** (0,85–1,52), Pearson `r = 0,64`, Spearman `ρ =
   cKDTree/union-find (không sklearn, không O(n²)), ghi JSONL descriptor từng cụm.
 - `scripts/roadspray_static_plume_box.py` — định vị xe từ ibeo, cắt hộp sau đuôi, cắt lát cự ly,
   hộp đối chứng phía trước; `--speed/--water/--bags/--limit`.
+- Chạy lại toàn bộ: `python scripts/roadspray_static_plume_box.py --out <file>.jsonl` (~11 phút cho 81 bag).
