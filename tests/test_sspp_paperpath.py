@@ -23,7 +23,7 @@ ROAD_Z_M = -0.411
 SPEED_MPS = 80.0 / 3.6
 SCENE_TOKEN = "mini-scene"
 FRAME_TOKEN = "mini-scene/000000"
-FRAME_COUNT = 2
+FRAME_COUNT = 20
 BACKGROUND_POINTS = 200
 PAVEMENT_POINTS = 12
 BOX_X_M = 10.0
@@ -119,8 +119,11 @@ def run_scene(
 def test_clusters_survive_into_the_second_frame():
     frames = run_scene(background_points(), wet_ground=WetGroundConfig(enabled=True))
 
-    assert frames[0]["alive"] == frames[0]["spawned"]
-    assert frames[1]["alive"] > frames[1]["spawned"]
+    # Ticket 29f: the per-cycle spawn rate at 80 km/h is 0.69, so some frames
+    # spawn nothing. Persistence shows up as alive > that frame's spawned, at
+    # least once inside the window (no expiry before 4T = 32 frames).
+    assert frames[-1]["alive"] > 0
+    assert any(frame["alive"] > frame["spawned"] for frame in frames[1:])
 
 
 def test_raycast_produces_detections():

@@ -44,16 +44,23 @@ def _context(frame_index=0):
 
 
 def _spawn_one_frame():
+    """Newest frame's cohort; ticket 29f dropped the rate to 0.69/cycle at
+    80 km/h, so one call often spawns nothing and we accumulate cycles."""
     state = PlumeState()
-    inject_plume_stateful(
-        np.zeros((0, 5), dtype=np.float32),
-        _box(),
-        _context(),
-        state,
-        seed=11,
-        token=TOKEN,
-    )
-    return state.alive(0)
+    clusters = []
+    for frame in range(20):
+        inject_plume_stateful(
+            np.zeros((0, 5), dtype=np.float32),
+            _box(),
+            _context(frame),
+            state,
+            seed=11 + frame,
+            token=TOKEN,
+        )
+        clusters = state.alive(0)
+        if clusters:
+            break
+    return clusters
 
 
 def test_box_z_is_bottom_not_centre():

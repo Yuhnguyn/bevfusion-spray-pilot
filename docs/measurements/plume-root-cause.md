@@ -60,6 +60,17 @@ alive = rate × 4T/Δt = 4 × rate × K = 4 × visible
 
 **Nguyên nhân chính của vỡ vụn**: cùng ngân sách detection rải lên 4× số cụm.
 
+> **ĐÃ SỬA 2026-11-18** (giai đoạn A1 của `.scratch/roadspray-cal/plan.md`).
+> Dùng `steady_state_alive_factor(v) = max_age_factor·T/Δt + 1` thay cho `K` ở cả hai chiều:
+> `rate = visible / alive_factor` (`plume.py`) và `visible = rate × alive_factor`
+> (`plume.py`, `plume_state.cluster_count_for_speed_abs`).
+> Đo lại cụm sống/frame so với bảng `cal`: **11,9 vs 11,3** (60 km/h) · **29,5 vs 29,2** (100) ·
+> **17,5 vs 17,6** (120) — trước khi sửa là **76 vs 17,6** ở 120 km/h.
+> Test khoá: `tests/test_plume_cluster_budget.py` (5 test). 14 test cũ khoá hành vi cũ đã cập nhật; `183 passed`.
+> Ghi chú: `diag_steady_state.py` trước đây truyền `seed=0` mỗi frame nên `ttl ~ N(T, 0,2 s)`
+> luôn rút cùng một giá trị — số nó in ra bị lệch; đã đổi sang seed theo frame.
+
+
 ---
 
 ## 3. Phân bố điểm/cụm: đuôi nặng, không phải median `[ĐO]`

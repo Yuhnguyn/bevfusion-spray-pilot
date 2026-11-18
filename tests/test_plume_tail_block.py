@@ -73,12 +73,17 @@ def _run_frames(count, state):
 def test_block_sits_behind_tail_with_fixed_width_and_fraction_height():
     state = PlumeState()
 
-    inject_plume_stateful(
-        _empty_points(), BOX, _context(), state, seed=1, token=TOKEN
-    )
-
-    clusters = state.alive(0)
-    # Ticket 29e: the per-cycle rate at 80 km/h is 2.59, so one call spawns 2.
+    # Ticket 29f: the per-cycle rate at 80 km/h is 0.69, so one call usually
+    # spawns nothing. Accumulate cycles until a cohort exists; each call
+    # advances the previous one, so what survives is the newest frame's block.
+    clusters = []
+    for frame in range(20):
+        inject_plume_stateful(
+            _empty_points(), BOX, _context(frame), state, seed=1 + frame, token=TOKEN
+        )
+        clusters = state.alive(0)
+        if clusters:
+            break
     assert len(clusters) > 0
 
     block_len = SPEED_MPS * DT
@@ -109,7 +114,7 @@ def test_trail_keeps_clusters_alive_from_frame_two():
     state = PlumeState()
 
     alive = []
-    for frame in range(10):
+    for frame in range(20):
         inject_plume_stateful(
             _empty_points(),
             BOX,
@@ -120,22 +125,32 @@ def test_trail_keeps_clusters_alive_from_frame_two():
         )
         alive.append(len(state.all_alive()))
 
-    assert alive[0] > 0
-    assert all(count > 0 for count in alive[1:])
-    assert alive[-1] > alive[0]
+    # Ticket 29f: at 0.69 clusters/cycle a single frame often spawns nothing,
+    # so the trail is checked from the first non-empty frame onward.
+    first = next(index for index, count in enumerate(alive) if count > 0)
+    assert all(count > 0 for count in alive[first:])
+    assert alive[-1] > alive[first]
 
 
-def test_gap_along_trajectory_median_below_one_metre():
+def test_trail_spans_more_than_one_block_so_it_persists():
     state = PlumeState()
-    _run_frames(10, state)
+    _run_frames(20, state)
 
     positions = np.array([cluster.pos for cluster in state.all_alive()])
-    projected = np.sort(positions[:, 0])
-    gaps = np.diff(projected)
-    gap_p50 = float(np.median(gaps))
+    assert len(positions) > 3
 
-    print(f"gap_p50_m={gap_p50:.4f}")
-    assert gap_p50 < 1.0
+    block_len = SPEED_MPS * DT
+    span = float(positions[:, 0].max() - positions[:, 0].min())
+    gaps = np.diff(np.sort(positions[:, 0]))
+    gap_p50 = float(np.median(gaps))
+    print(f"span_m={span:.3f} gap_p50_m={gap_p50:.3f} n={len(positions)}")
+
+    # Persisted across frames (span much larger than one frame's block) and no
+    # hole bigger than a few blocks. Ticket 29f: the absolute density is set by
+    # the calibration table (17.6 clusters/frame at 130 km/h), so the old
+    # "< 1 m gap" threshold only held while the 4x spawn bug was present.
+    assert span > 3.0 * block_len
+    assert gap_p50 < 4.0 * block_len
 
 
 def test_no_injected_point_lies_inside_the_body_box():
@@ -160,14 +175,19 @@ def test_probability_is_capped_at_one_on_birth_frame():
     center = np.array([18.67, 0.0, 0.34], dtype=np.float64)
     extents = np.array([1.11, 1.7, 0.75], dtype=np.float64)
 
-    created = state.spawn(
-        _context(),
-        object_id=0,
-        rng=np.random.default_rng(0),
-        dt=DT,
-        center=center,
-        extents=extents,
-    )
+    # Ticket 29f: rate at 80 km/h is 0.69/cycle, so a single spawn may be empty.
+    created = []
+    for frame in range(20):
+        created = state.spawn(
+            _context(frame_index=frame),
+            object_id=0,
+            rng=np.random.default_rng(frame),
+            dt=DT,
+            center=center,
+            extents=extents,
+        )
+        if created:
+            break
 
     assert created
     for cluster in created:
@@ -178,23 +198,31 @@ def test_probability_is_capped_at_one_on_birth_frame():
 def test_marker_prints_one_line_with_seven_keys(capsys):
     state = PlumeState()
 
-    inject_plume_stateful(
-        _empty_points(),
-        BOX,
-        _context(frame_index=4),
-        state,
-        seed=7,
-        token=TOKEN,
-    )
+    # Ticket 29f: a frame with no spawn prints assumed=0, so the marker is read
+    # from the first frame that actually spawns a cluster.
+    fields: dict[str, str] = {}
+    frame_index = 0
+    for frame_index in range(20):
+        inject_plume_stateful(
+            _empty_points(),
+            BOX,
+            _context(frame_index=frame_index),
+            state,
+            seed=7 + frame_index,
+            token=TOKEN,
+        )
 
-    lines = [
-        line
-        for line in capsys.readouterr().out.splitlines()
-        if line.startswith("PLUME_STATE")
-    ]
-    assert len(lines) == 1
+        lines = [
+            line
+            for line in capsys.readouterr().out.splitlines()
+            if line.startswith("PLUME_STATE")
+        ]
+        assert len(lines) == 1
 
-    fields = dict(part.split("=", 1) for part in lines[0].split()[1:])
+        fields = dict(part.split("=", 1) for part in lines[0].split()[1:])
+        if int(fields["spawned"]) > 0:
+            break
+
     assert set(fields) == {
         "scene",
         "frame",
@@ -205,5 +233,5 @@ def test_marker_prints_one_line_with_seven_keys(capsys):
         "assumed",
     }
     assert fields["scene"] == TOKEN
-    assert fields["frame"] == "4"
+    assert fields["frame"] == str(frame_index)
     assert fields["assumed"] == "1"

@@ -218,16 +218,21 @@ def cluster_rate_for_speed(
 ) -> float:
     """Số cụm **sinh mỗi chu kỳ** ``Δt = 0,1 s`` để khớp số cụm/frame đo được.
 
-    ``rate(v) = visible_ref(v) / K(T_ref(v))`` — **không** chứa ``wfh``; độ ẩm
-    chỉ tác động qua ``T`` khi caller tính số cụm hiển thị. ``T_ref`` lấy tại
-    mức ẩm chuẩn của dataset (1 mm), để ``rate`` không đổi khi caller đổi ``wfh``.
+    ``rate(v) = visible_ref(v) / (max_age_factor·T_ref(v)/Δt)`` — **không** chứa
+    ``wfh``; độ ẩm chỉ tác động qua ``T`` khi caller tính số cụm hiển thị.
+    ``T_ref`` lấy tại mức ẩm chuẩn của dataset (1 mm), để ``rate`` không đổi khi
+    caller đổi ``wfh``.
+
+    Mẫu số là :func:`steady_state_alive_factor`, **không** phải ``K``: ``prune()``
+    xoá cứng ở ``age > 4T`` nên cụm sống ``4T/Δt`` frame. Dùng ``K`` từng làm số
+    cụm sống gấp 4× mục tiêu (ticket 29f).
     """
     cfg = config or PlumeConfig()
     visible_ref = cluster_visible_target_for_speed(speed_kmh, vehicle_class)
     if visible_ref <= 0.0:
         return 0.0
     reference = replace(cfg, water_film_height_m=_REFERENCE_WATER_FILM_M)
-    k_ref = steady_state_cluster_factor(speed_kmh, reference)
+    k_ref = steady_state_alive_factor(speed_kmh, reference)
     return visible_ref / k_ref
 
 
@@ -236,14 +241,19 @@ def visible_cluster_count_for_speed(
     config: PlumeConfig | None = None,
     vehicle_class: str = "crafter",
 ) -> int:
-    """Số cụm **nhìn thấy trong một frame** = ``round(rate × K(T(wfh, v)))``."""
+    """Số cụm **nhìn thấy trong một frame** = ``round(rate × 4T/Δt)``.
+
+    Hệ số nhân là :func:`steady_state_alive_factor` (số frame một cụm sống với
+    ``prune()`` xoá cứng ở ``4T``), **không** phải ``K`` — xem docstring
+    :func:`steady_state_cluster_factor`.
+    """
     cfg = config or PlumeConfig()
     if speed_kmh <= cfg.min_speed_kmh or cfg.water_film_height_m <= 0.0:
         return 0
     rate = cluster_rate_for_speed(speed_kmh, cfg, vehicle_class)
     if rate <= 0.0:
         return 0
-    visible = rate * steady_state_cluster_factor(speed_kmh, cfg)
+    visible = rate * steady_state_alive_factor(speed_kmh, cfg)
     return int(np.floor(visible + 0.5))
 
 
@@ -301,16 +311,43 @@ def steady_state_factor(
 def steady_state_cluster_factor(
     speed_kmh: float, config: PlumeConfig | None = None
 ) -> float:
-    """Hệ số tích luỹ ``K`` của số cụm ở trạng thái dừng (ticket 22).
+    """Hệ số tích luỹ ``K = Σ exp(−k·Δt/T)`` của mô hình *thinning xác suất*.
 
-    ``T = lifetime_time_constant(v)`` (dee.cpp:530), ``Δt = 0,1 s`` từ profile
-    ``update_cycle_time``. Với ``T = 0,2 s`` → ``K ≈ 2,51``; không hard-code vì
-    ``T`` tăng nhẹ theo tốc độ.
+    ``T = lifetime_time_constant(v)`` (dee.cpp:530), ``Δt = 0,1 s``. Với
+    ``T = 0,2 s`` → ``K ≈ 2,51``.
+
+    **Chỉ đúng nếu** ``prune()`` xoá theo xác suất ``1 − exp(−Δt/T)`` mỗi bước.
+    Code hiện tại xoá **cứng** khi ``age > max_age_factor·T``, nên hệ số tích luỹ
+    thật là :func:`steady_state_alive_factor`, **không** phải ``K``. Dùng ``K``
+    để tính ``rate`` làm số cụm sống gấp ``max_age_factor`` lần (ticket 29f).
     """
     cfg = config or PlumeConfig()
     return steady_state_factor(
         lifetime_time_constant(speed_kmh, cfg),
         max_age_factor=cfg.lifetime_max_age_factor,
+    )
+
+
+def steady_state_alive_factor(
+    speed_kmh: float, config: PlumeConfig | None = None
+) -> float:
+    """Số frame một cụm còn sống ở trạng thái dừng = ``max_age_factor·T/Δt + 1``.
+
+    ``prune()`` xoá **cứng** khi ``age > max_age_factor·T`` (``[CODE]
+    dee.cpp:445-450``) và không thinning xác suất. Cụm sinh ra với ``age = −Δt``
+    (``plume_state.spawn``) nên số frame sống là ``max_age_factor·T/Δt + 1`` —
+    đo trực tiếp `[ĐO]`: 17 frame ở 60 km/h (``4T/Δt = 16``), 49 ở 100 (48),
+    66 ở 120 (64).
+
+    Đây là hệ số phải dùng để đổi ``visible`` (số cụm/frame đo được) ↔ ``rate``
+    (số cụm sinh mỗi chu kỳ); dùng ``K`` thay nó làm lệch ``max_age_factor`` = 4×.
+    """
+    cfg = config or PlumeConfig()
+    return (
+        cfg.lifetime_max_age_factor
+        * lifetime_time_constant(speed_kmh, cfg)
+        / _UPDATE_CYCLE_TIME_S
+        + 1.0
     )
 
 

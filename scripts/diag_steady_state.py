@@ -50,7 +50,7 @@ for v_kmh in (60, 100, 120):
         )
         from spray.plume import inject_plume_stateful
         inject_plume_stateful(
-            pts, boxes, ctx, state, seed=0, token="probe",
+            pts, boxes, ctx, state, seed=97 + k, token=f"probe/{k}",
             config=cfg, wet_ground=None, vehicle_class="crafter",
         )
         if k in (24, 32, 52, 66, 119):

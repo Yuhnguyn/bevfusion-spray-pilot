@@ -86,12 +86,14 @@ def test_rate_does_not_contain_water_film_height():
 
 def test_rate_is_closed_at_the_one_millimetre_reference():
     # Ticket 29e-c: WFH_REF_MM = 1.0. `rate` is the reference visible count
-    # divided by K at 1 mm, so at wfh = 1 mm it reproduces the table exactly.
+    # divided by the steady-state alive factor at 1 mm, so at wfh = 1 mm it
+    # reproduces the table exactly. Ticket 29f: the factor is 4T/dt (hard
+    # prune), not the geometric K.
     assert plume.WFH_REF_MM == 1.0
     for speed_kmh, expected in CAL_CLUSTERS_PER_FRAME["crafter"].items():
         rate = cluster_rate_for_speed(float(speed_kmh))
         config = PlumeConfig(water_film_height_m=1.0 / 1000.0)
-        visible = rate * plume.steady_state_cluster_factor(float(speed_kmh), config)
+        visible = rate * plume.steady_state_alive_factor(float(speed_kmh), config)
         assert visible == pytest.approx(expected, rel=0.05)
 
 

@@ -55,6 +55,7 @@ import numpy as np
 from spray.plume import (
     PlumeConfig,
     cluster_rate_for_speed,
+    steady_state_alive_factor,
     steady_state_cluster_factor,
 )
 
@@ -199,10 +200,15 @@ def cluster_count_for_speed_abs(
 ) -> int:
     """Clusters **alive in one frame** at steady state.
 
-    ``visible = round(rate * K(T(wfh, v)))`` — the same table as
+    ``visible = round(rate * 4T/Δt)`` — the same table as
     :func:`spray.plume.visible_cluster_count_for_speed`, so the stateful path
     and the per-frame generator report the same number. The lifetime ``T`` is
     unchanged (``[CODE] dee.cpp:530``). ``wfh_mm`` is in millimetres.
+
+    The multiplier is :func:`spray.plume.steady_state_alive_factor`, **not**
+    ``K``: :meth:`PlumeState.prune` removes clusters hard at ``age > 4T`` (no
+    probabilistic thinning), so a cluster lives ``4T/Δt`` frames. Using ``K``
+    made the alive count ``max_age_factor`` = 4x the target (ticket 29f).
     """
     if v_abs_kmh <= ACTIVATION_SPEED_KMH or wfh_mm <= 0.0:
         return 0
@@ -210,7 +216,7 @@ def cluster_count_for_speed_abs(
     if rate <= 0.0:
         return 0
     config = PlumeConfig(water_film_height_m=wfh_mm / 1000.0)
-    visible = rate * steady_state_cluster_factor(v_abs_kmh, config)
+    visible = rate * steady_state_alive_factor(v_abs_kmh, config)
     return int(np.floor(visible + 0.5))
 
 

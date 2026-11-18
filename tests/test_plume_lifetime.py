@@ -69,8 +69,11 @@ def test_cluster_count_for_speed_abs_uses_the_cal_table_and_mm_water_film():
 def test_spawn_rate_is_fractional_and_uses_the_cal_table():
     # Golf at 50 km/h needs 3.62 visible clusters; a rounded rate of 1 would
     # undershoot by 30 %, so the rate stays fractional and is accumulated.
+    # Ticket 29f: T = 0.2 s at 50 km/h, hard prune at 4T with age starting at
+    # -dt, so a cluster lives 4*0.2/0.1 + 1 = 9 cycles — that is the divisor,
+    # not K = 2.51.
     rate = cluster_spawn_rate_for_speed_abs(50.0, "golf")
-    assert rate == pytest.approx(3.62 / 2.51, rel=0.02)
+    assert rate == pytest.approx(3.62 / 9.0, rel=0.02)
     assert cluster_count_for_speed_abs(50.0, 1.0, "golf") == 4
 
 
@@ -84,18 +87,10 @@ def test_clusters_from_frame_k_survive_later_frames():
     config = PlumeStateConfig(lifetime_sigma_s=0.0)
     rng = np.random.default_rng(3)
 
-    # Ticket 29e: the per-cycle rate at 130 km/h is 0.97, so one call does not
-    # spawn 24 clusters any more. Accumulate a cohort over several cycles.
-    created = []
-    for frame in range(4):
-        created.extend(
-            state.spawn(
-                _context(frame_index=frame),
-                object_id=7,
-                rng=rng,
-                config=config,
-            )
-        )
+    # Ticket 29f: the per-cycle rate at 130 km/h is 0.25, so one call usually
+    # spawns nothing. `_spawn_nonempty` accumulates cycles until a cohort
+    # exists; this test is about survival, not about the spawn count.
+    created = _spawn_nonempty(state, 7, rng, config=config)
     assert created
     for cluster in created:
         assert cluster.ttl == pytest.approx(1.8)
@@ -155,7 +150,8 @@ def test_default_drag_is_the_paper_constant():
     state = PlumeState()
     rng = np.random.default_rng(7)
     clusters = []
-    for frame in range(20):
+    # Ticket 29f: rate at 130 km/h is 0.25/cycle, so 120 cycles ≈ 30 clusters.
+    for frame in range(120):
         clusters.extend(
             state.spawn(
                 _context(frame_index=frame), object_id=8, rng=rng
@@ -337,7 +333,9 @@ def test_radius_median_does_not_grow_with_speed():
             object_speed_mps=speed_kmh / 3.6,
         )
         values = []
-        for frame in range(600):
+        # Ticket 29f: rate is 0.61/cycle at 100 km/h and 0.25 at 130 km/h, so
+        # the walk needs more cycles to collect a few hundred radii.
+        for frame in range(2400):
             values.extend(
                 cluster.radius
                 for cluster in state.spawn(
