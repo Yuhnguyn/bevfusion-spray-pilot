@@ -30,24 +30,39 @@ Nhãn số theo `docs/PROJECT.md:181`: `[PAPER]` paper nói · `[CODE]` code tha
 
 | Bộ | Dùng để | Xe | Cự ly | Nhãn |
 |---|---|---|---|---|
-| **Calibration set** (August-Euler-Airfield, Darmstadt) | hiệu chuẩn tham số vật lý | VW Golf, VW Crafter | 25 m (Fig. 4), 50 m (Fig. 11) | không nhãn — DBSCAN thủ công |
+| **Calibration set** (August-Euler-Airfield, Darmstadt) — **chính là RoadSpray**, xem dưới | hiệu chuẩn tham số vật lý | VW Golf, VW Crafter | 25 m để đặt tham số (Fig. 4, 5, 7); 50 m để kiểm (Fig. 11) | không nhãn — DBSCAN thủ công |
 | **STF** (SeeingThroughFog) | **train** detector | Mercedes (dataset có sẵn) | 0–50 m | có nhãn 3D box |
 | **Spray test set** (closed highway, tự thu) | **test** detector | G-Class, CLA, Smart | 0–50 m | auto-label pipeline, 1463 frame |
 
 `[PAPER]` §V-D: *"In total, **1463 frames** are collected and labeled"* — test set riêng, khác
 calibration set. Tab. I: 6 tổ hợp (G-Class wet 79,9 km/h; Smart wet 118,3; CLA wet 97,4;
-Smart watered 97,6; CLA watered 121,0; CLA+2×G-Class watered 96,2).
+Smart watered 97,6; CLA watered 121,0; CLA+2×G-Class watered 96,2). Bộ này **chưa được công bố**
+(kiểm 2026-11-18: fzd-datasets, tudatalib item, REST search đều không có).
 
-**Fig. 11 thuộc calibration set** — VW Crafter @50 m, 100 km/h, DBSCAN trên điểm thô (không nhãn).
+**Fig. 11 thuộc calibration set** — VW Crafter @50 m, DBSCAN trên điểm thô (không nhãn), kịch bản
+ego đỗ + xe chạy qua. Mốc **100 km/h** là **Fig. 10** (Crafter ~40 m), không phải Fig. 11.
 
-### RoadSpray (tudatalib-930) là bộ **thứ tư** — không nằm trong Paper A
+### RoadSpray (tudatalib-930) = **bản phát hành của calibration set**, cùng chiến dịch đo với Paper A
 
-Paper A (arXiv 2212.08558) **không** cite tudatalib, không dùng chữ "RoadSpray".
-RoadSpray được công bố riêng: `[3]` của Paper B = Linnhoff et al., *"Road spray in lidar and radar
-data for individual moving objects"*, 2022-04, `tudatalib/handle/tudatalib/3537`.
+Paper A (arXiv 2212.08558) **không** cite tudatalib, không dùng chữ "RoadSpray". Nhưng paper có
+footnote `3 https://www.fzd-datasets.de/spray/` (dòng 159) — trang đó là **trang công bố dataset
+của chính paper**, ghi ở phần Citation:
 
-Nội dung RoadSpray: Crafter_dynamic, Crafter_static, Golf_dynamic — **cùng xe, cùng đường thử,
-cùng tham số** với calibration set của Paper A, nhưng công bố thành dataset riêng, **không nhãn**.
+> "If you find this data set useful for your research, please consider citing the publication:
+> (Currently under review at IEEE) C. Linnhoff, D. Scheuble, M. Bijelic, L. Elster, P. Rosenberger,
+> W. Ritter, D. Dai, H. Winner: 'Simulating Road Spray Effects in Automotive Lidar Sensor Models'
+> in IEEE Sensors, 2022"
+
+Trang đó link "Download Dataset from TUdatalib" → `tudatalib/handle/tudatalib/3537`, và mô tả đúng
+§III-A: *"1) The ego vehicle is positioned stationary next to the watered lane. The object vehicles
+are driving past the ego… 2) The ego vehicle is following the object vehicles in different
+distances…"*, 9 tốc độ 50–130 km/h, 3 mức nước, 2 xe, *"Every individual scenario is recorded 3 times"*.
+(Đọc qua Wayback `web.archive.org/web/20221219055215/`, snapshot 3 ngày sau arXiv.) `[DATASET-DOC]`
+
+Nội dung release: **4** subset — `Crafter_dynamic`, `Crafter_static`, `Golf_dynamic`, `Golf_static`
+(7,92 + 6,13 + 6,01 + 5,46 GB) — **không nhãn**. `*_dynamic` = kịch bản following (ego chạy, cự ly
+20/30 m); `*_static` = kịch bản ego đỗ, xe chạy qua ⇒ **`static` không phải "extra"**, nó là kịch
+bản 1 và là nửa Paper A dùng để calibrate. Chi tiết đo đạc: `docs/reference/roadspray-fit-for-repo.md`.
 
 ### SemanticSpray = RoadSpray + nhãn tay
 
@@ -63,19 +78,27 @@ Nguyên văn Paper B §IV (dòng 605–620 của bản text):
 
 ```
 Paper A (2212.08558) — augmentation
-   ├─ Calibration set (airfield, Crafter/Golf, 25–50 m)  → Fig. 4, Fig. 11
+   ├─ Calibration set = RoadSpray (airfield, Crafter/Golf, 25 m đặt tham số / 50 m kiểm)
+   │     → Fig. 4, 5, 7, 8, 10, 11, 12,  kịch bản ego đỗ + xe chạy qua
    ├─ STF (train detector)
-   └─ Spray test set (G-Class/CLA/Smart, 1463 frame)
+   └─ Spray test set (G-Class/CLA/Smart, 1463 frame) — CHƯA công bố
 
-RoadSpray (tudatalib-930) — dataset riêng, KHÔNG nhãn
-   └─ Crafter_dynamic, Crafter_static, Golf_dynamic
+RoadSpray (tudatalib-930, fzd-datasets/spray) — KHÔNG nhãn, 4 subset
+   ├─ Crafter_dynamic, Golf_dynamic   (following, ego chạy, 20/30 m)
+   └─ Crafter_static,  Golf_static    (passing, ego đỗ) ← nửa Paper A calibrate
 
 SemanticSpray (Paper B, 2305.16129)
    └─ RoadSpray + nhãn tay 3 lớp → 16.565 dynamic scene
+   └─ bản repo dùng: 207/216 recording following, 0 recording static
 ```
 
-**RoadSpray ≈ calibration set của Paper A** về thiết bị và điều kiện, nhưng là bản công bố
-đầy đủ hơn (có cả static). Không phải cùng file, nhưng cùng nguồn thực nghiệm.
+**RoadSpray = bản phát hành của calibration set của Paper A**, không phải "bộ thứ tư" và cũng không
+phải bộ test. Khác biệt duy nhất so với cách hiểu cũ: release đầy đủ hơn (có cả `*_static`, và có
+`Golf_static`), chia thành 4 subset theo 2 kịch bản × 2 xe thay vì 3 subset.
+
+**Hệ quả cho repo:** nửa repo **đang thiếu** (`*_static`, 333 recording) đúng là nửa Paper A dùng để
+calibrate model plume; nửa repo **đang có** (`*_dynamic`, đã gán nhãn) là nửa Paper A không dùng để
+calibrate. Phân tích + khuyến nghị: `docs/reference/roadspray-fit-for-repo.md`.
 
 ---
 

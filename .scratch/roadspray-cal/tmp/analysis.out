@@ -1,0 +1,139 @@
+========================================================================
+0. SAMPLE + SPLIT SANITY
+========================================================================
+scenes 36 sampled frames 360 of 2587 on disk
+train: 16 scenes  1124 frames speeds=[60.0, 80.0, 100.0, 120.0]
+val  :  8 scenes   509 frames speeds=[70.0, 110.0]
+test : 12 scenes   954 frames speeds=[50.0, 90.0, 130.0]
+roles on the 36 boxed scenes: {'cal': 18, 'held-out': 18}
+  train: cal scenes 8/16, cal frames 575/1124 = 51.2%
+  val: cal scenes 4/8, cal frames 243/509 = 47.7%
+  test: cal scenes 6/12, cal frames 503/954 = 52.7%
+
+========================================================================
+1. PER-SCENE SPRAY (10 evenly spaced frames/scene; paper DBSCAN eps=0.7deg minPts=3)
+========================================================================
+cell = group/speed/kmh/distance; sorted by mean clusters/frame
+scene                                                          spd    d split     role  clu/fr noise/fr cv_w(clu)
+Crafter_dynamic/0006_2021-09-08-14-43-47_0                      50   30  test held-out    4.90     53.4      0.47
+Golf_dynamic/0000_2021-09-08-08-27-59_0                         50   20  test      cal    5.20     81.8      0.96
+Crafter_dynamic/0000_2021-09-08-14-36-56_0                      50   20  test      cal    6.10     68.4      0.43
+Golf_dynamic/0018_2021-09-08-08-53-06_0                         60   20 train      cal    7.80    163.0      1.10
+Golf_dynamic/0012_2021-09-08-08-44-47_0                         50   30  test held-out    8.20    104.5      0.49
+Crafter_dynamic/0018_2021-09-08-14-58-08_0                      60   30 train held-out    8.40    170.2      0.77
+Golf_dynamic/0006_2021-09-08-08-36-56_0                         60   30 train held-out    9.60    207.5      0.72
+Golf_dynamic/0030_2021-09-08-09-09-05_0                         70   30   val held-out   10.50    246.9      0.93
+Golf_dynamic/0048_2021-09-08-10-02-18_0                         90   20  test      cal   11.30    321.2      1.31
+Golf_dynamic/0036_2021-09-08-09-16-50_0                         80   20 train      cal   11.50    388.3      0.99
+Golf_dynamic/0066_2021-09-08-10-28-53_0                        100   30 train held-out   11.80    390.5      1.02
+Golf_dynamic/0054_2021-09-08-10-12-42_0                         90   30  test held-out   12.00    238.1      1.21
+Crafter_dynamic/0012_2021-09-08-14-50-58_0                      60   20 train      cal   12.20    274.3      0.41
+Golf_dynamic/0084_2021-09-08-11-31-56_0                        120   20 train      cal   12.60    596.9      0.85
+Crafter_dynamic/0030_2021-09-08-15-13-19_0                      70   30   val held-out   13.20    363.2      0.96
+Golf_dynamic/0042_2021-09-08-09-54-42_0                         80   30 train held-out   13.20    334.0      0.84
+Golf_dynamic/0024_2021-09-08-09-01-17_0                         70   20   val      cal   14.40    411.6      0.74
+Crafter_dynamic/0102_2021-09-08-17-59-07_0                     130   30  test held-out   15.60    880.0      1.18
+Golf_dynamic/0096_2021-09-08-11-51-15_0                        130   20  test      cal   16.50    748.3      0.83
+Crafter_dynamic/0096_2021-09-08-17-49-24_0                     130   20  test      cal   16.80   1141.2      1.34
+Golf_dynamic/0060_2021-09-08-10-20-38_0                        100   20 train      cal   17.00    561.4      0.67
+Golf_dynamic/0078_2021-09-08-11-23-11_0                        110   30   val held-out   17.10    575.9      0.79
+Golf_dynamic/0072_2021-09-08-10-37-15_0                        110   20   val      cal   17.50    816.9      0.53
+Golf_dynamic/0102_2021-09-08-12-00-19_0                        130   30  test held-out   18.20    757.1      0.56
+Golf_dynamic/0090_2021-09-08-11-40-49_0                        120   30 train held-out   19.20    749.6      0.41
+Crafter_dynamic/0042_2021-09-08-15-54-21_0                      80   30 train held-out   19.60    591.4      0.80
+Crafter_dynamic/0090_2021-09-08-17-39-56_0                     120   30 train held-out   20.20    983.4      1.36
+Crafter_dynamic/0054_2021-09-08-16-19-50_0                      90   30  test held-out   20.80    861.4      0.76
+Crafter_dynamic/0036_2021-09-08-15-20-22_0                      80   20 train      cal   23.90    995.5      0.83
+Crafter_dynamic/0024_2021-09-08-15-05-31_0                      70   20   val      cal   24.00    625.4      0.66
+Crafter_dynamic/0084_2021-09-08-17-31-03_0                     120   20 train      cal   25.40   1187.6      1.09
+Crafter_dynamic/0048_2021-09-08-16-02-18_0                      90   20  test      cal   29.10   1280.8      0.72
+Crafter_dynamic/0066_2021-09-08-16-34-39_0                     100   30 train held-out   29.80   1746.7      0.81
+Crafter_dynamic/0060_2021-09-08-16-27-14_0                     100   20 train      cal   31.10   1658.5      0.68
+Crafter_dynamic/0072_2021-09-08-16-42-41_0                     110   20   val      cal   34.90   1888.7      0.78
+Crafter_dynamic/0078_2021-09-08-17-22-14_0                     110   30   val held-out   35.30   1711.9      0.95
+
+CLUSTERS/FRAME across scenes
+  all 36                 n=36 mean= 16.80 sd=  8.11 min= 4.90 max= 35.30 CV=0.483
+  train 16               n=16 mean= 17.08 sd=  7.44 min= 7.80 max= 31.10 CV=0.435
+  val 8                  n= 8 mean= 20.86 sd=  9.63 min=10.50 max= 35.30 CV=0.461
+  test 12 (current)      n=12 mean= 13.72 sd=  7.23 min= 4.90 max= 29.10 CV=0.527
+  test 6 held-out only   n= 6 mean= 13.28 sd=  6.06 min= 4.90 max= 20.80 CV=0.456
+  test 6 cal             n= 6 mean= 14.17 sd=  8.82 min= 5.20 max= 29.10 CV=0.623
+
+NOISE POINTS/FRAME across scenes
+  all 36                 n=36 mean= 671.5 sd= 510.9 min=   53 max=  1889 CV=0.761
+  train 16               n=16 mean= 687.4 sd= 502.1 min=  163 max=  1747 CV=0.730
+  val 8                  n= 8 mean= 830.1 sd= 625.4 min=  247 max=  1889 CV=0.753
+  test 12 (current)      n=12 mean= 544.7 sd= 449.0 min=   53 max=  1281 CV=0.824
+  test 6 held-out only   n= 6 mean= 482.4 sd= 390.8 min=   53 max=   880 CV=0.810
+
+VALIDATION of the 10-frame sample vs PROJECT.md p50/frame by speed
+   50 km/h sampled p50=   70 mean=    77 n_frames=40
+   60 km/h sampled p50=  200 mean=   204 n_frames=40
+   70 km/h sampled p50=  316 mean=   412 n_frames=40
+   80 km/h sampled p50=  438 mean=   577 n_frames=40
+   90 km/h sampled p50=  532 mean=   675 n_frames=40
+  100 km/h sampled p50=  836 mean=  1089 n_frames=40
+  110 km/h sampled p50=  970 mean=  1248 n_frames=40
+  120 km/h sampled p50=  512 mean=   879 n_frames=40
+  130 km/h sampled p50=  570 mean=   882 n_frames=40
+
+========================================================================
+2. VARIANCE DECOMPOSITION (design effect of frames within scenes)
+========================================================================
+  clusters: between-scene var=    657.34 within-scene var=    253.86 ICC=0.137 design_effect=2.2 -> 360 sampled frames == 161 independent units
+  noise   : between-scene var=2609865.44 within-scene var= 456066.37 ICC=0.321 design_effect=3.9 -> 360 sampled frames == 93 independent units
+
+========================================================================
+3. SCENE-LEVEL BOOTSTRAP: CI95 HALF-WIDTH / MEAN
+========================================================================
+  clusters test12    n=12 CV=0.527 boot_hw/mean=0.284 | analytic 1.96CV/sqrt(n)=0.298 | detectable@80%power=0.426 | n for 30%@95CI=11.8 n(80%)=24.2
+  noise test12       n=12 CV=0.824 boot_hw/mean=0.445 | analytic 1.96CV/sqrt(n)=0.466 | detectable@80%power=0.667 | n for 30%@95CI=29.0 n(80%)=59.2
+  clusters all36     n=36 CV=0.483 boot_hw/mean=0.157 | analytic 1.96CV/sqrt(n)=0.158 | detectable@80%power=0.225 | n for 30%@95CI=9.9 n(80%)=20.3
+  noise all36        n=36 CV=0.761 boot_hw/mean=0.241 | analytic 1.96CV/sqrt(n)=0.249 | detectable@80%power=0.355 | n for 30%@95CI=24.7 n(80%)=50.5
+  random 6-of-36     draws=4000 CV median=0.459 [p5,p95]=[0.256,0.678] | hw_rel median=0.367 [p5,p95]=[0.205,0.543]
+  random 12-of-36    draws=4000 CV median=0.478 [p5,p95]=[0.349,0.594] | hw_rel median=0.270 [p5,p95]=[0.198,0.336]
+  clusters test6HO   n=6 CV=0.456 boot_hw/mean=0.329 detectable@80%=0.522 n30@80%=18.2
+  noise test6HO      n=6 CV=0.810 boot_hw/mean=0.558 detectable@80%=0.927 n30@80%=57.2
+  paired B-vs-A on identical scenes, proportional effect: hw_rel(effect)=1.96*CV/sqrt(n) if per-scene effect is exactly 30%; unpaired worst case multiplies by sqrt(2)=1.414
+    clusters test12: paired=0.298 unpaired=0.422
+    clusters all36: paired=0.158 unpaired=0.223
+
+========================================================================
+4. CURRENT TEST SET COMPOSITION BIAS
+========================================================================
+  test 12  : frame-weighted clusters/frame=12.46 noise/frame= 469.8 | scene-mean clusters/frame=13.72 noise/frame= 544.7
+  train 16 : frame-weighted clusters/frame=16.24 noise/frame= 635.3 | scene-mean clusters/frame=17.08 noise/frame= 687.4
+  all 36   : frame-weighted clusters/frame=15.47 noise/frame= 594.5 | scene-mean clusters/frame=16.80 noise/frame= 671.5
+  test/all frame-weighted noise ratio = 0.790
+
+========================================================================
+5. LEAVE-SPEED-OUT FOLDS (3 folds x 3 held-out speeds), all 36 scenes
+========================================================================
+  fold 1: held-out speeds [50, 80, 110]
+    test  12 scenes   886 frames | train 24 scenes  1701 frames | test cal 6/12
+    test frame-weighted noise/frame= 518.3 clusters/frame=14.34 | train scene-mean CV=0.663
+    cells in test: 6 (=3 speeds x 2 distances x 2 groups)
+  fold 2: held-out speeds [60, 90, 120]
+    test  12 scenes   893 frames | train 24 scenes  1694 frames | test cal 6/12
+    test frame-weighted noise/frame= 534.2 clusters/frame=14.88 | train scene-mean CV=0.779
+    cells in test: 6 (=3 speeds x 2 distances x 2 groups)
+  fold 3: held-out speeds [70, 100, 130]
+    test  12 scenes   808 frames | train 24 scenes  1779 frames | test cal 6/12
+    test frame-weighted noise/frame= 744.7 clusters/frame=17.38 | train scene-mean CV=0.851
+    cells in test: 6 (=3 speeds x 2 distances x 2 groups)
+
+  VERIFICATION
+   fold 1: |test|=12 |train|=24 overlap=NONE speeds_disjoint=True
+   fold 2: |test|=12 |train|=24 overlap=NONE speeds_disjoint=True
+   fold 3: |test|=12 |train|=24 overlap=NONE speeds_disjoint=True
+   all_test_total=36 unique=36 tested_exactly_once=True covers_all_36=True
+   FOLD_VERIFICATION=PASS
+
+  cal leakage if generator stays calibrated on SSPP cal scenes:
+   cal on the 36 boxed scenes: 18 scenes / 1321 frames (51.1%); held-out 18 scenes
+   fold 1: cal in test 6/12 scenes = 473/886 frames -> LEAKY
+   fold 2: cal in test 6/12 scenes = 463/893 frames -> LEAKY
+   fold 3: cal in test 6/12 scenes = 385/808 frames -> LEAKY
+
+wrote tmp/analysis.json

@@ -1,0 +1,136 @@
+{
+ "zip": "data/roadspray/Crafter_dynamic.zip",
+ "member": "Crafter_dynamic/2021-09-08-16-06-27_0.bag",
+ "extract_s": 1.22,
+ "bag_mb": 66.4,
+ "zip_mb": 35.3,
+ "open_s": 0.16,
+ "duration_s": 5.28,
+ "start": 1631109988.352585,
+ "end": 1631109993.6280358,
+ "topics": {
+  "/adma/delta": {
+   "type": "adda_can_msgs/msg/ADMADelta",
+   "count": 529,
+   "msgdef_name": 1,
+   "msgdef_len": 4571
+  },
+  "/adma/imu": {
+   "type": "sensor_msgs/msg/Imu",
+   "count": 528,
+   "msgdef_name": 1,
+   "msgdef_len": 2572
+  },
+  "/adma/nav_sat_fix": {
+   "type": "sensor_msgs/msg/NavSatFix",
+   "count": 528,
+   "msgdef_name": 1,
+   "msgdef_len": 3115
+  },
+  "/adma/pose": {
+   "type": "geometry_msgs/msg/PoseStamped",
+   "count": 528,
+   "msgdef_name": 1,
+   "msgdef_len": 1369
+  },
+  "/adma/status": {
+   "type": "adda_can_msgs/msg/ADMAStatus",
+   "count": 528,
+   "msgdef_name": 1,
+   "msgdef_len": 1117
+  },
+  "/adma/twist": {
+   "type": "geometry_msgs/msg/TwistStamped",
+   "count": 527,
+   "msgdef_name": 1,
+   "msgdef_len": 1450
+  },
+  "/delphi_esr_detection_visu": {
+   "type": "sensor_msgs/msg/PointCloud2",
+   "count": 209,
+   "msgdef_name": 1,
+   "msgdef_len": 2228
+  },
+  "/delphi_esr_object_visu": {
+   "type": "visualization_msgs/msg/MarkerArray",
+   "count": 105,
+   "msgdef_name": 1,
+   "msgdef_len": 3992
+  },
+  "/front_ibeo_lux/as_tx/object_contour_points": {
+   "type": "visualization_msgs/msg/Marker",
+   "count": 66,
+   "msgdef_name": 1,
+   "msgdef_len": 3862
+  },
+  "/front_ibeo_lux/as_tx/objects": {
+   "type": "visualization_msgs/msg/MarkerArray",
+   "count": 66,
+   "msgdef_name": 1,
+   "msgdef_len": 3992
+  },
+  "/front_ibeo_lux/as_tx/point_cloud": {
+   "type": "sensor_msgs/msg/PointCloud2",
+   "count": 66,
+   "msgdef_name": 1,
+   "msgdef_len": 2228
+  },
+  "/front_mono/camera_info": {
+   "type": "sensor_msgs/msg/CameraInfo",
+   "count": 87,
+   "msgdef_name": 1,
+   "msgdef_len": 7926
+  },
+  "/front_mono/image/compressed": {
+   "type": "sensor_msgs/msg/CompressedImage",
+   "count": 87,
+   "msgdef_name": 1,
+   "msgdef_len": 1294
+  },
+  "/front_mono/image/compressed/parameter_descriptions": {
+   "type": "dynamic_reconfigure/msg/ConfigDescription",
+   "count": 1,
+   "msgdef_name": 1,
+   "msgdef_len": 1405
+  },
+  "/rear_ibeo_lux/as_tx/object_contour_points": {
+   "type": "visualization_msgs/msg/Marker",
+   "count": 54,
+   "msgdef_name": 1,
+   "msgdef_len": 3862
+  },
+  "/rear_ibeo_lux/as_tx/objects": {
+   "type": "visualization_msgs/msg/MarkerArray",
+   "count": 63,
+   "msgdef_name": 1,
+   "msgdef_len": 3992
+  },
+  "/rear_ibeo_lux/as_tx/point_cloud": {
+   "type": "sensor_msgs/msg/PointCloud2",
+   "count": 63,
+   "msgdef_name": 1,
+   "msgdef_len": 2228
+  },
+  "/tf_static": {
+   "type": "tf2_msgs/msg/TFMessage",
+   "count": 1,
+   "msgdef_name": 1,
+   "msgdef_len": 2093
+  },
+  "/velodyne_nodelet_manager_cloud/parameter_descriptions": {
+   "type": "dynamic_reconfigure/msg/ConfigDescription",
+   "count": 1,
+   "msgdef_name": 1,
+   "msgdef_len": 1405
+  },
+  "/velodyne_points": {
+   "type": "sensor_msgs/msg/PointCloud2",
+   "count": 50,
+   "msgdef_name": 1,
+   "msgdef_len": 2228
+  }
+ },
+ "velodyne_count": 50,
+ "total_s": 1.58,
+ "tmp_cleaned": true
+}

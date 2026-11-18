@@ -29,3 +29,10 @@ venv/
 
 # graphify artifact (generated graph output)
 graphify-out/
+
+# Scratch measurement outputs — giữ script, không giữ dữ liệu sinh ra
+.scratch/*/tmp/**/*.csv
+.scratch/*/tmp/**/*.npy
+.scratch/*/tmp/**/*.bag
+.scratch/*/tmp/**/*.xlsx
+.scratch/roadspray-fit/tmp/full_*.json

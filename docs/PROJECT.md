@@ -53,6 +53,12 @@ Chia theo tốc độ để test là tốc độ chưa thấy.
 | val | 70, 110 | 8 | 509 | 509 | 499 |
 | **test** | **50, 90, 130** | **12** | **954** | **962** | **142** |
 
+> **Đã thay bằng 3-fold leave-speed-out** (ADR-0006 D1): mỗi fold 24 scene train / 12 scene test,
+> rule `fold = rank(speed) mod 3 + 1`; fold 1 {50, 80, 110} · fold 2 {60, 90, 120} · fold 3
+> {70, 100, 130}. Mỗi scene được test đúng 1 lần ⇒ pooled out-of-fold **n = 36**. Bảng trên giữ
+> lại làm mốc lịch sử và để so với các số đã công bố trước 2026-11-18.
+> Kế hoạch thi công: `.scratch/roadspray-cal/plan.md` §2 giai đoạn E.
+
 Spray p50 theo từng tốc độ (pooled frame): 50 → 73 · 60 → 208 · 70 → 374 · 80 → 493 ·
 90 → 503 · 100 → 887 · 110 → 1.025 · 120 → 728 · 130 → 630.
 
@@ -105,12 +111,17 @@ hai arm, và là mốc để biết mức hỏng gốc.
 
 ## 5. Đo cái gì
 
+**Đơn vị eval: 3-fold leave-speed-out trên cả 36 scene, pooled out-of-fold `n = 36`**
+(`docs/adr/0006-detection-protocol-and-calibration-source.md`). Bỏ single split 12 scene: ở `n = 12`
+thì CI95 half-width **28,4 %** ≈ effect 30 % đang nhắm, nên không kết luận được; cộng thêm
+6/12 test scene là scene `cal` (52,7 % frame test).
+
 Hai điều kiện eval, cả hai **không augment**:
 
 | Điều kiện | Dữ liệu | Trả lời |
 |---|---|---|
-| Test | 12 scene real spray | Có giảm FP trên spray thật không |
-| Clean control | nuScenes val 196 frame | Có mất gì trên domain gốc không |
+| Test | 12 scene real spray × **3 fold** (mỗi scene test đúng 1 lần) | Có giảm FP trên spray thật không |
+| Clean control | nuScenes val 196 frame (**chưa có trên máy** — `data/` chỉ có SSPP + roadspray; cần ~5 GB nuScenes-mini val, xem plan §6) | Có mất gì trên domain gốc không |
 
 **Ngưỡng score `τ`:** quét trên frame sạch, lấy τ nhỏ nhất mà precision ≥ 0,5. Đóng băng, dùng
 cho cả ba checkpoint.
@@ -126,11 +137,24 @@ cách tâm cụm noise ≤ 1,5 m. Cụm noise dùng `spray.semantic_stats.cluste
 | AP@0,5 — test real spray | | | | B ≥ A |
 | Recall — test real spray | | | | B ≥ A − 0,02 |
 | Total FP/frame — test | | | | B < A |
-| **SPF proxy/frame — test** | | | | **B < A ≥ 30 % tương đối, CI95 loại trừ 0** |
+| **SPF proxy/frame — test** | | | | **B < A; báo effect size + CI95, claim "≥ X %" chỉ khi cận dưới CI ≥ X** |
 | AP@0,5 — clean control | | | | B ≥ A − 0,5 điểm |
-| SPF proxy/frame — 50 và 130 km/h | | | | B < A ở **cả hai** |
+| SPF proxy/frame — 50 và 130 km/h | | | | B < A ở **cả hai** (chỉ direction check, `n = 4`) |
 
 Hàng 4 là hàng quyết định. Còn lại là chốt chặn.
+
+### Cách báo cáo hàng quyết định
+
+Effect size + CI95, **không** pass/fail (ADR-0006 D3):
+
+- paired theo **scene** (cùng scene, hai arm); effect = `expm1(mean(log(FP_B/FP_A)))`
+- CI95 = percentile bootstrap theo scene, B = 20 000, phân vị 2,5 / 97,5
+- chỉ viết "giảm ≥ X %" khi **cận dưới CI ≥ X**
+- mẫu: `giảm 40 %, CI95 [−52 %, −26 %]`
+
+Vì sao đổi: criterion cũ ("point ≥ 30 % **và** CI loại trừ 0") có power **~50 %** ngay cả khi effect
+thật đúng 30 %, với mọi `n` — fail không phân biệt được "augment vô dụng" với "xui". Pre-registration
+đầy đủ: `.scratch/roadspray-cal/plan.md` §4.
 
 **Phép đo thêm (miễn phí):** chạy cùng checkpoint hai lần trên cùng frame — bản gốc và bản
 `points[labels != 2]`. Delta là tác động thuần của noise, không phụ thuộc generator.
@@ -147,6 +171,10 @@ Hàng 4 là hàng quyết định. Còn lại là chốt chặn.
 | 11-15 | chia split theo **tốc độ**, test = 50/90/130 | test phải là tốc độ chưa thấy, nếu không model nhớ scene |
 | 11-15 | Arm A là nhóm đối chứng, không so trực tiếp B với Model 0 | tách "học thêm" khỏi "augment" |
 | 11-15 | giữ `wet_ground.py`, `proxy_eval/matcher.py`, `inject_plume` dù chưa dùng | đóng import; trạng thái ghi ở §9 |
+| 11-18 | **eval = 3-fold leave-speed-out, pooled n = 36** (bỏ single split 12 scene) | 12 scene cho CI95 half-width 28,4 % ≈ effect 30 %; 6/12 test scene là `cal` (ADR-0006 D1) |
+| 11-18 | **calibration chuyển sang RoadSpray `*_static`**, `cal ∩ SSPP = ∅` | cal trên SSPP làm 28 scene cùng điều kiện test vẫn nằm trong cal; bỏ scene test không đủ (ADR-0006 D2) |
+| 11-18 | **criterion = effect size + CI95**, bỏ pass/fail nhị phân | criterion cũ có power ~50 % ở đúng effect 30 %, với mọi `n` (ADR-0006 D3) |
+| 11-18 | **pseudo-box từ `label == 1` cho train** (eval vẫn human box) | BEV IoU p50 0,931; train 16 → 92 scene, 1.124 → ~7.180 frame, không cần dataset mới (ADR-0006 D4) |
 
 ---
 
@@ -172,11 +200,14 @@ là Dropbox mà README upstream đang liệt kê; đã tải thử, đúng **33.
 | `docs/PROJECT.md` | file này — câu hỏi, phạm vi, số đo, sổ quyết định |
 | `docs/adr/0001-mit-bevfusion-pin.md` | pin `da93b27` |
 | `docs/adr/0005-sspp-as-detection-domain.md` | vì sao đổi domain, đánh đổi gì |
+| `docs/adr/0006-detection-protocol-and-calibration-source.md` | **eval = 3-fold CV, cal = RoadSpray, criterion = effect + CI** |
+| `docs/reference/roadspray-fit-for-repo.md` | RoadSpray là gì, có dùng được không |
+| `.scratch/roadspray-cal/plan.md` | **kế hoạch phát triển hiện hành — 6 giai đoạn A–F** |
 | `docs/measurements/semantic-spray-stats.md` | thống kê spray thật |
 | `docs/measurements/semantic-spray-cal-vs-heldout.md` | cổng 7 tiêu chí của split cal/held-out |
 | `docs/measurements/semantic-spray-clusters-by-speed.md` | cụm/frame theo tốc độ |
 | `docs/reference/paper-qa-notebooklm.md` | hỏi đáp nguyên văn với paper — `[PAPER]` vs `[CODE]` |
-| `.hermes/plans/2026-11-13_171500-sspp-plan-ngan.md` | 5 bước thi công |
+| `.hermes/plans/2026-11-13_171500-sspp-plan-ngan.md` | 5 bước thi công (bước 1–2 đã xong; 3–5 thay bằng plan mới) |
 
 Nhãn số: `[ĐO]` đo trên máy này · `[PAPER]` paper nói · `[CODE]` code tham chiếu · `[CHỌN]` tự chọn.
 
