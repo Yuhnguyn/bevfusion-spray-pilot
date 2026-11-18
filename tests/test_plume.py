@@ -175,11 +175,11 @@ def test_cluster_count_follows_the_cal_table():
     assert cluster_count_for_speed(39.0) == 0
     assert cluster_count_for_speed(40.0) == 0
     assert cluster_count_for_speed(45.0) == 0
-    assert cluster_count_for_speed(50.0) == 4
-    assert cluster_count_for_speed(60.0) == 11
-    assert cluster_count_for_speed(80.0) == 22
-    assert cluster_count_for_speed(100.0) == 29
-    assert cluster_count_for_speed(130.0) == 18
+    assert cluster_count_for_speed(50.0) == 6
+    assert cluster_count_for_speed(60.0) == 13
+    assert cluster_count_for_speed(80.0) == 27
+    assert cluster_count_for_speed(100.0) == 26
+    assert cluster_count_for_speed(130.0) == 22
 
 
 def test_no_clusters_at_45_kmh():
@@ -187,13 +187,13 @@ def test_no_clusters_at_45_kmh():
 
 
 def test_cluster_count_at_130_kmh_with_one_mm_water_film():
-    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 18
+    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 22
     assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.0)) == 0
 
 
 def test_cluster_count_at_80_kmh_matches_the_table():
-    # Bảng `cal` cho 22,02 cụm/frame ở 80 km/h.
-    assert cluster_count_for_speed(80.0) == 22
+    # Bảng RoadSpray static (D2) cho 26,67 cụm/frame ở 80 km/h.
+    assert cluster_count_for_speed(80.0) == 27
 
 
 def test_steady_state_cluster_factor_is_geometric_sum():
@@ -219,7 +219,7 @@ def test_no_lifetime_dropout_generates_full_steady_state_count():
     result = inject_plume(points, box, seed=0, config=config)
 
     expected = cluster_count_for_speed(80.0, config)
-    assert expected == 22
+    assert expected == 27
     assert result.stats.clusters_spawned == expected
     assert result.stats.clusters == expected
     assert result.stats.clusters_dropped_lifetime == 0

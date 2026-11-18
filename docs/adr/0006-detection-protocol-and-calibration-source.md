@@ -69,13 +69,15 @@ Tách spray không cần nhãn bằng **range-image nền** (ego đỗ ⇒ mỗi
 Định vị xe bằng track ibeo `ns == 'Car'`; mặt đuôi xác định từ điểm cao > 1,6 m (plume paper ≤ 1,5 m).
 Chỉ đo bag `object_direction = +1` (ego thấy đuôi xe; `−1` là ngược chiều, plume bị che).
 
-**Kết quả (Crafter, 54 bag / 1 558 frame, CI95 bootstrap ở mức bag):**
+**Kết quả `[ĐO]` (9 bag/lớp/tốc độ, CI95 bootstrap ở mức bag, đối chứng âm phía trước xe = 0,0):**
 
-| km/h | 60 | 70 | 80 | 90 | 100 | 110 | 120 | 130 |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| cụm/frame | 11,5 | 19,0 | 25,8 | 27,3 | 28,5 | 25,9 | 20,5 | 22,0 |
+| km/h | 50 | 60 | 70 | 80 | 90 | 100 | 110 | 120 | 130 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Crafter cụm/frame | 6,0 | 13,2 | 19,0 | 26,7 | 24,8 | 25,7 | 27,4 | 20,6 | 22,2 |
+| Golf cụm/frame | 4,7 | 8,8 | 13,2 | 17,8 | 20,9 | 22,6 | 22,0 | 25,8 | 25,2 |
 
-Đối chứng âm (cùng hộp, **phía trước** xe) = 0,5–1,0 cụm/frame: nhiễu cảnh bị loại bằng hình học.
+Hai lớp cùng hình dạng (tăng tới ~22–27 cụm/frame ở 100–130 km/h). 81 bag Crafter và 85 bag Golf được
+dùng; bag bị loại vì xe **tiến lại** gần ego (plume bị thân xe che) — xem doc §5.
 
 **Kiểm chứng chéo ba nguồn độc lập:**
 
@@ -93,11 +95,15 @@ nhưng **định nghĩa vùng** chi phối: bề dày lát cự ly từ 1,0 → 
 (2,2×) tại 100 km/h. Nên bảng chỉ xác định tới **±30–40 %**. **Cổng B (`sinh/thật ∈ [0,7; 1,5]`) và
 mọi claim từ bảng phải đọc cùng dải này**; không được coi bảng là số chính xác.
 
-**Trạng thái thi hành:** Crafter ✅. **Golf chưa đo** — `Golf_static.zip` (5 460 144 118 B) chưa tải
-xong (server tudatalib trả 403 toàn cục ngày 2026-11-18 sau nhiều lần tải; còn 85 MB đã lấy, đổi tên
-`Golf_static.zip.part`). `_CLUSTER_VISIBLE_BY_SPEED` trong `spray/plume.py` **vẫn là bảng SSPP `cal`
-cũ** cho tới khi có Golf. Fallback của D2 (eval trên 18 held-out scene) **không cần dùng**, vì bảng
-per-fold không leak đã có (`docs/measurements/sspp-cluster-table-folds.md`) để kiểm chứng chéo.
+**Trạng thái thi hành:** **XONG** — `_CLUSTER_VISIBLE_BY_SPEED` trong `spray/plume.py` đã thay bằng
+bảng RoadSpray static cho **cả hai lớp** (2026-11-18 23:40), 203 test xanh. Bảng SSPP `cal` cũ giữ lại
+trong `docs/measurements/semantic-spray-clusters-by-speed.md` để đối chiếu, không dùng trong code.
+Fallback của D2 (eval trên 18 held-out scene) **không cần dùng**.
+
+Ba bug phương pháp đã trả giá, ghi ở doc §5 để không lặp lại: (a) `object_direction` không cùng ngữ
+nghĩa giữa hai chiến dịch ⇒ phải quyết định chiều bằng **hình học**; (b) ibeo đổi nhãn phân loại theo
+tốc độ (`Car` ↔ `Truck`) ⇒ không dùng nhãn để chọn track; (c) track rác 4–6 mẫu của ibeo ⇒ chọn track
+**nhiều mẫu nhất**, nếu không số cụm bị đẩy lên ~1,4×.
 
 ## Consequences
 

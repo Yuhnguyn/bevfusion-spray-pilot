@@ -58,23 +58,24 @@ def _spawn_nonempty(state, object_id, rng, context=None, **kwargs):
 def test_cluster_count_for_speed_abs_uses_the_cal_table_and_mm_water_film():
     # Ticket 29e: visible = round(rate * K(T(wfh))), same table as the
     # per-frame generator.
-    assert cluster_count_for_speed_abs(130.0, 1.0) == 18
-    assert cluster_count_for_speed_abs(100.0, 1.0) == 29
-    assert cluster_count_for_speed_abs(50.0, 1.0) == 4
+    assert cluster_count_for_speed_abs(130.0, 1.0) == 22
+    assert cluster_count_for_speed_abs(100.0, 1.0) == 26
+    assert cluster_count_for_speed_abs(50.0, 1.0) == 6
     assert cluster_count_for_speed_abs(40.0, 1.0) == 0
     # Passing metres by mistake gives a different count, so the unit is pinned.
-    assert cluster_count_for_speed_abs(130.0, 0.001) == 2
+    assert cluster_count_for_speed_abs(130.0, 0.001) == 3
 
 
 def test_spawn_rate_is_fractional_and_uses_the_cal_table():
-    # Golf at 50 km/h needs 3.62 visible clusters; a rounded rate of 1 would
+    # Golf at 50 km/h needs 4.73 visible clusters (RoadSpray static, D2); a
+    # rounded rate of 1 would
     # undershoot by 30 %, so the rate stays fractional and is accumulated.
     # Ticket 29f: T = 0.2 s at 50 km/h, hard prune at 4T with age starting at
     # -dt, so a cluster lives 4*0.2/0.1 + 1 = 9 cycles — that is the divisor,
     # not K = 2.51.
     rate = cluster_spawn_rate_for_speed_abs(50.0, "golf")
-    assert rate == pytest.approx(3.62 / 9.0, rel=0.02)
-    assert cluster_count_for_speed_abs(50.0, 1.0, "golf") == 4
+    assert rate == pytest.approx(4.73 / 9.0, rel=0.02)
+    assert cluster_count_for_speed_abs(50.0, 1.0, "golf") == 5
 
 
 def test_lifetime_mean_matches_reference_formula():

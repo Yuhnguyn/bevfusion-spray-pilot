@@ -18,31 +18,43 @@ _POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
     (30.0, float("inf"), 10),
 )
 
-# [ĐO] Cụm/frame trên `cal` (DBSCAN 0,7° / minPts 3), theo lớp xe và mốc 10 km/h.
-# Ticket 29c mục 7: bảng tra, nội suy tuyến tính; đường cong KHÔNG đơn điệu nên
-# không fit `a*(v-v0)`. Bảng gốc: docs/measurements/semantic-spray-clusters-by-speed.md.
+# [ĐO] Cụm/frame trên **RoadSpray `*_static`** (DBSCAN 0,7° / minPts 3), theo lớp xe và
+# mốc 10 km/h — nguồn calibration không leak của ADR-0006 **D2** (thay bảng đo trên SSPP
+# `cal`, vốn chứa 6/12 scene test ⇒ V2). Cách đo + ba bug đã trả giá:
+# docs/measurements/roadspray-static-clusters-by-speed.md.
+#
+# 9 bag × 38–141 frame mỗi ô (Crafter) và 7–13 bag × 33–163 frame (Golf); CI95 half-width
+# 1–5 cụm. Đối chứng âm (hộp cùng kích thước phía TRƯỚC xe) = 0,0 cụm/frame ở mọi ô.
+#
+# Kiểm chứng chéo với bảng SSPP cũ: Crafter tỉ lệ 1,15 (0,88–1,43), r = 0,94; Golf 1,40,
+# r = 0,89. Bảng per-fold không leak (`docs/measurements/sspp-cluster-table-folds.md`)
+# khớp r = 0,77.
+#
+# [CHỌN] Dải bất định **±30–40 %**, chi phối bởi định nghĩa vùng (bề dày lát cự ly Δ từ
+# 1,0 → 6,0 m làm số cụm đổi 17,2 ↔ 35,9 ở Crafter 100 km/h), không phải bởi mẫu. Cổng B
+# (`sinh/thật ∈ [0,7; 1,5]`) phải đọc cùng dải này.
 _CLUSTER_VISIBLE_BY_SPEED: dict[str, tuple[tuple[float, float], ...]] = {
     "crafter": (
-        (50.0, 4.18),
-        (60.0, 11.31),
-        (70.0, 17.42),
-        (80.0, 22.02),
-        (90.0, 20.69),
-        (100.0, 29.24),
-        (110.0, 28.49),
-        (120.0, 17.58),
-        (130.0, 17.69),
+        (50.0, 5.98),
+        (60.0, 13.17),
+        (70.0, 19.03),
+        (80.0, 26.67),
+        (90.0, 24.79),
+        (100.0, 25.75),
+        (110.0, 27.44),
+        (120.0, 20.57),
+        (130.0, 22.24),
     ),
     "golf": (
-        (50.0, 3.62),
-        (60.0, 8.84),
-        (70.0, 11.36),
-        (80.0, 12.87),
-        (90.0, 10.51),
-        (100.0, 18.07),
-        (110.0, 16.69),
-        (120.0, 15.27),
-        (130.0, 16.64),
+        (50.0, 4.73),
+        (60.0, 8.79),
+        (70.0, 13.19),
+        (80.0, 17.80),
+        (90.0, 20.88),
+        (100.0, 22.56),
+        (110.0, 21.95),
+        (120.0, 25.75),
+        (130.0, 25.18),
     ),
 }
 

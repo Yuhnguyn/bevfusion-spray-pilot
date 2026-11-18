@@ -108,13 +108,13 @@ def test_simulator_estimate_uses_the_cal_table():
     stopped = simulator_estimate(speed_kmh=0.0)
     at_fast = simulator_estimate(speed_kmh=500.0)
 
-    # Ticket 29c mục 7: bảng `cal` cho 4,18 cụm/frame ở 50 km/h.
-    assert at_fifty["clusters_per_frame"] == 4
-    assert at_fifty["points_per_frame"] == 68
+    # Bảng RoadSpray static (D2) cho 5,98 cụm/frame ở 50 km/h.
+    assert at_fifty["clusters_per_frame"] == 6
+    assert at_fifty["points_per_frame"] == 102
     assert stopped["clusters_per_frame"] == 0
     assert stopped["points_per_frame"] == 0
-    # Trên mốc 130 km/h giữ giá trị cuối bảng (17,69 → 18).
-    assert at_fast["clusters_per_frame"] == 18
+    # Trên mốc 130 km/h giữ giá trị cuối bảng (22,24 → 22).
+    assert at_fast["clusters_per_frame"] == 22
 
 
 def test_compare_rows_expose_simulator_values():

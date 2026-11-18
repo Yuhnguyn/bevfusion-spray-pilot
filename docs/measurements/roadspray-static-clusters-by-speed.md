@@ -1,7 +1,7 @@
 # Cụm spray trên RoadSpray `*_static` — đo không dùng nhãn (2026-11-18)
 
-Người đo: lead. Nguồn: `data/roadspray/Crafter_static.zip` (163 bag) + `meta_data_measurement.xlsx`.
-Mục đích: có nguồn **không leak** cho bảng `_CLUSTER_VISIBLE_BY_SPEED` (ADR-0006 **D2**, chẩn đoán **V2**).
+Người đo: lead. Nguồn: `data/roadspray/{Crafter,Golf}_static.zip` + `meta_data_measurement.xlsx`.
+Mục đích: nguồn **không leak** cho `_CLUSTER_VISIBLE_BY_SPEED` (ADR-0006 **D2**, chẩn đoán **V2**).
 Nguồn phương pháp: Paper A §II/§III-B + reference implementation `openMSL/sl-1-2`.
 Nhãn: `[ĐO]` trên máy này · `[PAPER]` paper nói · `[CHỌN]` tự chọn.
 
@@ -9,157 +9,120 @@ Nhãn: `[ĐO]` trên máy này · `[PAPER]` paper nói · `[CHỌN]` tự chọn
 
 ## 1. Vì sao phải đo lại
 
-`_CLUSTER_VISIBLE_BY_SPEED` hiện tại đo trên SSPP `cal`, mà `cal` chứa **6/12 scene test** (V2).
-Đo lại trên RoadSpray `*_static` — chiến dịch **calibration của Paper A**, không nằm trong tập đánh giá.
+`_CLUSTER_VISIBLE_BY_SPEED` cũ đo trên SSPP `cal`, mà `cal` chứa **6/12 scene test** (V2). Đo lại trên
+RoadSpray `*_static` — chiến dịch **calibration của Paper A**, không nằm trong tập đánh giá.
 
 ## 2. Dữ liệu đã kiểm `[ĐO]`
 
 | Kiểm | Kết quả |
 |---|---|
-| Zip khớp release | `Crafter_static` 7 924 255 130 B, `Crafter_dynamic` 6 127 018 713 B |
+| Zip khớp release | `Crafter_static` 7 924 255 130 B (163 bag), `Golf_static` 5 460 144 118 B (171 bag) |
 | Metadata | `meta_data_measurement.xlsx` 26 774 B, 549 dòng; static **333** (Crafter 162 + Golf 171) |
 | Sensor | VLP-32C, **9,95 Hz**, fields `x,y,z,intensity,ring` — cùng layout điểm SSPP |
-| Ego | `/adma/twist` mean **0,005 km/h** ⇒ đỗ thật (đúng định nghĩa "static") |
+| Ego | `/adma/twist` mean **0,005 km/h** ⇒ đỗ thật |
 | Mặt đường | `z ≈ −2,01 m` trong khung `velodyne` (RANSAC 14 509 inlier) — **không** phải `z = 0` |
 
 ## 3. Phương pháp
 
-Bốn thành phần, mỗi thành phần lấy từ nguồn chứ không tự đặt:
+**Vùng đo = hộp ngay sau đuôi xe.** Paper A §II: *"The initialization of clusters is restricted to the
+vehicle trajectory and no clusters are spawned randomly in the scene."* §III-B: số cụm đếm *"in a spray
+filter region behind the vehicle"* rồi chia cho *"the length ratio of the spray region to the distance
+the object traveled during one scan"* ⇒ **độ dài vùng tự triệt tiêu**. Kích thước lấy từ
+`define_spray_volumes()` của tác giả: **rộng 3,4 m, cao 1,5 m**; mặt đuôi = tâm track − nửa chiều dài xe
+(Crafter **3,5 m** đo từ dữ liệu, Golf **2,15 m**).
 
-1. **Vùng đo = hộp sau đuôi xe.** Paper A §II: *"The initialization of clusters is restricted to
-   the vehicle trajectory and no clusters are spawned randomly in the scene."* §III-B: số cụm được
-   đếm *"in a spray filter region behind the vehicle"*, rồi chia cho *"the length ratio of the spray
-   region to the distance the object traveled during one scan"* ⇒ **độ dài vùng tự triệt tiêu** khi
-   chuẩn hoá. Kích thước hộp lấy từ `define_spray_volumes()` của code tác giả:
-   **rộng 3,4 m, cao 1,5 m** trên mặt đường.
-2. **Tách spray không cần nhãn.** Ego đỗ ⇒ mỗi tia `(ring, az_bin 0,4°)` luôn trả về cùng một vật
-   thể ở cùng range. Dựng **range-image nền** = median range mỗi bin trên cả bag; residual =
-   `|r − median| > max(0,7 m; 2 %·r)`. Bỏ thêm điểm dưới mặt đường +0,15 m (RANSAC).
-3. **Định vị xe.** Track `ns == 'Car'` từ `/front_ibeo_lux/as_tx/objects`, đổi về khung `velodyne`
-   bằng transform trong `meta_data_dataset.json` (bag không có `/tf`; `tf2_msgs` không có trong typestore).
-   `[ĐO]` track cho 127,7 → 8,1 m, tốc độ **123 km/h** với bag metadata 120 km/h.
-4. **Mặt đuôi xe.** Van cao ~2,6 m còn plume theo paper cao ≤ 1,5 m ⇒ điểm cao **> 1,6 m** chỉ có
-   thể thuộc thân xe; điểm xa nhất về phía sau = mặt đuôi. `[ĐO]` `rear = car_range − 3,5 m`, ổn định.
+**Tách spray không cần nhãn.** Ego đỗ ⇒ mỗi tia `(ring, az_bin 0,4°)` luôn trả về cùng vật thể ở cùng
+range. Nền = median range mỗi bin trên cả bag; residual = `|r − median| > max(0,7 m; 2 %·r)`, bỏ thêm
+điểm dưới mặt đường +0,15 m.
 
-**Chiều xe `[ĐO]`:** `object_direction = +1` ⇒ xe chạy cùng chiều ego (y 29,5 → 139,1 m; ego thấy
-**đuôi**, plume hướng về ego). `direction = −1` ⇒ ngược chiều (y 130,2 → 20,3 m; ego thấy **mặt
-trước**, plume bị che). **Chỉ đo trên `direction = +1`.**
+**Định vị xe.** Không dùng nhãn phân loại của ibeo (xem §5-b); chọn track có **nhiều mẫu nhất** trong
+số các track mà `|d(range)/dt|` khớp `object_velocity` của metadata (sai số ≤ 40 %). Ego đỗ nên
+`|d(range)/dt|` = tốc độ xe đối tượng.
 
-**Cắt lát cự ly `[CHỌN]`.** DBSCAN của paper chạy trên `(azimuth, elevation)`, **không có chiều cự
-ly**, nên hai điểm cùng tia cách nhau 5 m và 20 m vẫn là hàng xóm. Ở kịch bản static ego nhìn **dọc**
-ống plume (3 → 23 m) nên toàn bộ plume chain thành **một** cụm (632/942 điểm). Cắt plume thành các
-lát dày `Δ` rồi gom cụm trong từng lát phá được hiện tượng này, và đúng tinh thần paper —
-*"object distance of 25 m … distinct and stable clusters are observed"*.
+**Cắt lát cự ly `[CHỌN]`.** DBSCAN của paper chạy trên `(azimuth, elevation)`, **không có chiều cự ly**,
+nên hai điểm cùng tia cách nhau 5 m và 20 m vẫn là hàng xóm; ở kịch bản static ego nhìn **dọc** ống
+plume (3 → 23 m) nên cả plume chain thành **một** cụm (632/942 điểm). Cắt plume thành lát dày `Δ` rồi
+gom cụm trong từng lát, đúng tinh thần paper (*"object distance of 25 m … distinct and stable clusters
+are observed"*).
 
-Tham số chốt trước `[CHỌN]`: `L = 20 m`, `Δ = 2,5 m`, `W = 3,4 m`, `H = 1,5 m`, xe ở 18–38 m.
+**Tham số chốt trước `[CHỌN]`:** `L = 20 m`, `Δ = 2,5 m`, `W = 3,4 m`, `H = 1,5 m`, xe ở 18–38 m.
 
 ## 4. Kết quả `[ĐO]`
 
-**54 bag, 1 558 frame, 8 tốc độ** (tất cả mức nước; `direction = +1`; CI95 bootstrap ở mức **bag**):
+Track của xe phải **đang rời xa** ego (ego thấy đuôi xe, plume hướng về ego); bag xe **tiến lại** bị
+loại vì plume bị chính thân xe che — xem §5-a. CI95 = bootstrap ở mức **bag**.
 
-| Tốc độ | bag | frame | **cụm/frame** | CI95 | điểm/frame | Δ=1,0 | Δ=6,0 |
-|---:|---:|---:|---:|---|---:|---:|---:|
-| 60 | 1 | 20 | **11,5** | – (1 bag) | 272 | 15,9 | 7,7 |
-| 70 | 8 | 116 | **19,0** | [15,7; 22,3] | 348 | 27,7 | 10,8 |
-| 80 | 8 | 86 | **25,8** | [23,2; 28,5] | 389 | 34,9 | 16,7 |
-| 90 | 7 | 60 | **27,3** | [21,9; 32,6] | 435 | 38,4 | 16,3 |
-| 100 | 8 | 56 | **28,5** | [25,5; 31,6] | 502 | 39,8 | 17,9 |
-| 110 | 5 | 22 | **25,9** | [14,7; 37,0] | 432 | 34,2 | 14,6 |
-| 120 | 7 | 30 | **20,5** | [16,2; 24,9] | 324 | 26,1 | 12,5 |
-| 130 | 8 | 42 | **22,0** | [18,4; 25,6] | 374 | 32,8 | 14,8 |
+| km/h | 50 | 60 | 70 | 80 | 90 | 100 | 110 | 120 | 130 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **Crafter — cụm/frame** | 6,0 | 13,2 | 19,0 | 26,7 | 24,8 | 25,7 | 27,4 | 20,6 | 22,2 |
+| CI95 half-width | 1,3 | 3,1 | 2,5 | 1,8 | 3,7 | 1,9 | 5,2 | 4,7 | 2,8 |
+| điểm/frame | 239 | 306 | 381 | 443 | 431 | 506 | 566 | 435 | 440 |
+| bag / frame | 9/141 | 9/113 | 9/87 | 9/70 | 9/66 | 9/58 | 9/55 | 9/45 | 8/38 |
+| **Golf — cụm/frame** | 4,7 | 8,8 | 13,2 | 17,8 | 20,9 | 22,6 | 22,0 | 25,8 | 25,2 |
+| CI95 half-width | 0,6 | 1,1 | 1,3 | 1,5 | 2,0 | 3,2 | 2,4 | 1,6 | 2,4 |
+| điểm/frame | 190 | 231 | 278 | 336 | 381 | 472 | 468 | 526 | 563 |
+| bag / frame | 9/139 | 13/163 | 9/95 | 9/83 | 9/81 | 9/71 | 9/67 | 10/63 | 7/33 |
 
-Đối chứng âm (hộp cùng kích thước **phía trước** xe) = **0,5–1,0 cụm/frame** ở mọi tốc độ. Nhiễu lá
-cây — vốn cho **98 cụm/frame** khi đếm cả khung — đã bị loại hoàn toàn bằng ràng buộc hình học.
+**Đối chứng âm** (cùng hộp, **phía trước** xe) = **0,0 cụm/frame** ở **mọi** ô của cả hai lớp.
 
-### Bảng ở đúng điều kiện eval (`itr_after_water = 1`) `[ĐO]`
+Hai lớp cùng hình dạng: tăng tới ~22–27 cụm/frame quanh 100–130 km/h. Crafter nhỉnh hơn Golf
+~1,1–1,6× ở tốc độ thấp, gần bằng nhau ở tốc độ cao.
 
-Cả 36 scene eval của SSPP đều `itr_after_water = 1`, và Paper A calibrate ở
-*"fully covered pavement"* (1 mm). Nên bảng lý thuyết đúng phải là tập `itr = 1`:
+### Kiểm chứng chéo với bảng SSPP `cal` cũ `[ĐO]`
 
-| Tốc độ | bag | frame | cụm/frame | CI95 (bag) | lệch vs bảng gộp |
-|---:|---:|---:|---:|---|---:|
-| 70 | 3 | 38 | 20,4 | [11,6; 29,2] | +7,6 % |
-| 80 | 3 | 30 | 28,7 | [26,6; 30,8] | +11,2 % |
-| 90 | 2 | 22 | 30,9 | [25,6; 36,3] | +13,5 % |
-| 100 | 2 | 16 | 28,4 | [19,3; 37,4] | −0,6 % |
-| 110 | 2 | 8 | 35,8 | [12,0; 59,7] | +38,5 % |
-| 120 | 3 | 16 | 15,4 | [9,4; 21,5] | −24,8 % |
-| 130 | 3 | 12 | 22,1 | [14,1; 30,0] | +0,2 % |
+| | tỉ lệ trung bình (min–max) | Pearson r |
+|---|---|---|
+| Crafter | **1,15** (0,88–1,43) | **0,94** |
+| Golf | 1,40 (0,99–1,99) | 0,89 |
 
-**Quyết định `[CHỌN]`: dùng bảng GỘP (54 bag) làm bảng chính, báo cáo bảng `itr = 1` kèm theo.**
-Lý do: tập `itr = 1` chỉ có 2–3 bag và 8–38 frame/tốc độ ⇒ CI95 rộng tới ±50 %
-(`110 km/h: [12,0; 59,7]`), không đủ để làm bảng tra cứu. Chênh lệch giữa hai
-biến thể (−25 % … +38 %) **nằm gọn trong dải bất định định nghĩa vùng ±30–40 %**
-đã nêu ở §5, nên không thể kết luận ảnh hưởng của mực nước từ mẫu hiện có.
-Cần thêm bag (`Golf_static` chưa tải) mới tách được hiệu ứng này.
+Crafter khớp rất chặt. Golf lệch hệ thống ~1,4×: bảng SSPP cũ của Golf đo 45 frame/ô và trộn mức nước,
+nên có dip bất thường ở 90 km/h (10,51) mà phép đo static (9 bag, 81 frame) không thấy — số static
+tăng đơn điệu và mượt hơn, nên **tin bảng static hơn**.
 
-**Đường cong không đơn điệu là thật, không phải nhiễu mẫu:** đỉnh **28,5 @100 km/h** rơi còn
-**20,5 @120 km/h** (−28 %), và hai CI95 **không chồng nhau** ([25,5; 31,6] vs [16,2; 24,9]).
+### Bảng SSPP per-fold (kiểm chứng chéo thứ hai)
 
-**Mức nước (itr_after_water 1/3/5) không cho xu hướng rõ:** ví dụ 100 km/h → 28,4 / 30,0 / 27,1;
-120 km/h → 15,0 / 24,0 / 25,0 (mẫu 1–3 bag/ô). **Chưa kết luận được** giả thuyết "nhiều nước → nhiều cụm".
+`docs/measurements/sspp-cluster-table-folds.md`: bảng per-fold không leak khớp bảng static với
+r = 0,77 (bảng fold khô hơn vì 10/12 scene `itr` 2–6, trong khi eval là `itr = 1`).
 
-### Kiểm chứng chéo với bảng SSPP hiện tại `[ĐO]`
+## 5. Ba bug đã trả giá — đừng lặp lại
 
-| Tốc độ | static (bảng trên) | SSPP `cal` (bảng hiện tại) | tỉ lệ | SSPP nằm trong CI95 của static? |
-|---:|---:|---:|---:|---|
-| 70 | 19,0 | 17,42 | 1,09 | có |
-| 80 | 25,8 | 22,02 | 1,17 | không |
-| 90 | 27,3 | 20,69 | 1,32 | không |
-| 100 | 28,5 | 29,24 | 0,97 | có |
-| 110 | 25,9 | 28,49 | 0,91 | có |
-| 120 | 20,5 | 17,58 | 1,17 | có |
-| 130 | 22,0 | 17,69 | 1,24 | không |
+**(a) `object_direction` không cùng ngữ nghĩa giữa hai chiến dịch.** `[ĐO]`: bag Crafter dir `+1` chạy
+**cùng chiều** ego (y 29,5 → 139,1 m); bag Golf dir `+1` lại **tiến lại gần** (y 45,4 → 11,2 m). Dùng
+cột này làm filter cho ra **0 frame** trên cả 171 bag Golf. Sửa: quyết định bằng **hình học** —
+`median d(range)/dt > 0` (xe đang rời xa). Tỉ lệ: Crafter 81 rời / 81 tiến; Golf 85 rời / 86 tiến.
 
-Tỉ lệ trung bình **1,13** (0,91–1,32), Pearson **r = 0,792**. Hai bộ dữ liệu khác nhau (ego đỗ vs
-ego bám sau), hai cách tách điểm khác nhau (range-image vs nhãn ngữ nghĩa), vẫn cho **cùng hình dạng
-đường cong, kể cả cùng chạm đáy ở 120 km/h**.
+**(b) ibeo đổi nhãn phân loại theo tốc độ.** Cùng một chiếc VW Crafter được gọi `Car` ở 100 km/h nhưng
+`Truck` ở 50 km/h; bag Crafter 50 km/h **không có mẫu `Car` nào** (9 bag ⇒ 0 frame). Sửa: bỏ phụ thuộc
+nhãn, chọn track theo tốc độ metadata.
 
-### Plume xa dần theo tốc độ `[ĐO]`
+**(c) Track rác của ibeo.** Chọn track có rate khớp nhất từng vớ phải track **6 mẫu** (`Unknown Big`,
+range 17 → 28 m, rate 100,3 km/h) thay vì track thật **51 mẫu** (range 29,8 → 139,2 m, rate 104,6).
+Hệ quả: số cụm bị đẩy lên **~1,4×** trên cả hai lớp. Sửa: sau khi lọc theo tolerance, chọn track
+**nhiều mẫu nhất** và bỏ track < 10 mẫu.
 
-Điểm/frame theo độ sâu sau đuôi (Δ=2,5):
-
-| Tốc độ | 0–4 m | 4–8 m | 8–12 m | 12–16 m | 16–20 m |
-|---:|---:|---:|---:|---:|---:|
-| 70 | 158 | 69 | 72 | 37 | 19 |
-| 100 | 75 | 20 | 113 | 103 | 200 |
-| 130 | 70 | 29 | 82 | 123 | 120 |
-
-Đúng chiều với mô hình cản của paper (eq. 5, `C = −0,15 m⁻¹`): quãng trôi trước khi tan tính ra
-**2,0 / 6,9 / 8,6 / 11,1 m** ở 50 / 80 / 100 / 130 km/h.
-
-## 5. Độ bất định — phải ghi kèm mọi con số
+## 6. Độ bất định — phải ghi kèm mọi con số
 
 | Nguồn | Độ lớn |
 |---|---|
-| **Bề dày lát `Δ`** (1,0 → 6,0 m), tại 100 km/h | **17,9 – 39,8 cụm** (2,2×) ← **chi phối** |
-| Mẫu (bag-level bootstrap) | CI95 ≈ **±10 %** ở hầu hết tốc độ; ±40 % ở 110 km/h (chỉ 5 bag) |
-| Độ dài hộp `L` (2,8 → 20 m) | 1,0 → 28,9 cụm (không bất biến) |
+| **Bề dày lát `Δ`** (1,0 → 6,0 m), Crafter @100 km/h | **17,2 – 35,9 cụm** (2,1×) ← chi phối |
+| Mẫu (bootstrap mức bag) | CI95 half-width **1–5 cụm** (≈ ±5–20 %) |
+| Độ dài hộp `L` (2,8 → 20 m) | không bất biến, vì mật độ plume giảm theo độ sâu |
 
-⇒ Sau khi tăng mẫu, **sai số thống kê đã nhỏ (±10 %) nhưng sai số định nghĩa vùng vẫn ~2×**. Bảng chỉ
-xác định được tới **±30–40 %**, và cổng B (`sinh/thật ∈ [0,7; 1,5]`) phải được đọc cùng độ bất định này.
-
-## 6. Hệ quả cho dự án
-
-1. **V2 giải được mà không cần tin một con số duy nhất:** chọn bảng **static** làm bảng calibration
-   (đúng D2, không leak) và dùng bảng **SSPP tính lại trên scene không thuộc tập test** làm **kiểm
-   chứng chéo**; hai bên lệch ≤ 1,32× ở mọi tốc độ đo được.
-2. Vì sai số chủ yếu là **định nghĩa vùng** chứ không phải nguồn dữ liệu, việc đổi nguồn từ SSPP
-   sang RoadSpray **không làm thay đổi kết luận khoa học** — nó chỉ làm protocol sạch leak.
-3. Hình dạng đường cong (tăng tới ~100 km/h rồi giảm) **được xác nhận độc lập hai lần**, nên bảng
-   tra cứu không-tham-số hoá (như code hiện tại) là lựa chọn đúng; **không** fit `a·(v−50)`.
+⇒ Bảng xác định tới **±30–40 %** do sai số **định nghĩa vùng**, dù sai số thống kê đã nhỏ. Cổng B
+(`sinh/thật ∈ [0,7; 1,5]`) và mọi claim từ bảng phải đọc cùng dải này.
 
 ## 7. Còn thiếu
 
-- **60 km/h** chỉ có 1 bag (20 frame) ⇒ dòng đó chưa dùng được.
-- **Golf** chưa đo (`Golf_static.zip` 5 460 144 118 B chưa tải; link REST đã có).
-- Mức nước: mẫu 1–3 bag/ô, chưa kết luận.
-- 81 bag được chọn nhưng chỉ 54 bag cho dữ liệu (số còn lại track ibeo < 5 mẫu hoặc 0 frame khớp).
+- Hộp dài `L = 20 m` là chốt theo paper + quãng trôi; **chưa quét độ nhạy L** ở đây (mới quét `Δ`).
+- Mức nước: gộp cả `itr_after_water` 1–6 (mỗi ô 9–13 bag) vì tách ra thì mỗi ô chỉ 1–2 bag. Bảng
+  `itr = 1` (đúng điều kiện eval) có CI95 rộng ±50 % với mẫu hiện có.
+- Chỉ đo bag có track ibeo dài ≥ 10 mẫu và xe **rời xa** ego; số còn lại bị loại (xem §5).
 
 ## 8. Hạ tầng
 
 - `scripts/roadspray_static_clusters.py` — range-image nền + RANSAC mặt đường + DBSCAN góc bằng
-  cKDTree/union-find (không sklearn, không O(n²)), ghi JSONL descriptor từng cụm.
-- `scripts/roadspray_static_plume_box.py` — định vị xe từ ibeo, cắt hộp sau đuôi, cắt lát cự ly,
-  hộp đối chứng phía trước; `--speed/--water/--bags/--limit`.
-- Chạy lại toàn bộ: `python scripts/roadspray_static_plume_box.py --out <file>.jsonl` (~11 phút cho 81 bag).
+  cKDTree/union-find (không sklearn, không O(n²)).
+- `scripts/roadspray_static_plume_box.py` — định vị xe từ ibeo (chọn theo tốc độ metadata), cắt hộp
+  sau đuôi, cắt lát cự ly, hộp đối chứng phía trước; `--zip/--speed/--water/--bags/--limit`.
+- Chạy lại: `python scripts/roadspray_static_plume_box.py --zip <zip> --out <file>.jsonl`
+  (~13 phút cho 163 bag Crafter, ~17 phút cho 171 bag Golf).

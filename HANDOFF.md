@@ -29,48 +29,29 @@ Lý do đảo ngược: `docs/adr/0005-sspp-as-detection-domain.md`. Bản ADR c
   `tests/test_plume_cluster_budget.py`) · A2 ✅ (`f9c8b44` — wet ground viết lại theo Hahner 2022,
   test `tests/test_wet_ground_hahner.py`) · **A3 ⚠️ chưa xong** (đuôi phân bố điểm/cụm) ·
   **A4 chưa làm** (test tích hợp dùng box đúng quy ước adapter).
-- **V2 (calibration leak) — phần ĐO đã xong, phần CODE chưa:**
-  - Bảng cụm/frame từ RoadSpray `*_static` cho **Crafter**: 54 bag / 1558 frame, 8 tốc độ,
-    CI95 ±10 % → `docs/measurements/roadspray-static-clusters-by-speed.md`.
-  - Kiểm chứng chéo với bảng SSPP cũ: tỉ lệ **1,13×** (0,91–1,32), Pearson **r = 0,79**, cùng chạm
-    đáy ở 120 km/h.
-  - Bảng SSPP **per-fold không leak** + CI95 → `docs/measurements/sspp-cluster-table-folds.md`.
-  - **`_CLUSTER_VISIBLE_BY_SPEED` trong `spray/plume.py` VẪN là bảng SSPP `cal` cũ** (chưa thay).
+- **V2 (calibration leak) — XONG cả đo lẫn code:**
+  - `_CLUSTER_VISIBLE_BY_SPEED` đã thay bằng bảng **RoadSpray static** cho cả Crafter và Golf
+    (9 bag/lớp/tốc độ; đối chứng âm phía trước xe = 0,0 cụm/frame):
+    Crafter 6,0 / 13,2 / 19,0 / 26,7 / 24,8 / 25,7 / 27,4 / 20,6 / 22,2 (50→130 km/h);
+    Golf 4,7 / 8,8 / 13,2 / 17,8 / 20,9 / 22,6 / 22,0 / 25,8 / 25,2.
+  - Kiểm chứng chéo: Crafter tỉ lệ **1,15×**, **r = 0,94** so với bảng SSPP cũ; bảng per-fold không
+    leak khớp r = 0,77 → `docs/measurements/{roadspray-static-clusters-by-speed,sspp-cluster-table-folds}.md`.
+  - Dải bất định **±30–40 %** (do định nghĩa vùng, không do mẫu) — cổng B phải đọc cùng dải này.
 
-## Đang dừng ở đâu (2026-11-18 17:00, lý do: mạng chậm)
+## Đang dừng ở đâu (cập nhật 2026-11-18 23:45)
 
-Việc duy nhất còn thiếu của bảng calibration là **lớp Golf**. `Golf_static.zip` mới tải được
-**85 102 592 / 5 460 144 118 byte**, đã đổi tên thành `data/roadspray/Golf_static.zip.part` để
-không ai nhầm là file xong (thư mục `data/` gitignored).
+`Golf_static.zip` (5 460 144 118 B, 171 bag) **đã có** trong `data/roadspray/` — không cần tải gì nữa.
+Cả hai lớp đã đo xong và bảng đã vào code.
 
-Về nhà **tải tiếp, không tải lại từ đầu**:
+Việc tiếp theo:
 
-```bash
-cd ~/projects/bevfusion-spray-pilot
-curl -sS -L -C - -o data/roadspray/Golf_static.zip.part \
-  "https://tudatalib.ulb.tu-darmstadt.de/server/api/core/bitstreams/4d48e6df-6e7b-42e4-a267-10a5a5c73b95/content"
-stat -f%z data/roadspray/Golf_static.zip.part      # phải đúng 5460144118
-mv data/roadspray/Golf_static.zip.part data/roadspray/Golf_static.zip
-```
-
-Đo Golf bằng đúng pipeline của Crafter (~15 phút cho ~85 bag `direction=+1`):
-
-```bash
-CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python -u \
-  scripts/roadspray_static_plume_box.py --zip data/roadspray/Golf_static.zip \
-  --out .scratch/roadspray-cal/tmp/plume_golf.jsonl
-```
-
-Rồi làm 3 việc theo thứ tự:
-
-1. **Đưa bảng vào code**: thay `_CLUSTER_VISIBLE_BY_SPEED` (`spray/plume.py:24-47`) bằng bảng
-   static (Crafter + Golf); cập nhật ADR-0006 ghi nguồn + dải bất định **±30–40 %** (chủ yếu do
-   định nghĩa vùng, xem doc §5). Giữ bảng SSPP cũ trong docs để đối chiếu, không xoá.
-2. **A3** — đuôi phân bố điểm/cụm. Ba mục tiêu T1/T2/T3 vẫn chưa chốt, xem plan §2 "A3 — phát hiện
-   sau A1". Số liệu mới nhất: sinh 29,1 cụm/frame vs thật 28,5 ✅ nhưng điểm/frame sinh 140 vs
-   thật 1050–2220 ⚠️; đuôi cụm lớn nhất sinh ~91 điểm vs thật 982–1238.
-3. **A4** → cổng B (`sinh/thật ∈ [0,7; 1,5]`) → **cổng C (quan trọng nhất: plume phải làm tăng FP
-   của detector; 0 GPU, có thể giết cả hướng train)** → D/E/F.
+1. **A3 — đã chốt đích, chưa sửa code.** Đích = **T2 theo cấu trúc** (xem plan §2 A3 +
+   `docs/measurements/sspp-cluster-size-distribution.md`): phân bố thật **hai đỉnh** — điểm/cụm p50 =
+   5–7 ở mọi tốc độ (generator đã khớp) nhưng tỉ lệ điểm trong cụm ≥50 điểm tăng 15 % → 85 % khi tốc
+   độ 50 → 130 (generator: **0 %**). Thiếu **cơ chế chuỗi**, không phải thiếu cụm to. Tiêu chí xong:
+   `% điểm trong cụm ≥50 đ` lệch ≤10 điểm %, `p95` trong khoảng thật, `cụm/frame` không đổi.
+2. **A4** (test tích hợp box convention) → cổng B (`sinh/thật ∈ [0,7; 1,5]`) → **cổng C (quan trọng
+   nhất: plume phải làm tăng FP của detector; 0 GPU, có thể giết cả hướng train)** → D/E/F.
 
 ## Việc kế tiếp (đã rút gọn — chi tiết ở §"Đang dừng ở đâu")
 

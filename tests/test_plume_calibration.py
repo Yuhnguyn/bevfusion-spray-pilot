@@ -1,7 +1,8 @@
-"""Ticket 29c: calibrate the plume output against measurements on ``cal``.
+"""Calibrate the plume output against RoadSpray ``*_static`` (ADR-0006 D2).
 
-Only ``cal`` numbers are used (ticket 29d froze the split); ``held-out`` must
-never select a parameter.
+Bảng SSPP ``cal`` cũ đã bị thay: ``cal`` chứa 6/12 scene test (V2). Nguồn mới
+không leak vì RoadSpray static không nằm trong tập đánh giá; dải bất định
+±30-40 % ghi trong docs/measurements/roadspray-static-clusters-by-speed.md.
 """
 
 import inspect
@@ -19,29 +20,29 @@ from spray.plume import (
     visible_cluster_count_for_speed,
 )
 
-# docs/measurements/semantic-spray-clusters-by-speed.md, Table 1 (cal only).
+# docs/measurements/roadspray-static-clusters-by-speed.md (RoadSpray static, ADR-0006 D2).
 CAL_CLUSTERS_PER_FRAME = {
     "crafter": {
-        50: 4.18,
-        60: 11.31,
-        70: 17.42,
-        80: 22.02,
-        90: 20.69,
-        100: 29.24,
-        110: 28.49,
-        120: 17.58,
-        130: 17.69,
+        50: 5.98,
+        60: 13.17,
+        70: 19.03,
+        80: 26.67,
+        90: 24.79,
+        100: 25.75,
+        110: 27.44,
+        120: 20.57,
+        130: 22.24,
     },
     "golf": {
-        50: 3.62,
-        60: 8.84,
-        70: 11.36,
-        80: 12.87,
-        90: 10.51,
-        100: 18.07,
-        110: 16.69,
-        120: 15.27,
-        130: 16.64,
+        50: 4.73,
+        60: 8.79,
+        70: 13.19,
+        80: 17.80,
+        90: 20.88,
+        100: 22.56,
+        110: 21.95,
+        120: 25.75,
+        130: 25.18,
     },
 }
 
@@ -68,8 +69,8 @@ def test_default_class_is_crafter_and_golf_is_not_derived_from_it():
                 float(speed_kmh), vehicle_class="crafter"
             )
         )
-    assert cluster_count_for_speed(100.0, vehicle_class="golf") == 18
-    assert cluster_count_for_speed(100.0, vehicle_class="crafter") == 29
+    assert cluster_count_for_speed(100.0, vehicle_class="golf") == 23
+    assert cluster_count_for_speed(100.0, vehicle_class="crafter") == 26
 
 
 def test_unknown_vehicle_class_is_rejected():
@@ -99,7 +100,7 @@ def test_rate_is_closed_at_the_one_millimetre_reference():
 
 def test_no_clusters_below_the_first_cal_row():
     assert cluster_count_for_speed(49.9) == 0
-    assert cluster_count_for_speed(50.0) == 4
+    assert cluster_count_for_speed(50.0) == 6
 
 
 @pytest.mark.parametrize(
