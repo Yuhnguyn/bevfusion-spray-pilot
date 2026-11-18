@@ -1,6 +1,6 @@
 # HANDOFF — nhánh `sspp` (BEVFusion trên SemanticSpray++)
 
-Cập nhật: **2026-11-18** · nhánh `sspp` @ `064f1c1` · tách từ `main` @ `f3fb7d2`.
+Cập nhật: **2026-11-18 17:00** · nhánh `sspp` @ `2652f26` · tách từ `main` @ `f3fb7d2`.
 
 ## Đọc gì khi mở session mới (theo thứ tự, đừng đọc thêm)
 
@@ -20,32 +20,65 @@ Lý do đảo ngược: `docs/adr/0005-sspp-as-detection-domain.md`. Bản ADR c
 
 ## Trạng thái
 
-- Dọn nhánh **xong**: 6 commit. Test hiện **178 passed** (không cần GPU).
-- **Chưa có kết quả detector nào.** Mọi số trong `docs/measurements/semantic-spray-*.md` là đo
-  trên dataset, không phải kết quả model.
-- **2026-11-18 — đổi protocol** (`docs/adr/0006-…`): eval = 3-fold leave-speed-out trên 36 scene
-  (pooled n=36); calibration chuyển sang RoadSpray `*_static`; criterion = effect size + CI95 thay
-  vì pass/fail. Kế hoạch thi công hiện hành: **`.scratch/roadspray-cal/plan.md`** (6 giai đoạn A–F).
-- **Generator CHƯA đúng**: `docs/measurements/plume-root-cause.md` §"Thứ tự sửa đề xuất" — 3 lỗi
-  quy ước box đã sửa (`3a971b8`), **lỗi 4× ngân sách cụm chưa sửa**, wet ground đang sửa dở
-  (`spray/wet_ground.py` diff 340 dòng chưa commit), đuôi phân bố điểm/cụm chưa khớp.
-  `178 passed` **không** chứng minh generator đúng — xem plan §2 A4.
+- Test: **203 passed** (không cần GPU).
+- **Chưa có kết quả detector nào.** Mọi số trong `docs/measurements/*.md` là đo trên dataset.
+- Đổi protocol xong (`docs/adr/0006-…`): eval = **3-fold leave-speed-out trên 36 scene** (pooled n=36);
+  calibration từ **RoadSpray `*_static`**; criterion = effect size + CI95 thay vì pass/fail.
+  Kế hoạch thi công hiện hành: **`.scratch/roadspray-cal/plan.md`** (6 giai đoạn A–F).
+- **Giai đoạn A:** A1 ✅ (`8cc9207` — sửa lỗi 4× ngân sách cụm, test
+  `tests/test_plume_cluster_budget.py`) · A2 ✅ (`f9c8b44` — wet ground viết lại theo Hahner 2022,
+  test `tests/test_wet_ground_hahner.py`) · **A3 ⚠️ chưa xong** (đuôi phân bố điểm/cụm) ·
+  **A4 chưa làm** (test tích hợp dùng box đúng quy ước adapter).
+- **V2 (calibration leak) — phần ĐO đã xong, phần CODE chưa:**
+  - Bảng cụm/frame từ RoadSpray `*_static` cho **Crafter**: 54 bag / 1558 frame, 8 tốc độ,
+    CI95 ±10 % → `docs/measurements/roadspray-static-clusters-by-speed.md`.
+  - Kiểm chứng chéo với bảng SSPP cũ: tỉ lệ **1,13×** (0,91–1,32), Pearson **r = 0,79**, cùng chạm
+    đáy ở 120 km/h.
+  - Bảng SSPP **per-fold không leak** + CI95 → `docs/measurements/sspp-cluster-table-folds.md`.
+  - **`_CLUSTER_VISIBLE_BY_SPEED` trong `spray/plume.py` VẪN là bảng SSPP `cal` cũ** (chưa thay).
 
-## Việc kế tiếp — giai đoạn A của plan mới
+## Đang dừng ở đâu (2026-11-18 17:00, lý do: mạng chậm)
 
-Đọc `.scratch/roadspray-cal/plan.md` §2. Giai đoạn A (0 GPU, 2–3 ngày): sửa generator.
+Việc duy nhất còn thiếu của bảng calibration là **lớp Golf**. `Golf_static.zip` mới tải được
+**85 102 592 / 5 460 144 118 byte**, đã đổi tên thành `data/roadspray/Golf_static.zip.part` để
+không ai nhầm là file xong (thư mục `data/` gitignored).
 
-1. **A1 — lỗi 4× ngân sách cụm** (chưa sửa): `alive = rate × 4T/Δt = 4 × visible`, chọn một hướng
-   (`rate = visible/(4T/Δt)` **hoặc** thinning trong `prune()`). Test mới: `alive/visible ∈ [0,9; 1,1]`
-   ở 60/100/120 km/h.
-2. **A2 — commit + test wet ground** đang sửa dở: test khẳng định `mean_ratio < 1`.
-3. **A3 — đuôi phân bố**: cụm lớn nhất sinh ra ≥ 500 điểm (thật 982–1.238).
-4. **A4 — test tích hợp** dùng box đúng quy ước adapter (9 cột, `box[2]` = đáy).
+Về nhà **tải tiếp, không tải lại từ đầu**:
+
+```bash
+cd ~/projects/bevfusion-spray-pilot
+curl -sS -L -C - -o data/roadspray/Golf_static.zip.part \
+  "https://tudatalib.ulb.tu-darmstadt.de/server/api/core/bitstreams/4d48e6df-6e7b-42e4-a267-10a5a5c73b95/content"
+stat -f%z data/roadspray/Golf_static.zip.part      # phải đúng 5460144118
+mv data/roadspray/Golf_static.zip.part data/roadspray/Golf_static.zip
+```
+
+Đo Golf bằng đúng pipeline của Crafter (~15 phút cho ~85 bag `direction=+1`):
+
+```bash
+CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python -u \
+  scripts/roadspray_static_plume_box.py --zip data/roadspray/Golf_static.zip \
+  --out .scratch/roadspray-cal/tmp/plume_golf.jsonl
+```
+
+Rồi làm 3 việc theo thứ tự:
+
+1. **Đưa bảng vào code**: thay `_CLUSTER_VISIBLE_BY_SPEED` (`spray/plume.py:24-47`) bằng bảng
+   static (Crafter + Golf); cập nhật ADR-0006 ghi nguồn + dải bất định **±30–40 %** (chủ yếu do
+   định nghĩa vùng, xem doc §5). Giữ bảng SSPP cũ trong docs để đối chiếu, không xoá.
+2. **A3** — đuôi phân bố điểm/cụm. Ba mục tiêu T1/T2/T3 vẫn chưa chốt, xem plan §2 "A3 — phát hiện
+   sau A1". Số liệu mới nhất: sinh 29,1 cụm/frame vs thật 28,5 ✅ nhưng điểm/frame sinh 140 vs
+   thật 1050–2220 ⚠️; đuôi cụm lớn nhất sinh ~91 điểm vs thật 982–1238.
+3. **A4** → cổng B (`sinh/thật ∈ [0,7; 1,5]`) → **cổng C (quan trọng nhất: plume phải làm tăng FP
+   của detector; 0 GPU, có thể giết cả hướng train)** → D/E/F.
+
+## Việc kế tiếp (đã rút gọn — chi tiết ở §"Đang dừng ở đâu")
+
+Đọc `.scratch/roadspray-cal/plan.md` §2. Thứ tự: **đưa bảng calibration vào code** → **A3** (đuôi
+phân bố) → **A4** (test tích hợp box convention) → chốt chặn A → B (sinh vs thật) →
+**C (plume phải làm tăng FP của detector — cửa chặn quan trọng nhất, 0 GPU)** → D → E → F (chỉ F cần GPU).
 
 Chốt chặn A: `pytest -q tests/` xanh **và** A1/A2/A4 có test mới. Không sang B khi chưa đạt.
-
-Thứ tự sau đó: B (sinh vs thật) → **C (plume vs detector, cửa chặn quan trọng nhất)** → D (cal từ
-RoadSpray) → E (CV + pseudo-box) → F (train). Cần GPU chỉ ở F.
 
 Ba thứ dễ sai khi làm adapter/split, đã đo sẵn:
 
@@ -54,16 +87,27 @@ Ba thứ dễ sai khi làm adapter/split, đã đo sẵn:
 2. `box_dim` phải là **9** (7 hình học + 2 vận tốc), không phải 7.
 3. `poses.txt` **không có tịnh tiến** → tốc độ ego đọc từ `metadata.txt` cột `ego_velocity`.
 
-Dữ liệu đã có sẵn cho giai đoạn D: `~/Downloads/Crafter_static (1).zip` = 7.924.255.130 byte
-(khớp release, 163 bag) và `~/Downloads/Golf_dynamic.zip` = 6.009.340.245 byte (108 bag — chứa 9
-recording Golf mà SSPP thiếu). `Golf_static.zip` vẫn chưa có.
+Dữ liệu RoadSpray đã có trong `data/roadspray/` (gitignored):
+
+| File | Byte | Trạng thái |
+|---|---:|---|
+| `Crafter_static.zip` | 7 924 255 130 | ✅ khớp release, 163 bag |
+| `Crafter_dynamic.zip` | 6 127 018 713 | ✅ khớp release, 108 bag |
+| `meta_data_measurement.xlsx` | 26 774 | ✅ 549 dòng — **có tốc độ + mức nước từng bag, không cần decode ADMA** |
+| `meta_data_dataset.json` | 2 517 | ✅ transform tĩnh của 5 cảm biến |
+| `Experiment_Setup.zip` | 8 223 416 | ✅ |
+| `Golf_static.zip.part` | 85 102 592 / 5 460 144 118 | ⏸ **dở** — xem §"Đang dừng ở đâu" |
+| `Golf_dynamic.zip` | 6 009 340 245 | 📦 còn ở `~/Downloads/`, chưa copy vào `data/` |
+
+`Golf_dynamic` là **kịch bản following** (ego bám sau 20/30 m) — **không** dùng để calibrate (paper
+calibrate ở kịch bản passing = `*_static`). Nó chỉ cần cho việc dựng lại SSPP và kiểm tra chéo.
 
 ## Lệnh chạy test
 
 ```bash
 cd /Users/huynguyen/projects/bevfusion-spray-pilot
 CONDA_NO_PLUGINS=true env -u PYTHONPATH /opt/anaconda3/bin/python -m pytest -q tests/
-# 178 passed
+# 203 passed
 ```
 
 Thiếu `env -u PYTHONPATH` thì numpy của venv Python 3.14 bị nạp vào Python 3.11 và toàn bộ test
@@ -89,7 +133,7 @@ spray/        10 module sinh plume + 3 module đo spray thật
 proxy_eval/   matcher (BEV IoU) + bootstrap (theo scene)
 scripts/      3 script: fetch / split / stats
 docs/         PROJECT.md + ADR 0001, 0005 + 3 measurement + 1 reference
-tests/        16 file, 151 test, không cần GPU
+tests/        23 file, 203 test, không cần GPU
 mit/          working copy pin da93b27 (gitignored, PIN.md tracked)
 data/         SemanticSprayDataset 31 GB (gitignored)
 ```
