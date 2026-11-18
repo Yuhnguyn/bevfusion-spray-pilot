@@ -71,6 +71,28 @@ Tham số chốt trước `[CHỌN]`: `L = 20 m`, `Δ = 2,5 m`, `W = 3,4 m`, `H 
 Đối chứng âm (hộp cùng kích thước **phía trước** xe) = **0,5–1,0 cụm/frame** ở mọi tốc độ. Nhiễu lá
 cây — vốn cho **98 cụm/frame** khi đếm cả khung — đã bị loại hoàn toàn bằng ràng buộc hình học.
 
+### Bảng ở đúng điều kiện eval (`itr_after_water = 1`) `[ĐO]`
+
+Cả 36 scene eval của SSPP đều `itr_after_water = 1`, và Paper A calibrate ở
+*"fully covered pavement"* (1 mm). Nên bảng lý thuyết đúng phải là tập `itr = 1`:
+
+| Tốc độ | bag | frame | cụm/frame | CI95 (bag) | lệch vs bảng gộp |
+|---:|---:|---:|---:|---|---:|
+| 70 | 3 | 38 | 20,4 | [11,6; 29,2] | +7,6 % |
+| 80 | 3 | 30 | 28,7 | [26,6; 30,8] | +11,2 % |
+| 90 | 2 | 22 | 30,9 | [25,6; 36,3] | +13,5 % |
+| 100 | 2 | 16 | 28,4 | [19,3; 37,4] | −0,6 % |
+| 110 | 2 | 8 | 35,8 | [12,0; 59,7] | +38,5 % |
+| 120 | 3 | 16 | 15,4 | [9,4; 21,5] | −24,8 % |
+| 130 | 3 | 12 | 22,1 | [14,1; 30,0] | +0,2 % |
+
+**Quyết định `[CHỌN]`: dùng bảng GỘP (54 bag) làm bảng chính, báo cáo bảng `itr = 1` kèm theo.**
+Lý do: tập `itr = 1` chỉ có 2–3 bag và 8–38 frame/tốc độ ⇒ CI95 rộng tới ±50 %
+(`110 km/h: [12,0; 59,7]`), không đủ để làm bảng tra cứu. Chênh lệch giữa hai
+biến thể (−25 % … +38 %) **nằm gọn trong dải bất định định nghĩa vùng ±30–40 %**
+đã nêu ở §5, nên không thể kết luận ảnh hưởng của mực nước từ mẫu hiện có.
+Cần thêm bag (`Golf_static` chưa tải) mới tách được hiệu ứng này.
+
 **Đường cong không đơn điệu là thật, không phải nhiễu mẫu:** đỉnh **28,5 @100 km/h** rơi còn
 **20,5 @120 km/h** (−28 %), và hai CI95 **không chồng nhau** ([25,5; 31,6] vs [16,2; 24,9]).
 
