@@ -55,12 +55,18 @@ tổng hợp lúc train có **giảm FP trên spray thật** không, và có **m
 
 | | Việc | File | Xong khi |
 |---|---|---|---|
-| A1 | Sửa lỗi **4× ngân sách cụm**: `alive = rate × 4T/Δt = 4 × visible`. Chọn một hướng: `rate = visible/(4T/Δt)` **hoặc** thinning xác suất trong `prune()` | `spray/plume.py:214-231`, `spray/plume_state.py:417-440` | Test mới: chạy 120 frame, `alive_measured / visible_table` ∈ **[0,9; 1,1]** ở 60/100/120 km/h |
-| A2 | Commit + test **wet ground** đang sửa dở (diff 340 dòng chưa commit) | `spray/wet_ground.py`, `spray/config/wet_ground_default.yaml`, `tests/test_wet_ground*.py` | Test khẳng định `mean_ratio < 1` (giảm cường độ), và `points_in` / `attenuated` / `boosted` được log |
+| A1 ✅ | Sửa lỗi **4× ngân sách cụm**: `alive = rate × 4T/Δt = 4 × visible`. Chọn một hướng: `rate = visible/(4T/Δt)` **hoặc** thinning xác suất trong `prune()` | `spray/plume.py:214-231`, `spray/plume_state.py:417-440` | Test mới: chạy 120 frame, `alive_measured / visible_table` ∈ **[0,9; 1,1]** ở 60/100/120 km/h |
+| A2 ✅ | Commit + test **wet ground** đang sửa dở (diff 340 dòng chưa commit) | `spray/wet_ground.py`, `spray/config/wet_ground_default.yaml`, `tests/test_wet_ground*.py` | Test khẳng định `mean_ratio < 1` (giảm cường độ), và `points_in` / `attenuated` / `boosted` được log |
 | A3 | Đuôi phân bố điểm/cụm: `P_det`, bán kính, phân bố điểm/cụm | `spray/plume.py` (`_POINTS_MEDIAN_BY_RANGE`, `cluster_radius_*`), `spray/raycast.py` | Cụm lớn nhất sinh ra ≥ **500 điểm** (thật: 982–1 238) |
 | A4 | Test tích hợp bắt được lỗi kiểu "unit test dùng box tâm còn adapter ghi box đáy" | `tests/` | Test mới dùng **box đúng quy ước adapter** (9 cột, `box[2]` = đáy) |
 
 **Chốt chặn A:** `pytest -q tests/` xanh **và** A1 + A2 có test mới. Không đạt thì **không** sang B.
+
+> **Trạng thái 2026-11-18:** A1 ✅ (`8cc9207`, cụm sống/frame 11,9/29,5/17,5 vs bảng
+> 11,3/29,2/17,6; test `tests/test_plume_cluster_budget.py`) · A2 ✅ (`f9c8b44`, wet ground
+> chỉ giảm cường độ; `mean_ratio` 0,597/0,194/0,033 ở wfh 0,5/1,0/1,2 mm; test
+> `tests/test_wet_ground_hahner.py`). `183 passed`. Còn A3 (đuôi phân bố) và A4 (test
+> tích hợp box convention) trước khi sang B.
 
 > Ghi chú: hiện `178 passed` `[ĐO]` **không** chứng minh generator đúng — lỗi `box_bottom` từng lọt
 > qua vì test dùng box kiểu tâm. Đó là lý do A4.
