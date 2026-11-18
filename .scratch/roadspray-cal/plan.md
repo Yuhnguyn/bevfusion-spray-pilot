@@ -57,8 +57,39 @@ tổng hợp lúc train có **giảm FP trên spray thật** không, và có **m
 |---|---|---|---|
 | A1 ✅ | Sửa lỗi **4× ngân sách cụm**: `alive = rate × 4T/Δt = 4 × visible`. Chọn một hướng: `rate = visible/(4T/Δt)` **hoặc** thinning xác suất trong `prune()` | `spray/plume.py:214-231`, `spray/plume_state.py:417-440` | Test mới: chạy 120 frame, `alive_measured / visible_table` ∈ **[0,9; 1,1]** ở 60/100/120 km/h |
 | A2 ✅ | Commit + test **wet ground** đang sửa dở (diff 340 dòng chưa commit) | `spray/wet_ground.py`, `spray/config/wet_ground_default.yaml`, `tests/test_wet_ground*.py` | Test khẳng định `mean_ratio < 1` (giảm cường độ), và `points_in` / `attenuated` / `boosted` được log |
-| A3 | Đuôi phân bố điểm/cụm: `P_det`, bán kính, phân bố điểm/cụm | `spray/plume.py` (`_POINTS_MEDIAN_BY_RANGE`, `cluster_radius_*`), `spray/raycast.py` | Cụm lớn nhất sinh ra ≥ **500 điểm** (thật: 982–1 238) |
+| A3 ⚠️ | Đuôi phân bố điểm/cụm: `P_det`, bán kính, phân bố điểm/cụm | `spray/plume.py` (`_POINTS_MEDIAN_BY_RANGE`, `cluster_radius_*`), `spray/raycast.py` | Cụm lớn nhất sinh ra ≥ **500 điểm** (thật: 982–1 238) |
 | A4 | Test tích hợp bắt được lỗi kiểu "unit test dùng box tâm còn adapter ghi box đáy" | `tests/` | Test mới dùng **box đúng quy ước adapter** (9 cột, `box[2]` = đáy) |
+
+### A3 — phát hiện sau A1 (đo 2026-11-18): mục tiêu đang mâu thuẫn, cần quyết
+
+Đo lại sau A1 (100 km/h, steady state, scene `Crafter_dynamic/0060`):
+
+| Đại lượng | Sinh (sau A1) | Thật (SSPP `label==2`) | Paper A |
+|---|---:|---:|---|
+| cụm/frame | **29,1** ✓ | 28,5 | 18–30 (Fig. 4) |
+| điểm/cụm (median) | 5–6 | 5–8 | — |
+| điểm/cụm (mean) | ~5 | **37–78** | ~17–28 (suy từ Fig. 4 + Fig. 11a) |
+| tổng điểm/frame | **140** | 1.050–2.220 | ~200–500 (Fig. 11a, trục tới 500) |
+| phân bố cự ly p50 | 7,3 m ✓ | 7,5 m | — |
+| share < 10 m | 62 % | 73 % | — |
+
+Hai kết luận:
+
+1. **A1 làm khớp cụm/frame và cự ly** — hai thứ paper thật sự calibrate. Nhưng nó làm
+   điểm/frame tụt 4× (4× = đúng lỗi cũ), nên khoảng cách điểm tăng lên 8–16× so với `label==2`.
+2. **Mục tiêu `label==2` không dùng được làm đích**: `label==2` gồm cả nhiễu không phải spray
+   (`semantic-spray-stats.md`), và nó cho 1.050–2.220 điểm/frame — gấp 2–4× con số paper đo
+   (~200–500). So với đích paper, generator đang thấp **~2–3×**, không phải 16×.
+
+**Quyết định cần chốt trước khi sửa A3:** lấy đích nào?
+
+| Phương án | Đích | Hệ quả |
+|---|---|---|
+| **T1 (khuyến nghị)** | Số paper (Fig. 4 cho cụm, Fig. 11a cho tổng detection) | đúng tinh thần paper; phải đọc số từ hình (OCR) hoặc dùng dải 200–500; generator cần tăng ~2–3× điểm/cụm |
+| T2 | `label==2` của SSPP | khớp domain eval nhưng **over-augment 2–4×** vì nhãn gồm nhiễu; Arm B sẽ "mạnh tay" hơn thực tế |
+| T3 | Chỉ khớp cụm/frame (giữ A1) | sạch về calibration nhưng plume quá thưa ⇒ nguy cơ Arm B vô hiệu, đúng thứ chốt chặn C phải phát hiện |
+
+Điểm chặn: **không nên chọn T2** — nó biến một nhãn "spray + nhiễu" thành đích huấn luyện.
 
 **Chốt chặn A:** `pytest -q tests/` xanh **và** A1 + A2 có test mới. Không đạt thì **không** sang B.
 
