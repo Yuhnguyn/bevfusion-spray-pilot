@@ -87,6 +87,13 @@ CAR_CUE_MAX_HEIGHT_M = 3.4
 TRACK_MAX_AGE_S = 0.30
 BOX_LENGTHS_M = (2.8, 5.0, 8.6, 12.0, 20.0)
 MAX_BOX_LENGTH_M = max(BOX_LENGTHS_M)
+# Cat lat cu ly de pha "chain doc tia": DBSCAN cua paper chay tren (az, el)
+# KHONG co chieu cu ly, nen hai diem cung tia cach nhau 5 m va 20 m van la
+# hang xom -> ca ong plume dinh thanh mot cum. Paper do o MOT cu ly co dinh
+# ("object distance of 25 m ... distinct and stable clusters are observed"),
+# nen cat lat la cach tai lap dung dieu kien do.
+SLICE_WIDTHS_M = (1.0, 1.5, 2.5, 4.0, 6.0)
+CONTROL_SLICE_M = 2.5
 
 
 def pose_matrix(params: dict) -> np.ndarray:
@@ -262,31 +269,44 @@ def main() -> None:
                     <= BOX_WIDTH_M / 2.0
                 by_height = height <= BOX_HEIGHT_M
                 along_values = cloud[:, axis]
-                behind = (residual & by_lateral & by_height
-                          & (along_values <= rear)
-                          & (along_values >= rear - MAX_BOX_LENGTH_M))
-                ahead = (residual & by_lateral & by_height
-                         & (along_values >= front)
-                         & (along_values <= front + MAX_BOX_LENGTH_M))
-                selected = np.nonzero(behind | ahead)[0]
-                clusters: list[dict] = []
-                if selected.size >= MIN_PTS:
-                    labels = angular_dbscan(az[selected], el[selected])
-                    n_labels = int(labels.max()) + 1 if labels.size else 0
-                    for label in range(n_labels):
-                        members = selected[labels == label]
-                        xyz = cloud[members, :3]
-                        centroid_along = float(xyz[:, axis].mean())
-                        is_behind = centroid_along <= rear
-                        clusters.append({
-                            "side": "rear" if is_behind else "front",
-                            "n": int(members.size),
-                            "depth": round(abs(rear - centroid_along), 2)
-                            if is_behind else round(abs(centroid_along - front), 2),
-                            "range": round(float(np.linalg.norm(xyz.mean(axis=0))), 2),
-                            "h": round(float(height[members].mean()), 2),
-                            "intensity": round(float(cloud[members, 4].mean()), 2),
-                        })
+                base = residual & by_lateral & by_height
+                behind = base & (along_values <= rear) \
+                    & (along_values >= rear - MAX_BOX_LENGTH_M)
+                ahead = base & (along_values >= front) \
+                    & (along_values <= front + MAX_BOX_LENGTH_M)
+                depth_values = rear - along_values
+
+                def slice_clusters(mask: np.ndarray, width: float) -> list[dict]:
+                    """Gom cum rieng trong tung lat do sau, tra ve moi cum + do sau."""
+                    found: list[dict] = []
+                    selected_any = np.nonzero(mask)[0]
+                    if selected_any.size == 0:
+                        return found
+                    depths = depth_values[selected_any]
+                    capsule = np.floor(depths / width).astype(np.int64)
+                    for index_slice in np.unique(capsule):
+                        members_slice = selected_any[capsule == index_slice]
+                        if members_slice.size < MIN_PTS:
+                            continue
+                        labels = angular_dbscan(az[members_slice], el[members_slice])
+                        n_labels = int(labels.max()) + 1 if labels.size else 0
+                        for label in range(n_labels):
+                            members = members_slice[labels == label]
+                            xyz = cloud[members, :3]
+                            found.append({
+                                "depth": round(float(depth_values[members].mean()), 2),
+                                "n": int(members.size),
+                                "range": round(float(np.linalg.norm(xyz.mean(axis=0))), 2),
+                                "h": round(float(height[members].mean()), 2),
+                                "intensity": round(float(cloud[members, 4].mean()), 2),
+                            })
+                    return found
+
+                rear_value = round(float(rear), 2)
+                rear_by_width = {
+                    str(width): slice_clusters(behind, width) for width in SLICE_WIDTHS_M
+                }
+                front_control = slice_clusters(ahead, CONTROL_SLICE_M)
                 bag_records.append({
                     "bag": bag_name,
                     "frame": index,
@@ -299,7 +319,8 @@ def main() -> None:
                     "front": round(front, 2),
                     "lateral_centre": round(lateral_centre, 2),
                     "n_residual": int(residual.sum()),
-                    "clusters": clusters,
+                    "rear_by_width": rear_by_width,
+                    "front_control": front_control,
                 })
             for record in bag_records:
                 handle.write(json.dumps(record) + "\n")
