@@ -81,15 +81,37 @@ Hai kết luận:
    (`semantic-spray-stats.md`), và nó cho 1.050–2.220 điểm/frame — gấp 2–4× con số paper đo
    (~200–500). So với đích paper, generator đang thấp **~2–3×**, không phải 16×.
 
-**Quyết định cần chốt trước khi sửa A3:** lấy đích nào?
+**Quyết định (chốt 2026-11-18, sau khi đo đuôi phân bố): T2, nhưng cài theo CẤU TRÚC chứ không
+phóng to cụm.** Đo trên 207 scene SSPP, gộp theo fold (không leak), xem
+`docs/measurements/sspp-cluster-size-distribution.md`:
 
-| Phương án | Đích | Hệ quả |
-|---|---|---|
-| **T1 (khuyến nghị)** | Số paper (Fig. 4 cho cụm, Fig. 11a cho tổng detection) | đúng tinh thần paper; phải đọc số từ hình (OCR) hoặc dùng dải 200–500; generator cần tăng ~2–3× điểm/cụm |
-| T2 | `label==2` của SSPP | khớp domain eval nhưng **over-augment 2–4×** vì nhãn gồm nhiễu; Arm B sẽ "mạnh tay" hơn thực tế |
-| T3 | Chỉ khớp cụm/frame (giữ A1) | sạch về calibration nhưng plume quá thưa ⇒ nguy cơ Arm B vô hiệu, đúng thứ chốt chặn C phải phát hiện |
+| km/h | điểm/cụm p50 | mean [CI95] | p95 | max | **% điểm trong cụm ≥50 điểm** |
+|---:|---:|---|---:|---:|---:|
+| 50 | 6 | 8,8 [7,6; 10,3] | 17 | 144 | **15 %** |
+| 70 | 5 | 15,9 [13,1; 19,5] | 54 | 732 | **56 %** |
+| 100 | 6 | 40,4 [32,2; 47,9] | 182 | 2241 | **82 %** |
+| 130 | 6 | 45,3 [38,7; 50,8] | 158 | 2485 | **83 %** |
 
-Điểm chặn: **không nên chọn T2** — nó biến một nhãn "spray + nhiễu" thành đích huấn luyện.
+Ba điều làm quyết định này khác hẳn bảng T1/T2/T3 cũ:
+
+1. **Phân bố hai đỉnh.** `điểm/cụm p50 = 5–7` ở **mọi** tốc độ (gần hằng số), nhưng `mean` tăng
+   8,8 → 47,7 vì tỉ lệ điểm trong cụm ≥50 điểm tăng 15 % → 85 %. Plume thật = **nhiều cụm nhỏ + một
+   ít chuỗi khổng lồ**, không phải một họng lognormal.
+2. **Generator đang đúng ở phần nhỏ.** Sau A1: `điểm/cụm` median 5–6 **khớp chính xác p50 thật**,
+   nhưng cụm lớn nhất ~91 điểm vs thật p95 182 / max 2 241, và share trong cụm ≥50 đ là **0 %** vs
+   **82 %**. ⇒ Thiếu **cơ chế chuỗi**, không phải "mọi cụm nhỏ đi".
+3. **T1 và T2 chỉ lệch nhau hệ số 2**, không phải mâu thuẫn: T1 (~200–500 detection/frame) và T2
+   (600–900 điểm/frame) **cùng đòi thêm chuỗi**. Chọn T2 vì đó là khối lượng detector gặp lúc eval,
+   và `điểm/cụm` có **CI95 ±5–10 %** (bảng cụm chỉ ±30–40 %).
+
+**Giả thuyết cơ chế cần kiểm ở A3 (0 GPU):** chuỗi sinh ra khi các cụm nhỏ **chồng nhau trong không
+gian góc**. `define_spray_volumes()` của paper rải cụm trong vùng dài `|v|·Δt` (≈2,8 m @100 km/h) nên
+mật độ cao; nếu port đang rải trên vùng **dài hơn** thì mật độ thấp và **không có chồng** ⇒ không
+chuỗi. Kiểm: so mật độ cụm/thể tích giữa sinh và thật trước khi thêm cơ chế mới.
+
+**Tiêu chí xong của A3 (thay tiêu chí cũ "cụm lớn nhất ≥ 500 điểm"):**
+`% điểm trong cụm ≥50 đ` lệch **≤ 10 điểm %** so với bảng trên, `p95 điểm/cụm` nằm trong khoảng thật,
+và `cụm/frame` không đổi (đang khớp). Không cần đổi `_CLUSTER_VISIBLE_BY_SPEED`.
 
 **Chốt chặn A:** `pytest -q tests/` xanh **và** A1 + A2 có test mới. Không đạt thì **không** sang B.
 
