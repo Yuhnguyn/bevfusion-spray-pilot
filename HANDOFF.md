@@ -20,15 +20,24 @@ Lý do đảo ngược: `docs/adr/0005-sspp-as-detection-domain.md`. Bản ADR c
 
 ## Trạng thái
 
-- Test: **203 passed** (không cần GPU).
+- Test: **207 passed** (không cần GPU).
 - **Chưa có kết quả detector nào.** Mọi số trong `docs/measurements/*.md` là đo trên dataset.
 - Đổi protocol xong (`docs/adr/0006-…`): eval = **3-fold leave-speed-out trên 36 scene** (pooled n=36);
   calibration từ **RoadSpray `*_static`**; criterion = effect size + CI95 thay vì pass/fail.
   Kế hoạch thi công hiện hành: **`.scratch/roadspray-cal/plan.md`** (6 giai đoạn A–F).
-- **Giai đoạn A:** A1 ✅ (`8cc9207` — sửa lỗi 4× ngân sách cụm, test
-  `tests/test_plume_cluster_budget.py`) · A2 ✅ (`f9c8b44` — wet ground viết lại theo Hahner 2022,
-  test `tests/test_wet_ground_hahner.py`) · **A3 ⚠️ chưa xong** (đuôi phân bố điểm/cụm) ·
-  **A4 chưa làm** (test tích hợp dùng box đúng quy ước adapter).
+- **Giai đoạn A:** A1 ✅ (`8cc9207`) · A2 ✅ (`f9c8b44`) · **A3 = 2/3 tốc độ đạt, hạn chế đã khai**
+  (xem dưới) · **A4 ✅** (`95aa118`, `tests/test_sspp_plume_integration.py`, đã chứng minh test bắt
+  được bug "box[2] = tâm": cài bug thì đỏ, phục hồi thì xanh).
+- **A3 — trạng thái chốt (2026-11-19):** sau 3 bước sửa đều dựa trên phép đo —
+  (1) `count` tỉ lệ tiết diện `r²` (`d159f05`, sửa lỗi đứt chố nối count↔radius so với mô hình
+  paper, không thêm tham số); (2) đo bán kính cụm ⇒ **số paper 0,30 m là số tốc độ cao**, ở 50 km/h
+  chỉ **0,079 m** (`a67eb77`); (3) dùng **bảng median bán kính theo tốc độ** (`8e48ab1`).
+  Kết quả: **50 km/h PASS** (35 vs 43 điểm/frame), **100 km/h PASS** (725 vs 875), **130 km/h FAIL**
+  (252 vs 592 = 0,43×). Hạn chế 130 km/h là **cấu trúc**: khối lượng thật ở tốc độ cao nằm trong
+  chuỗi (p90 bán kính 5,4 m) mà mô hình một-quả-cầu không biểu diễn được; đã chứng minh nhân số cụm
+  1→6 chỉ làm `share` bão hoà ~65 % (thật 83 %). Quyết định: **đi tiếp A4 + cổng C**, làm cơ chế
+  chuỗi chỉ khi cổng C chứng minh nó chặn kết luận.
+  Doc: `docs/measurements/{plume-a3-diagnosis,sspp-cluster-radius-by-speed}.md`.
 - **V2 (calibration leak) — XONG cả đo lẫn code:**
   - `_CLUSTER_VISIBLE_BY_SPEED` đã thay bằng bảng **RoadSpray static** cho cả Crafter và Golf
     (9 bag/lớp/tốc độ; đối chứng âm phía trước xe = 0,0 cụm/frame):
@@ -38,10 +47,13 @@ Lý do đảo ngược: `docs/adr/0005-sspp-as-detection-domain.md`. Bản ADR c
     leak khớp r = 0,77 → `docs/measurements/{roadspray-static-clusters-by-speed,sspp-cluster-table-folds}.md`.
   - Dải bất định **±30–40 %** (do định nghĩa vùng, không do mẫu) — cổng B phải đọc cùng dải này.
 
-## Đang dừng ở đâu (cập nhật 2026-11-18 23:45)
+## Đang dừng ở đâu (cập nhật 2026-11-19 10:15)
 
-`Golf_static.zip` (5 460 144 118 B, 171 bag) **đã có** trong `data/roadspray/` — không cần tải gì nữa.
-Cả hai lớp đã đo xong và bảng đã vào code.
+Dữ liệu RoadSpray đã đủ (Crafter + Golf static). A3/A4 xong phần làm được. **Việc tiếp theo là
+cổng C — và nó phải chạy trên Kaggle**, vì `[ĐO]` máy này có `torch 2.2.2` nhưng **không** có
+`mmcv` / `mmdet` / `mmdet3d` nên không dựng được BEVFusion. Kế hoạch thi hành chi tiết (tái dùng
+cell bootstrap nào của nhánh `main`, viết gì mới, tiêu chí xong) ở `.scratch/roadspray-cal/plan.md`
+§"Giai đoạn C → C1 — kế hoạch thi hành".
 
 Việc tiếp theo:
 
