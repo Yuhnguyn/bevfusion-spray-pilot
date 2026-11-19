@@ -312,3 +312,62 @@ tạo `PlumeState()` không config) — không được pin tường minh, đổ
 **Hệ quả bắt buộc cho cổng C:** đây là **phép đo đầu tiên ở đúng kịch bản production**, nên cổng C
 phải đo **cả recall** (real returns mất do attenuation/occlusion) chứ không chỉ false-positive, và
 phải ghi rõ nó chạy ở kịch bản following. Nếu chỉ đo FP thì không kết luận được về tác dụng ròng.
+
+---
+
+## A3-V — Kiểm chứng ở kịch bản FOLLOWING (pre-registered 2026-11-19)
+
+Trạng thái: **Accepted bởi Lead**. Ngưỡng dưới đây được ghi **TRƯỚC** khi phép đo T5 (`task-14`) báo số.
+
+### Vì sao cần
+
+A3 nghiệm thu ở kịch bản **static**; production chạy **following** (xem §5.6). R2 đọc lại Paper A
+(`docs/reference/paper-validation-protocol.md`, 17 trích dẫn) và kết luận:
+
+- Paper **fit** tham số trên calibration set static rồi **validate trên CÙNG bộ dữ liệu**, chỉ giữ lại
+  "object distances and values" chưa dùng để fit (`L1043-1047`, Fig. 10/11/12). Fig. 10 ghi rõ
+  *"passing by the stationary ego vehicle"* ⇒ **validation plume của paper cũng là ego đỗ**.
+- Paper **không có** bất kỳ hình/bảng nào so phân bố plume mô phỏng với dữ liệu khi **ego chạy**.
+  Họ chỉ kiểm ở mức end-task (augment STF rồi đo AP) — chứng minh *hữu dụng*, không chứng minh
+  *phân bố đúng*.
+- Paper **không nói** gì về việc truyền phân bố góc đo từ ego đỗ sang ego chạy; chỉ cảnh báo
+  near-field/resolution (`L1520-1527`).
+
+⇒ **D2-chặt là cần nhưng CHƯA ĐỦ**: nó quy định *nguồn tham số*, không quy định *cách kiểm chứng*.
+
+### Protocol (chốt trước khi đo)
+
+| Hạng mục | Giá trị |
+|---|---|
+| Dữ liệu | **171 scene SSPP KHÔNG có human box** (D1 chỉ eval 36 scene có box ⇒ 171 chưa bao giờ eval), ≥20 scene/nhóm tốc độ, cả Crafter và Golf |
+| Dựng kịch bản | `PlumeContext` từ chính frame SSPP: ego/object speed + `distance_to_object` từ `metadata.txt`, box xe dẫn theo `object_labels`, road_z bằng RANSAC |
+| Đường chạy | **đúng production**: `inject_plume_stateful` → `raycast_frame(load_beam_table())`, seed theo frame (paired) |
+| Vùng đo | 0–60 m sau **box xe dẫn**, mask `|y| ≤ 5 m`, `0 ≤ z − road_z ≤ 3 m` (loại spray ngoài vùng/ego) |
+| Metric chính | `median_frame(det_sinh / det_thật)` với `det_thật` = số điểm `label == 2` trong cùng vùng |
+| CI | bootstrap **theo scene**, B = 2000 |
+| Metric phụ (báo, không chặn) | depth profile 2 m/bin; % det_sinh ở range < 10 m và < 4 m; range của xe p5/p50/p95 |
+
+### Ngưỡng PASS/FAIL (pre-registered)
+
+PASS khi **cả hai**:
+
+1. `median(det_sinh / det_thật) ∈ [0,5 ; 2,0]`
+2. **CI95 nằm trọn trong** `[0,5 ; 2,0]` (không vắt biên)
+
+Lý do chọn [0,5; 2,0] thay vì [0,7; 1,5] của A3: ở kịch bản following, `label==2` **không phải**
+toàn bộ spray (gồm cả spray của ego/nguồn khác) và hình học near-field nhạy hơn nhiều; dải ±2× là
+mức "cùng bậc" còn phân biệt được, trong khi sai số cửa sổ đo đã là 12–22 %.
+
+**Nếu FAIL:** ghi limitation + là **covariate bắt buộc** khi đọc cổng C. **KHÔNG sửa generator để
+pass** (SSPP là domain eval). Muốn sửa tham số thì phải mở lại ADR này và nêu nguồn tham số mới
+hợp lệ — không được lấy chính số đo A3-V ra làm nguồn.
+
+### Caveat phải khai khi trích dẫn
+
+- `label == 2` của SSPP gồm **spray + noise**, có thể có spray từ nguồn khác ⇒ chỉ so trong vùng
+  sau xe dẫn, và ghi rõ giới hạn này.
+- SSPP là **dynamic subset của chính RoadSpray** ⇒ A3-V là **consistency check**, không phải
+  kiểm tra out-of-distribution.
+- Đây là **bước bổ sung của repo `[CHỌN]`**, **không** có trong paper. Phải trình bày đúng như vậy,
+  không được viết thành "paper quy định".
+- A3-V chỉ kiểm mức *phân bố plume*. Kiểm mức end-task (AP) là việc của cổng C.
