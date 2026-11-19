@@ -173,8 +173,14 @@ class PlumeStateConfig:
     # `[ĐO] 2026-11-19`: hệ số 3,0 làm `det/frame` và cụm/frame khớp bảng ở
     # 100 km/h (det 777 vs 875; share ≥50đ 88,9 % vs 82 %; p95 355 vs 182). Bảng
     # `visible` là số **detection-cluster** nên phải sinh nhiều cầu hơn mới đạt.
-    spawn_scale: float = 3.0
-    source_count: int = 2
+    spawn_scale: float = 1.0
+    # `[CHỌN] — ĐÃ TẮT 2026-11-19 sau khi đối chiếu paper.` Ý tưởng "nguồn phát ở
+    # hai bánh sau" là của tôi, KHÔNG có trong paper: Paper A L393-395 nói
+    # *"spheres are positioned with a uniform distribution in the region behind
+    # every moving object"*, và code tác giả dùng hộp RỘNG 3,4 m (cả mặt cắt đuôi
+    # xe). Bật 2 nguồn ±0,85 m làm điểm dồn thành hai vệt bánh — thấy rõ trong
+    # clip; người dùng đã chỉ ra đúng. Mặc định 0 = rải đều như paper.
+    source_count: int = 0
     source_lateral_m: tuple[float, ...] = (-0.85, 0.85)
     source_sigma_m: float = 0.18
     # [CHỌN] Hệ số độ dài vệt: 1.0 = đúng quãng ego đi một chu kỳ; nhỏ hơn thì
