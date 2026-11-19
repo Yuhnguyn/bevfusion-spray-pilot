@@ -371,3 +371,49 @@ hợp lệ — không được lấy chính số đo A3-V ra làm nguồn.
 - Đây là **bước bổ sung của repo `[CHỌN]`**, **không** có trong paper. Phải trình bày đúng như vậy,
   không được viết thành "paper quy định".
 - A3-V chỉ kiểm mức *phân bố plume*. Kiểm mức end-task (AP) là việc của cổng C.
+
+---
+
+## D2-v2 — Hiệu chỉnh kịch bản trên dữ liệu TRAIN-ONLY (pre-registered 2026-11-19)
+
+Trạng thái: **Accepted bởi user 2026-11-19**. Ghi **TRƯỚC** khi T5 (`task-14`) báo số.
+
+### Vì sao được phép mở (và vì sao không phải goalpost-moving)
+
+D2-chặt ra đời để sửa chẩn đoán **V2**: có 6/12 scene test **cũng là** scene calibration ⇒ eval bị bẩn.
+Nhưng **171 scene SSPP không có human box KHÔNG BAO GIỜ nằm trong eval** (D1 chỉ eval trên 36 scene
+có box). Và theo D4/E4, chính 171 scene đó sẽ được sinh **pseudo-box để TRAIN** (BEV IoU p50 0,931).
+
+⇒ Hiệu chỉnh augmentation trên **dữ liệu train** không rò rỉ vào eval. Đây là thực hành ML chuẩn,
+khác hẳn lỗi V2 (calibrate trên chính dữ liệu eval).
+
+### Phạm vi được phép (hẹp có chủ ý)
+
+| | |
+|---|---|
+| **Được hiệu chỉnh** | **ĐÚNG MỘT** đại lượng vô hướng: `following_density_scale` — nhân vào tốc độ phát cụm trong **đường production** (kịch bản following), để mật độ plume khớp dữ liệu train-only |
+| **KHÔNG được đổi** | `RADIUS_MEDIAN_M`, `RADIUS_SIGMA`, `RADIUS_MAX_M`, lifetime `T`, drag `C`, `P_det` (µ, σ), `diffusion_alpha` — tất cả vẫn từ **paper + RoadSpray static**, không đụng |
+| **KHÔNG được đổi** | tiêu chí A3 (đã đóng) và tiêu chí A3-V (§ dưới) |
+| **Cấm** | thêm bậc tự do thứ hai; hiệu chỉnh theo tốc độ/lớp xe (chỉ một số vô hướng toàn cục) |
+
+### Chống rò rỉ — bắt buộc
+
+1. **36 scene eval không bao giờ được dùng** để fit `following_density_scale`, cũng không dùng để chọn
+   giá trị. Code phải assert `fit_scenes ∩ eval_scenes = ∅`.
+2. **Chia 171 scene thành fit/verify** (phân tầng theo nhóm tốc độ × lớp xe), tỉ lệ **2/3 fit – 1/3 verify**.
+   `following_density_scale` chỉ fit trên phần **fit**; verdict A3-V chỉ đọc trên phần **verify**.
+   ⇒ Không được fit rồi verify trên cùng scene (sẽ là tautology).
+3. `following_density_scale = 1,0` cho tới khi có số. Giá trị cuối + danh sách scene fit phải ghi vào
+   ADR này **và** vào metadata checkpoint.
+4. A3 (nghiệm thu static) đã đóng với `scale = 1,0`; nếu production dùng scale ≠ 1,0 thì mọi trích dẫn
+   kết quả A3 phải nói rõ "A3 đo ở scale 1,0".
+
+### Ngưỡng A3-V giữ nguyên
+
+Ngưỡng ở mục A3-V **không đổi**: `median(det_sinh/det_thật) ∈ [0,5 ; 2,0]` và CI95 nằm trọn trong dải,
+đo trên **phần verify**. Ngưỡng này được ghi trước khi biết bất kỳ số nào của T5, và **không** được
+nới sau khi thấy số.
+
+**Nếu sau khi fit `following_density_scale` mà phần verify vẫn FAIL:** ghi limitation, **dừng** —
+không thêm hệ số thứ hai, không đổi ngưỡng. Đó là kết luận rằng mô hình plume không tái tạo được
+kịch bản following, và nó ảnh hưởng trực tiếp tới cách đọc cổng C.
