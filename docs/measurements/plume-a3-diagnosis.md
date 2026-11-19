@@ -561,7 +561,7 @@ tới 200 m và cap 120); CI95 = bootstrap **theo seed** B=2000. Script:
 | 100 | **144,0 ±5,8 %** | 0,71× | **40,2 m** | 0,91× | 60,8 | ✓ | ✓ | ✗ (268 %) | ✓ | **FAIL** |
 | 130 | **283,4 ±9,1 %** | 1,36× | **49,8 m** | 0,96× | 44,1 | ✓ | ✓ | ✗ (995 %) | ✓ | **FAIL** |
 
-## 8.1 Kết luận: **A3 KHÔNG ĐẠT** theo pre-registration — đạt một phần
+## 8.1 Kết luận: **A3 KHÔNG ĐẠT** theo pre-registration
 
 - **(a) điểm/frame**: đạt ở **100 và 130 km/h** (0,71× và 1,36× — trong [0,7; 1,5]);
   **trượt nặng @50** (0,15×).
@@ -573,12 +573,7 @@ tới 200 m và cap 120); CI95 = bootstrap **theo seed** B=2000. Script:
   ⇒ Dù tổng điểm và trail90 khớp ở 100/130, **hình dạng phân bố vẫn sai** — đúng thứ (b')
   được tạo ra để bắt.
 
-**Vấn đề định nghĩa (b') cần Lead chốt khi viết luận văn:** luật QĐ10 nói "so các bin có
-**≥10 % mass thật**". Với 100/130 km/h **không bin nào đạt 10 %** (bin lớn nhất 9,86 % / 9,64 %)
-⇒ đọc nguyên văn thì tiêu chí **rỗng/vacuous** (tự đạt). Bảng trên dùng fallback hợp lý: so
-các bin chứa tới **90 % mass thật** (tức vùng profile có ý nghĩa). Nếu dùng nghĩa vacuous thì
-100/130 sẽ "PASS" (b') một cách giả tạo — không nên. **Kiến nghị**: định nghĩa lại (b') =
-"|gen_norm − real_norm|/real_norm ≤ 30 % cho các bin đến 90 % mass", giữ nguyên tinh thần.
+**Vấn đề định nghĩa (b') đã được Lead chốt lại — xem §8.6** (chi tiết + định nghĩa hiệu lực).
 
 ## 8.2 Miền tin cậy
 
@@ -628,3 +623,38 @@ CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python -
 `086353341bfdf6e9840388bcba3af01e` · `spray/raycast.py` = `8c58faf81903f0369f12220ebf90f098` ·
 `.scratch/tmp/a3_acceptance.py` = `83f249b8abc0c2ac201c7a536925ccff` · target T4
 `.scratch/roadspray-cal/tmp/depth_signal_v2_summary.json` = `f1a187ab010746a33dea6879ab5cb774`.
+
+## 8.6 (a) Lỗi định nghĩa tiêu chí (b') — và bản sửa làm kết quả XẤU ĐI
+
+**Nguyên văn tiêu chí cũ (QĐ10, do Lead đăng ký):** *"mỗi bin có ≥10 % mass thật thì
+`|gen_norm(i) − real_norm(i)| / real_norm(i) ≤ 30 %`"*.
+
+`[ĐO]` Với target T4-final, **không bin nào đạt 10 % mass**:
+- @100 km/h: bin lớn nhất **18–20 m = 8,7 %** profile (9,9 % nếu chia theo det/frame 203,2);
+- @130 km/h: bin lớn nhất **26–28 m = 7,1 %** profile (9,6 % nếu chia theo det/frame 208,9).
+⇒ Đọc **nguyên văn**, tập bin cần so là **RỖNG** ⇒ tiêu chí **rỗng/vacuous, tự đạt** ⇒ vô nghĩa
+(100/130 sẽ "PASS" giả tạo).
+
+**Định nghĩa hiệu lực (Lead chốt 2026-11-19):**
+`|gen_norm(i) − real_norm(i)| / real_norm(i) ≤ 30 %` cho **mọi bin nằm trong vùng chứa 90 % mass thật**
+(cộng báo thêm bin lệch nhiều nhất). Đây là bản dùng trong bảng §8.1/§8.7.
+
+**Ghi rõ để không ai nói chỉnh tiêu chí cho dễ:** bản sửa này làm kết quả **XẤU ĐI**, không phải
+dễ hơn — bản rỗng tự-đạt cho 100/130 **PASS** (b'), còn bản hiệu lực cho **268 % / 995 %** ⇒ **FAIL**.
+Việc chuyển sang định nghĩa chặt hơn là **goalpost-moving theo hướng nghiêm hơn**, đã được khai báo.
+
+## 8.7 (b) Verdict chính xác (8 seed, α=0,06, p_det=1,0)
+
+| km/h | (a) det | trail90 | (b') profile (bin tới 90 % mass) | (c) CI95 | **verdict** | ghi chú |
+|---|---:|---:|---:|---:|---|---|
+| 50 | **0,15×** ✗ | **0,38×** ✗ | **98,2 %** (bin 4–6 m) ✗ | 11,3 % ✓ | **FAIL** | **ngoài miền tin cậy** |
+| 100 | **0,71×** ✓ | **0,91×** ✓ | **268 %** (bin 2–4 m) ✗ | 5,8 % ✓ | **FAIL** | profile trượt |
+| 130 | **1,36×** ✓ (sát trần 1,5) | **0,96×** ✓ | **995 %** (bin 0–2 m) ✗ | 9,1 % ✓ | **FAIL** | profile trượt |
+
+- **A3 tổng: KHÔNG ĐẠT** theo pre-registration.
+- `(c)` CI95 **đạt ở cả 3 tốc độ** (11,3 / 5,8 / 9,1 %) ⇒ kết luận không do nhiễu đo.
+- **Caveat phải nêu khi trích dẫn:** frame/seed = **120 / 66 / 51** (50/100/130) — 100/130 bị
+  giới hạn bởi hình học đường chạy 200 m và cap 120, **không** đủ 120 frame/pass.
+- **Profile trượt vì near-field quá cao:** tổng 0–6 m của generator = **21,5 % @100 / 13,5 % @130**
+  so với thật **7,7 % / 1,7 %**; từng bin 0–2 & 4–6 m ở 130 của ta **4–5 %** vs thật **0,4–0,7 %**
+  (mass dồn sát đuôi hơn thật). Đây là lý do định lượng cho (b') FAIL, không phải mô tả chung.
