@@ -58,7 +58,7 @@ tổng hợp lúc train có **giảm FP trên spray thật** không, và có **m
 | A1 ✅ | Sửa lỗi **4× ngân sách cụm**: `alive = rate × 4T/Δt = 4 × visible`. Chọn một hướng: `rate = visible/(4T/Δt)` **hoặc** thinning xác suất trong `prune()` | `spray/plume.py:214-231`, `spray/plume_state.py:417-440` | Test mới: chạy 120 frame, `alive_measured / visible_table` ∈ **[0,9; 1,1]** ở 60/100/120 km/h |
 | A2 ✅ | Commit + test **wet ground** đang sửa dở (diff 340 dòng chưa commit) | `spray/wet_ground.py`, `spray/config/wet_ground_default.yaml`, `tests/test_wet_ground*.py` | Test khẳng định `mean_ratio < 1` (giảm cường độ), và `points_in` / `attenuated` / `boosted` được log |
 | A3 ⚠️ | Đuôi phân bố điểm/cụm: `P_det`, bán kính, phân bố điểm/cụm | `spray/plume.py` (`_POINTS_MEDIAN_BY_RANGE`, `cluster_radius_*`), `spray/raycast.py` | Cụm lớn nhất sinh ra ≥ **500 điểm** (thật: 982–1 238) |
-| A4 | Test tích hợp bắt được lỗi kiểu "unit test dùng box tâm còn adapter ghi box đáy" | `tests/` | Test mới dùng **box đúng quy ước adapter** (9 cột, `box[2]` = đáy) |
+| A4 ✅ | Test tích hợp bắt được lỗi kiểu "unit test dùng box tâm còn adapter ghi box đáy" | `tests/test_sspp_plume_integration.py` | Test mới dùng **box đúng quy ước adapter** (9 cột, `box[2]` = đáy) **và đã chứng minh bắt được bug**: cài bug "box[2] = tâm" thì test đỏ (`plume ở z=-1,97 vs kỳ vọng -0,68`), phục hồi thì xanh |
 
 ### A3 — phát hiện sau A1 (đo 2026-11-18): mục tiêu đang mâu thuẫn, cần quyết
 
@@ -125,6 +125,25 @@ Không cần đổi `_CLUSTER_VISIBLE_BY_SPEED`.
 
 **Chốt chặn A:** `pytest -q tests/` xanh **và** A1 + A2 có test mới. Không đạt thì **không** sang B.
 
+> **Trạng thái 2026-11-19 (A3):** **2/3 tốc độ ĐẠT** sau ba bước sửa đều dựa trên phép đo:
+> (1) `count` tỉ lệ tiết diện quả cầu `r²` (sửa lỗi chố nối count↔radius bị đứt so với mô hình
+> paper — không thêm tham số); (2) đo bán kính cụm ⇒ phát hiện **số paper 0,30 m là số tốc độ cao**,
+> ở 50 km/h chỉ **0,079 m**; (3) dùng **bảng median bán kính theo tốc độ** thay hằng số.
+> Kết quả `scripts/measure_plume_size_tail.py`:
+>
+> | km/h | điểm/frame | thật | `%≥50đ` | thật | |
+> |---|---:|---:|---:|---:|---|
+> | 50 | 35 | 43 | 11,9 % | 15 % | ✅ PASS |
+> | 100 | 725 | 875 | 77,1 % | 82 % | ✅ PASS |
+> | 130 | 252 | 592 | 60,7 % | 83 % | ❌ (0,43×) |
+>
+> **Hạn chế đã khai (`[SUY LUẬN]`, có bằng chứng):** phần dư 130 km/h là **hạn chế cấu trúc** —
+> khối lượng thật ở tốc độ cao nằm trong **chuỗi** (p90 bán kính 5,4 m), mô hình một-quả-cầu không
+> biểu diễn được; đã đo và chứng minh **nhân số cụm 1→6 chỉ làm `share` bão hoà ~65 %** (thật 83 %)
+> nên không sửa được bằng tham số. Quyết định: **ghi nhận hạn chế, sang A4 + cổng C**, làm cơ chế
+> chuỗi chỉ khi cổng C cho thấy nó thực sự chặn kết luận. Chi tiết: `docs/measurements/plume-a3-diagnosis.md`,
+> `docs/measurements/sspp-cluster-radius-by-speed.md`.
+>
 > **Trạng thái 2026-11-18:** A1 ✅ (`8cc9207`, cụm sống/frame 11,9/29,5/17,5 vs bảng
 > 11,3/29,2/17,6; test `tests/test_plume_cluster_budget.py`) · A2 ✅ (`f9c8b44`, wet ground
 > chỉ giảm cường độ; `mean_ratio` 0,597/0,194/0,033 ở wfh 0,5/1,0/1,2 mm; test
