@@ -217,6 +217,10 @@ def dry_run(checkpoint):
         "--split-json", str(DATASET / "sspp_split.json"),
         "--split", "test",
         "--arms", "clean", "plume", "real",
+        # Phải khớp run_gate_c(): nếu thiếu cờ này, dòng GATE_C_PLUME của dry-run
+        # in `paper_domain=0` và người đọc log tưởng nhánh chính chạy production
+        # (đã xảy ra ở kernel v5, mất một lượt kiểm tra chéo).
+        "--paper-domain",
     ]
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO)

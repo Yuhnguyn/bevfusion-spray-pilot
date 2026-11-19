@@ -107,3 +107,35 @@ hại detector **5 lần** nhiều hơn spray thật.
 2. **A7-c voxel occupancy** — kiểm khả năng `max_num_points = 10` bị điểm nước chiếm chỗ. Đo được
    offline, không cần kernel.
 3. **Không** thêm hệ số, **không** đổi τ, **không** đổi ngưỡng pre-register.
+
+---
+
+## 7. Kiểm chéo: miền Cách A có thật sự được bật? (2026-11-19, bổ sung)
+
+Log kernel v5 in **`paper_domain=0`** — đọc qua thì tưởng nhánh chính chạy production. Kiểm ra:
+`kernel.py` có **hai** lời gọi `sspp_infer.py`:
+
+| hàm | có `--paper-domain`? | vai trò |
+|---|---|---|
+| `dry_run()` | **KHÔNG** (thiếu) | probe plumbing 1 frame |
+| `run_gate_c()` | **CÓ** | chạy 954 frame, sinh kết quả |
+
+Dòng `paper_domain=0` xuất hiện **đúng 1 lần** (t = 37 s) và thuộc `dry_run()`. Nhánh chính
+không in dòng `GATE_C_PLUME` nào. Đã sửa `dry_run()` cho khớp (commit dưới).
+
+**Chứng minh nhánh chính CÓ bật miền** — bằng chữ ký không thể trùng hợp: `wfh` lấy mẫu **theo
+scene** bằng `sample_wfh_mm()`, hàm băm riêng của repo mà production **không bao giờ** gọi
+(production luôn `wfh = 1,0`).
+
+| | giá trị đo từ nhánh plume của cổng C |
+|---|---|
+| `wfh` theo scene | **0,137 / 0,805 / 1,200** mm (min/p50/max) |
+| số scene `wfh ≠ 1,0` | **7/12** |
+| `corr(wfh, atten%)` | −0,248 |
+
+Nếu là production thì cả 12 scene phải cùng `wfh = 1,0`. Chúng không cùng ⇒ **miền Cách A đã
+chạy đúng** ở nhánh plume. Kết quả §1–§6 là của Cách A, không phải production.
+
+**Bài học thước đo (lần thứ ba trong phiên):** đọc log phải kiểm **số lần** xuất hiện và **hàm nào**
+in ra, không chỉ grep dòng đầu. Ban đầu tôi kết luận "kết quả là của production" từ một dòng log
+duy nhất — sai.
