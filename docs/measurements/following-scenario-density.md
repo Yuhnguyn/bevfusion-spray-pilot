@@ -122,9 +122,80 @@ CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
 ```
 
 `[ĐO]` md5 (2026-11-19):
-`scripts/measure_following_scenario.py` = `61d6fac90a75968f28645f85f4708d5e` ·
+`scripts/measure_following_scenario.py` = `f9fc7208c413b7ad8aae1c76ae8acdc7` ·
 `.scratch/tmp/following_scenario.json` = `31f62749665f280e6ff3f118cd0c0a54` ·
 `spray/plume_state.py` = `8c3ae8cac572490c663b9aa8aab8af05` ·
 `spray/raycast.py` = `8c58faf81903f0369f12220ebf90f098` ·
 `spray/beam_model.py` = `38acb4b9dc659a7cfb7635589f038710` ·
 `spray/sspp_adapter.py` = `02be8a6a5d2cde951b3b62d94ba8d37b`.
+
+## 7. D2-v2 — fit một hệ số vô hướng `following_density_scale` (pre-register, 2026-11-19)
+
+**Pre-register (Lead, trước khi có số fit):** vì dải tỉ lệ A3-V trải **0,86 → 16,92× (19×)**,
+một hệ số vô hướng được dự đoán **không thể** cứu. Vẫn thực hiện đúng quy trình để kiểm chứng:
+fit trên 2/3 scene B, chấm trên 1/3 còn lại, **một** hệ số, không thêm hệ số thứ hai, không đổi
+ngưỡng.
+
+**Chia tập (tất định, phân tầng lớp × nhóm tốc độ):** trong mỗi tầng, sort `rel_path`, index
+`% 3 == 0` → verify (1/3), còn lại → fit (2/3). Kết quả: **46 scene fit / 26 scene verify**
+(tổng 72 scene B).
+
+**Tiêu chí fit `[CHỌN]` (ghi rõ trước khi chấm):** gộp **toàn bộ tỉ lệ frame** của các scene fit
+(6 ô), lấy **median gộp** `m_fit`, đặt `following_density_scale = 1 / m_fit` để median gộp trên
+fit = 1,0. Dùng **núm production sẵn có** `PlumeStateConfig.spawn_scale` (default vẫn 1,0 —
+**không đổi hành vi mặc định**, không sửa `spray/`). Đo bằng chính script, `--spawn-scale`.
+
+`[ĐO]` `m_fit` (scale = 1) = **3,3211** ⇒ **`s_fit = 0,3011`**. Sau khi chạy lại với
+`spawn_scale = 0,3011`, **median gộp trên fit = 1,025** (lệch +2,5 % do quan hệ không tuyến tính
+hoàn toàn — chấp nhận, không tinh chỉnh thêm).
+
+**Fit — median từng ô sau scale (để thấy độ tản):**
+
+| lớp | nhóm | scene | frame | thật/f | sinh/f | median (scale=1) | median (fit) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Crafter | 50–70 | 8 | 239 | 142,3 | 105,7 | 2,09 | **0,67** |
+| Crafter | 80–110 | 10 | 294 | 786,2 | 763,6 | 2,79 | **0,87** |
+| Crafter | 120–130 | 5 | 150 | 655,4 | 934,3 | 15,08 | **3,09** |
+| Golf | 50–70 | 8 | 201 | 128,1 | 38,6 | 0,67 | **0,14** |
+| Golf | 80–110 | 10 | 289 | 390,4 | 550,1 | 5,00 | **1,42** |
+| Golf | 120–130 | 5 | 139 | 470,6 | 1 002,9 | 6,63 | **2,79** |
+
+**Verify — chấm theo đúng ngưỡng A3-V ([0,5; 2,0], CI95 phải nằm trọn):**
+
+| lớp | nhóm | scene | frame | thật/f | sinh/f | median | CI95 | verdict |
+|---|---|---:|---:|---:|---:|---:|---|---|
+| Crafter | 50–70 | 4 | 119 | 82,2 | 73,7 | **0,44** | [0,30; 0,92] | **FAIL** |
+| Crafter | 80–110 | 6 | 180 | 856,0 | 732,5 | **0,89** | [0,52; 1,17] | **PASS** |
+| Crafter | 120–130 | 3 | 90 | 521,5 | 1 112,2 | **6,07** | [4,09; 6,74] | **FAIL** |
+| Golf | 50–70 | 4 | 111 | 103,0 | 28,7 | **0,09** | [0,01; 0,14] | **FAIL** |
+| Golf | 80–110 | 6 | 171 | 410,7 | 601,3 | **1,52** | [1,06; 1,96] | **PASS** |
+| Golf | 120–130 | 3 | 88 | 455,2 | 896,4 | **2,48** | [1,59; 2,96] | **FAIL** |
+
+**Verdict D2-v2: FAIL — 2/6 ô verify PASS.** Đúng như dự đoán pre-register:
+- **120–130 km/h vẫn đậm 2,5–6,1×** (Crafter 6,07 [4,09; 6,74]; Golf 2,48 [1,59; 2,96]);
+- **50–70 bị đẩy xuống quá thấp** (Golf 0,09 [0,01; 0,14]; Crafter 0,44 [0,30; 0,92]);
+- chỉ nhóm **80–110** rơi vào dải (Crafter 0,89; Golf 1,52).
+
+`[SUY LUẬN]` Kết luận cơ chế: lệch **không phải hằng số tỉ lệ** nên một scale vô hướng không cứu
+được. Nguyên nhân là **hình học near-field**: mô hình quả cầu + tia là **quang học DÀY** ở cự ly
+gần (quả cầu 0,31 m ở khoảng 1 m chiếm ~35°, hàng nghìn tia × `P_det` ⇒ hàng trăm điểm/cụm), còn
+dữ liệu thật là **quang học MỎNG** (số return bị giới hạn bởi số hạt trên đường tia). Ở static
+cảm biến cách ≥ 16 m nên lỗi này không lộ; ở following ego chạy **xuyên qua** plume nên near-field
+chi phối (detection `<10 m` = 39,6–81,5 %, `<4 m` = 15,9–49,2 %). Scale nhân đều mọi cự ly nên
+không sửa được tỉ lệ phụ thuộc cự ly này.
+
+**Hệ quả:** không đưa `following_density_scale` vào production (giữ `spawn_scale = 1,0`); muốn sửa
+phải đổi **mô hình quang học near-field** (không phải một hệ số), cần mở lại ADR. Phép đo này là
+kiểm chứng, không dùng chọn tham số (D2-chặt).
+
+`[ĐO]` md5 (2026-11-19): `scripts/measure_following_scenario.py` =
+`f9fc7208c413b7ad8aae1c76ae8acdc7` · `.scratch/tmp/following_scenario_scale.json` = `eeac23358bc2ec4d7bf5121491c84d0c` ·
+`.scratch/tmp/d2v2_verify.json` = `8e9db7f45a400b6aca9cbb9ccace2f9d` · baseline
+`.scratch/tmp/following_scenario.json` = `31f62749665f280e6ff3f118cd0c0a54`.
+
+Lệnh tái lập:
+```bash
+CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
+    scripts/measure_following_scenario.py --sets B --frames-per-scene 30 \
+    --spawn-scale 0.3011 --out .scratch/tmp/following_scenario_scale.json
+```

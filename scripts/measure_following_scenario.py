@@ -41,7 +41,7 @@ sys.path.insert(0, str(REPO))
 from spray.beam_model import load_beam_table  # noqa: E402
 from spray.plume import PlumeConfig, inject_plume_stateful  # noqa: E402
 from spray.plume_context import PlumeContext  # noqa: E402
-from spray.plume_state import PlumeState  # noqa: E402
+from spray.plume_state import PlumeState, PlumeStateConfig  # noqa: E402
 from spray.raycast import raycast_frame  # noqa: E402
 from spray.sspp_adapter import (  # noqa: E402
     _boxes_to_arrays,
@@ -111,6 +111,48 @@ def _scene_meta(root: Path) -> list[dict]:
     return scenes
 
 
+def build_sample_b(scenes: list[dict]) -> list[dict]:
+    """Tập B: 4 scene/(group, tốc độ) trong 171 scene KHÔNG box — tất định."""
+
+    unboxed = [scene for scene in scenes if not scene["has_box"]]
+    sample_b: list[dict] = []
+    for group in ("Crafter_dynamic", "Golf_dynamic"):
+        for speed in sorted({scene["speed_kmh"] for scene in unboxed}):
+            members = sorted(
+                (
+                    scene
+                    for scene in unboxed
+                    if scene["group"] == group and scene["speed_kmh"] == speed
+                ),
+                key=lambda scene: scene["rel_path"],
+            )
+            sample_b.extend(members[:4])
+    return sample_b
+
+
+def split_fit_verify(scenes: list[dict]) -> dict[str, list[dict]]:
+    """Chia 2/3 fit – 1/3 verify, phân tầng theo (lớp, nhóm tốc độ).
+
+    Tất định: trong mỗi tầng, sort theo ``rel_path`` rồi index % 3 == 0 → verify
+    (1/3), còn lại → fit (2/3). Không RNG.
+    """
+
+    band_of: dict[int, str] = {}
+    for label, speeds in SPEED_BANDS:
+        for speed in speeds:
+            band_of[int(speed)] = label
+    strata: dict[tuple[str, str], list[dict]] = {}
+    for scene in scenes:
+        key = (scene["vehicle_class"], band_of[int(scene["speed_kmh"])])
+        strata.setdefault(key, []).append(scene)
+    split: dict[str, list[dict]] = {"fit": [], "verify": []}
+    for key in sorted(strata):
+        members = sorted(strata[key], key=lambda scene: scene["rel_path"])
+        for index, scene in enumerate(members):
+            split["verify" if index % 3 == 0 else "fit"].append(scene)
+    return split
+
+
 def _sample_scene_indices(n_frames: int, count: int) -> list[int]:
     if count <= 0 or count >= n_frames:
         return list(range(n_frames))
@@ -173,15 +215,24 @@ def _region_mask(
     )
 
 
-def measure_scene(scene: dict, root: Path, frames_per_scene: int) -> dict:
-    """Đo một scene theo metric A3-V (paired real/generated, vùng 0–60 m)."""
+def measure_scene(
+    scene: dict,
+    root: Path,
+    frames_per_scene: int,
+    spawn_scale: float = 1.0,
+) -> dict:
+    """Đo một scene theo metric A3-V (paired real/generated, vùng 0–60 m).
+
+    ``spawn_scale`` chỉ nhân tốc độ phát cụm (núm production sẵn có, default
+    1,0) — dùng cho fit D2-v2; không đổi mặc định.
+    """
 
     scene_dir = root / scene["rel_path"]
     scan_ids = sorted(path.stem for path in (scene_dir / "velodyne").glob("*.bin"))
     indices = _sample_scene_indices(len(scan_ids), frames_per_scene)
     object_speed_mps = scene["speed_kmh"] / 3.6
     ego_speed_mps = scene["ego_kmh"] / 3.6
-    state = PlumeState()
+    state = PlumeState(PlumeStateConfig(spawn_scale=float(spawn_scale)))
     config = PlumeConfig()
     table = load_beam_table()
 
@@ -417,6 +468,18 @@ def main() -> None:
         "--sets", default="AB", help="tập cần đo: A (36 boxed), B (unboxed), AB"
     )
     parser.add_argument(
+        "--spawn-scale",
+        type=float,
+        default=1.0,
+        help="D2-v2: nhân tốc độ phát cụm (núm production sẵn có; default 1,0)",
+    )
+    parser.add_argument(
+        "--split",
+        choices=("all", "fit", "verify"),
+        default="all",
+        help="fit 2/3 – verify 1/3, phân tầng (lớp × nhóm tốc độ), tất định",
+    )
+    parser.add_argument(
         "--out",
         default=str(REPO / ".scratch/tmp/following_scenario.json"),
     )
@@ -424,22 +487,16 @@ def main() -> None:
     root = Path(args.root)
     scenes = _scene_meta(root)
     boxed = [scene for scene in scenes if scene["has_box"]]
-    unboxed = [scene for scene in scenes if not scene["has_box"]]
-
-    # Tập B: 4 scene/(group, tốc độ) ⇒ mỗi nhóm tốc độ có 12 scene/lớp
-    # (24 scene/nhóm, cả 2 lớp) — đạt ≥20 scene/nhóm của A3-V. Không RNG.
-    sample_b: list[dict] = []
-    for group in ("Crafter_dynamic", "Golf_dynamic"):
-        for speed in sorted({scene["speed_kmh"] for scene in unboxed}):
-            members = sorted(
-                (
-                    scene
-                    for scene in unboxed
-                    if scene["group"] == group and scene["speed_kmh"] == speed
-                ),
-                key=lambda scene: scene["rel_path"],
-            )
-            sample_b.extend(members[:4])
+    # Tập B: 4 scene/(group, tốc độ) ⇒ ≥20 scene/nhóm, cả 2 lớp. Không RNG.
+    sample_b = build_sample_b(scenes)
+    split = split_fit_verify(sample_b)
+    if args.split != "all":
+        sample_b = split[args.split]
+        print(
+            f"SPLIT {args.split}: {len(sample_b)} scene "
+            f"(fit={len(split['fit'])}, verify={len(split['verify'])})",
+            flush=True,
+        )
 
     sets: dict[str, list[dict]] = {}
     if "A" in args.sets:
@@ -459,7 +516,12 @@ def main() -> None:
             flush=True,
         )
         for position, scene in enumerate(members, start=1):
-            result = measure_scene(scene, root, args.frames_per_scene)
+            result = measure_scene(
+                scene,
+                root,
+                args.frames_per_scene,
+                spawn_scale=args.spawn_scale,
+            )
             all_results.append(result)
             ratios = [
                 row["ratio"] for row in result["frames"]
@@ -511,6 +573,8 @@ def main() -> None:
                     "B=2 scene/(group,tốc độ) trong 171 scene không box."
                 ),
                 "fixed_seed": FIXED_SEED,
+                "spawn_scale": args.spawn_scale,
+                "split": args.split,
                 "bootstrap": BOOTSTRAP,
                 "frames_per_scene": args.frames_per_scene,
                 "summary": summary,
