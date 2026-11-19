@@ -20,18 +20,19 @@ from spray.plume import (
     visible_cluster_count_for_speed,
 )
 
-# docs/measurements/roadspray-static-clusters-by-speed.md (RoadSpray static, ADR-0006 D2).
+# [ĐO] Δ=1,0 (a3_targets_static.json, a3_targets_static.json key "{v}_1.0") —
+# bảng cũ Δ=2,5 đã bị bỏ. Nguồn: RoadSpray static D2.
 CAL_CLUSTERS_PER_FRAME = {
     "crafter": {
-        50: 5.98,
-        60: 13.17,
-        70: 19.03,
-        80: 26.67,
-        90: 24.79,
-        100: 25.75,
-        110: 27.44,
-        120: 20.57,
-        130: 22.24,
+        50: 9.04,
+        60: 14.40,
+        70: 19.77,
+        80: 25.13,
+        90: 30.50,
+        100: 35.86,
+        110: 34.93,
+        120: 34.01,
+        130: 33.08,
     },
     "golf": {
         50: 4.73,
@@ -70,7 +71,7 @@ def test_default_class_is_crafter_and_golf_is_not_derived_from_it():
             )
         )
     assert cluster_count_for_speed(100.0, vehicle_class="golf") == 23
-    assert cluster_count_for_speed(100.0, vehicle_class="crafter") == 26
+    assert cluster_count_for_speed(100.0, vehicle_class="crafter") == 36  # Δ=1,0
 
 
 def test_unknown_vehicle_class_is_rejected():
@@ -100,7 +101,7 @@ def test_rate_is_closed_at_the_one_millimetre_reference():
 
 def test_no_clusters_below_the_first_cal_row():
     assert cluster_count_for_speed(49.9) == 0
-    assert cluster_count_for_speed(50.0) == 6
+    assert cluster_count_for_speed(50.0) == 9  # [ĐO] Δ=1,0: 9,04 -> 9
 
 
 @pytest.mark.parametrize(

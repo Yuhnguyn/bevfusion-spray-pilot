@@ -171,15 +171,16 @@ def test_activation_threshold_is_40_kmh():
 
 
 def test_cluster_count_follows_the_cal_table():
-    # Ticket 29c mục 7: bảng `cal` nội suy, không phải (0,2*wfh+0,1)*(v-50).
+    # [ĐO] Δ=1,0 (a3_targets_static.json) — bảng cũ Δ=2,5 đã bị bỏ.
+    # Bảng RoadSpray static D2: 9,04 @50 · 14,40 @60 · 25,13 @80 · 35,86 @100 · 33,08 @130.
     assert cluster_count_for_speed(39.0) == 0
     assert cluster_count_for_speed(40.0) == 0
     assert cluster_count_for_speed(45.0) == 0
-    assert cluster_count_for_speed(50.0) == 6
-    assert cluster_count_for_speed(60.0) == 13
-    assert cluster_count_for_speed(80.0) == 27
-    assert cluster_count_for_speed(100.0) == 26
-    assert cluster_count_for_speed(130.0) == 22
+    assert cluster_count_for_speed(50.0) == 9
+    assert cluster_count_for_speed(60.0) == 14
+    assert cluster_count_for_speed(80.0) == 25
+    assert cluster_count_for_speed(100.0) == 36
+    assert cluster_count_for_speed(130.0) == 33
 
 
 def test_no_clusters_at_45_kmh():
@@ -187,13 +188,14 @@ def test_no_clusters_at_45_kmh():
 
 
 def test_cluster_count_at_130_kmh_with_one_mm_water_film():
-    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 22
+    # [ĐO] Δ=1,0: 33,08 cụm/frame @130 -> 33.
+    assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.001)) == 33
     assert cluster_count_for_speed(130.0, PlumeConfig(water_film_height_m=0.0)) == 0
 
 
 def test_cluster_count_at_80_kmh_matches_the_table():
-    # Bảng RoadSpray static (D2) cho 26,67 cụm/frame ở 80 km/h.
-    assert cluster_count_for_speed(80.0) == 27
+    # [ĐO] Δ=1,0 (a3_targets_static.json) — bảng cũ Δ=2,5 đã bị bỏ: 25,13 cụm/frame @80.
+    assert cluster_count_for_speed(80.0) == 25
 
 
 def test_steady_state_cluster_factor_is_geometric_sum():
@@ -219,14 +221,20 @@ def test_no_lifetime_dropout_generates_full_steady_state_count():
     result = inject_plume(points, box, seed=0, config=config)
 
     expected = cluster_count_for_speed(80.0, config)
-    assert expected == 27
+    assert expected == 25  # [ĐO] Δ=1,0 (a3_targets_static.json)
     assert result.stats.clusters_spawned == expected
     assert result.stats.clusters == expected
     assert result.stats.clusters_dropped_lifetime == 0
 
 
 def test_points_per_cluster_matches_measured_median():
-    """Trung bình điểm/cụm phải quanh median thật (17) chứ không phải 32 cố định."""
+    """Điểm/cụm là tầng MATERIALISED — KHÔNG ảnh hưởng det/frame.
+
+    [ĐO] R2 audit: nguồn SSPP của test cũ đã bị bỏ. Dải mới suy từ static
+    Δ=1,0: ppf/cpf = 25,4 @50 · 13,3 @100 · 12,3 @130 ⇒ 12 ≤ mean ≤ 26.
+    Đại lượng này chỉ mô tả số điểm materialised mỗi cụm; `PlumeTransform`
+    bỏ các điểm đó (ring=-1) nên det/frame do raycast quyết định, không do đây.
+    """
     points = np.zeros((1, 5), dtype=np.float32)
     boxes = np.array(
         [[0.0, 0.0, 0.0, 4.5, 1.9, 1.5, 0.0, 27.8, 0.0]], dtype=np.float32
@@ -238,7 +246,7 @@ def test_points_per_cluster_matches_measured_median():
         if r.stats.clusters
     ]
 
-    assert 14 <= float(np.mean(per_cluster)) <= 30
+    assert 12 <= float(np.mean(per_cluster)) <= 26
 
 
 def _single_clusters(distance, *, seeds, tag):
@@ -282,10 +290,15 @@ def test_radial_thinning_matches_measured_ratio():
     assert 1.22 <= float(np.median(ratios)) <= 1.34
 
 
-def test_cluster_radius_capped_at_one_meter():
-    """Ticket 23: trần 1,0 m theo dee.cpp:528; ~6,7% lognormal vượt trần bị bóp."""
+def test_cluster_radius_capped_at_two_meters():
+    """Trần 2,0 m = p99 của lognormal paper (mu=-1,2 sigma=0,72 -> 1,94 m).
+
+    [ĐO] 2026-11-19: trần 1,0 m cũ lấy từ code tham chiếu dee.cpp:528 (KHÔNG có
+    trong paper) và cắt đúng phần đuôi tạo cụm lớn mà đích RoadSpray static
+    Δ=1,0 có. Paper không đặt trần; dùng 2,0 m (p99 làm tròn lên, ~0,9 % vượt).
+    """
     config = PlumeConfig()
-    assert config.cluster_radius_bounds_m == (0.10, 1.00)
+    assert config.cluster_radius_bounds_m == (0.10, 2.00)
 
     rng = np.random.default_rng(23)
     radii = np.array(
@@ -300,9 +313,10 @@ def test_cluster_radius_capped_at_one_meter():
         ]
     )
 
-    assert radii.max() <= 1.0
-    at_cap = float((radii >= 1.0).mean())
-    assert 0.05 <= at_cap <= 0.09, at_cap
+    assert radii.max() <= 2.0
+    at_cap = float((radii >= 2.0).mean())
+    # P(r >= 2,0 | median 0,30, sigma 0,80) = 1 - Phi(ln(2/0,3)/0,8) ~ 0,9 %
+    assert 0.004 <= at_cap <= 0.015, at_cap
 
 
 def test_points_per_cluster_decreases_with_range():

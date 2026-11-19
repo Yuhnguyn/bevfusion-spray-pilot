@@ -126,3 +126,58 @@ Hệ quả: số cụm bị đẩy lên **~1,4×** trên cả hai lớp. Sửa: 
   sau đuôi, cắt lát cự ly, hộp đối chứng phía trước; `--zip/--speed/--water/--bags/--limit`.
 - Chạy lại: `python scripts/roadspray_static_plume_box.py --zip <zip> --out <file>.jsonl`
   (~13 phút cho 163 bag Crafter, ~17 phút cho 171 bag Golf).
+
+---
+
+# 9. CẬP NHẬT 2026-11-19 — cột **Δ = 1,0 m** là cột chuẩn thức `[ĐO]`
+
+Quyết định của Lead (A3, 2026-11-19): bảng cụm/frame dùng cho calibration phải lấy từ
+**bề dày lát Δ = 1,0 m**, không phải Δ = 2,5 m. Lý do: DBSCAN của paper chạy trên
+`(azimuth, elevation)` **không có chiều cự ly**, nên trong một lát cắt dày, nhiều đám thật
+nằm dọc tia bị nối thành một chuỗi (chain-merging) ⇒ số cụm bị **thổi phồng 1,6–2,1×**
+khi tăng Δ. Đo được trên cùng dữ liệu (Crafter, `.scratch/roadspray-cal/tmp/a3_targets_static.json`):
+
+| km/h | cpf Δ=1,0 | cpf Δ=2,5 | cpf Δ=6,0 | share Δ=1,0 | share Δ=2,5 | share Δ=6,0 |
+|---|---:|---:|---:|---:|---:|---:|
+| 50 | **9,04** | 5,96 | 3,61 | 77,9 % | 82,4 % | 92,3 % |
+| 100 | **35,86** | 26,07 | 17,21 | 39,2 % | 51,8 % | 71,2 % |
+| 130 | **33,08** | 22,63 | 13,74 | 34,7 % | 53,2 % | 75,1 % |
+
+## 9.1 Recipe đo lại từ raw `[ĐO]`
+
+Nguồn raw: `.scratch/roadspray-cal/tmp/plume_crafter_v5.jsonl` — output của
+`scripts/roadspray_static_plume_box.py` (81 bag Crafter, `itr_after_water` 1/3/5).
+Recipe dựng lại (đã **validate ngược**, xem §9.2):
+
+1. Chỉ giữ frame có xe ở **18 m ≤ `car_range` ≤ 38 m** (đúng cửa sổ cự ly của phép đo static).
+2. Với mỗi frame, lấy danh sách cụm ở cột `rear_by_width["1.0"]` (lát Δ = 1,0 m; vùng sau
+   đuôi W = 3,4 m, H = 1,5 m tính từ mặt đường, sâu 20 m — xem §3).
+3. `r50` = **median** của `radius` trên mọi cụm của tốc độ đó; `rsig` = **std của `log(radius)`**
+   (`ddof = 0`), tức sigma của lognormal bán kính.
+4. `radius` của một cụm = *"maximum distance of detections to the respective cluster center"*
+   — đúng định nghĩa Paper A §III-B, tính trong `static_slice_cluster_sizes()`.
+
+## 9.2 Validate ngược `[ĐO]`
+
+Recipe trên tái tạo **chính xác** (sai số làm tròn < 0,001) mọi số công bố trong
+`a3_targets_static.json`:
+
+| key | r50 tính lại | r50 trong file | rsig tính lại | rsig trong file |
+|---|---:|---:|---:|---:|
+| `50_1.0` | 0,349 | 0,349 | 0,754 | 0,7539 |
+| `100_1.0` | 0,292 | 0,292 | 0,727 | 0,7274 |
+| `130_1.0` | 0,311 | 0,311 | 0,714 | 0,7140 |
+
+Và tái tạo **đúng toàn bộ bảng Δ = 2,5 cũ** đang nằm trong `spray/plume_state.py` trước
+2026-11-19 (0,70 / 0,60 / 0,60 / 0,45 / 0,53 / 0,48 / 0,49 / 0,56 / 0,66 → khi tính đủ
+9 tốc độ: khớp từng mốc sau khi làm tròn 2 chữ số). Hai phép validate ngược này là lý do
+protocol D2-chặt đứng được: số dẫn từ static **tái lập được từ raw**, không phải số bịa.
+
+## 9.3 Hệ quả
+
+- Bảng calibration `_CLUSTER_VISIBLE_BY_SPEED` (Crafter) được dựng từ cột Δ = 1,0:
+  9,04 @50 · 35,86 @100 · 33,08 @130, nội suy tuyến tính 6 mốc còn lại.
+- Bảng Golf **chưa có phép đo static Δ = 1,0 tương ứng**; các giá trị Golf trong code vẫn
+  là Δ = 2,5 cũ ⇒ **chưa validate, A3 không dùng tới**; nếu sau này dùng Golf phải đo lại.
+- Cột Δ = 2,5/6,0 chỉ còn dùng làm **dải bất định định nghĩa vùng** (±30–40 %), không dùng
+  để chọn tham số.

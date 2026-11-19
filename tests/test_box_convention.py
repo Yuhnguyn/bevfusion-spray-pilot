@@ -79,16 +79,24 @@ def test_box_z_is_bottom_not_centre():
     assert z.max() <= BOX_BOTTOM + HEIGHT + 1e-6
 
 
-def test_block_offset_uses_length_not_width():
+def test_spawn_box_is_the_static_calibration_box_behind_the_tail():
+    """QĐ7 2026-11-19: vùng sinh = hộp đo calibration RoadSpray static.
+
+    Sâu 20 m sau **mặt đuôi** (dùng chiều DÀI xe, không phải chiều rộng),
+    ngang ±1,7 m, cao 1,5 m tính từ mặt đường. Thay cho block dài |v|·dt cũ
+    (nguồn SSPP, R2 audit đánh PHẢI BỎ).
+    """
     clusters = _spawn_one_frame()
     assert clusters
 
-    block_len = SPEED_MPS * DT
-    x_lo = 0.0 - LENGTH / 2.0 - block_len
-    x_hi = 0.0 - LENGTH / 2.0
-    x = np.array([cluster.pos[0] for cluster in clusters])
-    assert np.all(x >= x_lo - 1e-6)
-    assert np.all(x <= x_hi + 1e-6)
+    rear_x = 0.0 - LENGTH / 2.0
+    x_lo, x_hi = rear_x - 20.0, rear_x
+    pos = np.array([cluster.pos for cluster in clusters])
+    assert np.all(pos[:, 0] >= x_lo - 1e-6)
+    assert np.all(pos[:, 0] <= x_hi + 1e-6)
+    assert np.all(np.abs(pos[:, 1]) <= 3.4 / 2.0 + 1e-6)
+    assert np.all(pos[:, 2] >= BOX_BOTTOM - 1e-6)
+    assert np.all(pos[:, 2] <= BOX_BOTTOM + 1.5 + 1e-6)
 
 
 def test_inside_box_uses_length_on_x():

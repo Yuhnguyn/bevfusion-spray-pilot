@@ -71,45 +71,47 @@ LIFETIME_BASE_S = 0.2
 LIFETIME_SIGMA_S = 0.2
 # [CODE] dee.cpp:446.
 MAX_AGE_FACTOR = 4.0
-# [PAPER] arXiv 2212.08558: ``r_cl`` is lognormal with median 0.30 m (-1.2/0.8).
-# Ticket 29e-d-iii: the per-class MLE fits of 29e-d were dropped. On our label-2
-# clusters DBSCAN chains points along scan lines, so the fitted tail is dominated
-# by merged clusters (p99 ~12 m) and the fitted median (0.395 m) does not
-# reproduce the measured median (0.271 m). The paper constants stay.
-# [PAPER] Linnhoff Fig. 5: lognormal cho bán kính cụm, sigma = 0,8, median 0,30 m.
+# [PAPER] Linnhoff Fig. 5: ``r_cl`` là **một** phân bố lognormal duy nhất,
+# median 0,30 m (mu = -1,2), sigma ~0,8 — paper KHÔNG cho bán kính phụ thuộc tốc độ.
+#
+# `[ĐO] 2026-11-19` — đo lại trên **RoadSpray `*_static`**, cột bề dày lát **Δ=1,0 m**
+# (cột chuẩn thức; xem docs/measurements/roadspray-static-clusters-by-speed.md §6):
+#
+#     v=50  km/h -> r50 = 0,349 m, sigma = 0,754
+#     v=100 km/h -> r50 = 0,292 m, sigma = 0,727
+#     v=130 km/h -> r50 = 0,311 m, sigma = 0,711
+# (9 tốc độ: r50 0,288–0,349; rsig median 0,720, dải 0,701–0,771 — xem
+#  .scratch/roadspray-cal/tmp/plume_crafter_v5.jsonl, lọc 18–38 m.)
+#
+# Ba mốc gần như KHÔNG phụ thuộc tốc độ (0,29–0,35 m) và trùng paper (0,30 m)
+# ⇒ dùng MỘT hằng số, đúng như paper.
+#
+# Vì sao bảng theo tốc độ trước đây (0,45–0,70 m) bị bỏ: nó lấy từ cột **Δ=2,5 m**,
+# cột đó bị chain-merging dọc tia làm phình 1,6–2,1×. Số điểm tỉ lệ tiết diện (r²)
+# nên phần phình này từng làm khối lượng plume sai ~5×.
 RADIUS_MU = -1.2
-RADIUS_SIGMA = 0.97
-RADIUS_MAX_M = 1.0
-
-# [ĐO] **Trung vị** bán kính cụm theo tốc độ (Crafter), đo trên SSPP 207 scene gộp
-# theo fold — docs/measurements/sspp-cluster-radius-by-speed.md.
-# `[DO] 2026-11-19`: tăng 4,4x từ 50 -> 80 km/h rồi bão hoà; số paper (0,30 m) khớp
-# đúng vùng >= 80 km/h, tức số paper là số TỐC ĐỘ CAO chứ không phải hằng số.
-# Dùng bảng này thay cho hằng 0,30 m ở mọi tốc độ: hằng số đó làm bán kính bị phóng
-# 3,8x ở 50 km/h, mà số điểm lại tỉ lệ tiết diện (r^2) => thừa ~14x khối lượng.
-_CLUSTER_RADIUS_MEDIAN_BY_SPEED: tuple[tuple[float, float], ...] = (
-    (50.0, 0.70),
-    (60.0, 0.60),
-    (70.0, 0.60),
-    (80.0, 0.45),
-    (90.0, 0.53),
-    (100.0, 0.48),
-    (110.0, 0.49),
-    (120.0, 0.56),
-    (130.0, 0.66),
-)
+RADIUS_SIGMA = 0.72
+# [BỎ CLIP 1,0 m 2026-11-19 — paper-faithful] Paper định nghĩa r_cl = khoảng cách
+# xa nhất từ tâm cụm tới detection ⇒ đuôi lognormal là THẬT, không bị cắt.
+# Với mu = -1,2, sigma = 0,72: p99 = exp(-1,2 + 2,326*0,72) = 1,94 m. Clip 1,0 m
+# (ticket 23, từ dee.cpp:528 — là code tham chiếu, không phải paper) cắt đúng phần
+# đuôi tạo ra các cụm lớn mà đích static Δ=1,0 có (p95 172 điểm/cụm @50 km/h).
+RADIUS_MAX_M = 2.0
+# [ĐO] trung vị 3 mốc static Δ=1,0 = 0,311 m; paper = 0,301 m — lấy 0,31.
+# (D5 — bảng 9 tốc độ Δ=1,0 — sẽ áp ở Mốc 4 sau khi đo lại survival.)
+RADIUS_MEDIAN_M = 0.31
 
 
 def cluster_radius_median_for_speed(speed_kmh: float) -> float:
-    """Trung vị bán kính cụm (m) tại tốc độ cho trước — nội suy tuyến tính, kẹp biên."""
-    speeds = [row[0] for row in _CLUSTER_RADIUS_MEDIAN_BY_SPEED]
-    medians = [row[1] for row in _CLUSTER_RADIUS_MEDIAN_BY_SPEED]
-    return float(np.interp(speed_kmh, speeds, medians))
-# [ĐO] p95(|y - y_block|) on the real `cal` labels is 2.43 m. Clusters may
-# drift sideways with the wind, so the lateral offset from the block centre is
-# clamped every step; the paper puts clusters uniformly behind the object and
-# does not model lateral drift beyond the measured plume width.
-LATERAL_CLAMP_M = 2.43
+    """Trung vị bán kính cụm (m) — **hằng số**, không phụ thuộc tốc độ.
+
+    Giữ hàm để call site không đổi. Tham số tốc độ được bỏ qua có chủ ý: cả paper
+    (một lognormal) lẫn phép đo static Δ=1,0 đều cho bán kính không đổi theo tốc độ.
+    """
+    del speed_kmh
+    return RADIUS_MEDIAN_M
+
+
 # [PAPER] arXiv 2212.08558 Sec. III-C: no vertical initial velocity; v0 = object
 # velocity, purely horizontal. The paper has no gravity and no z equation, so a
 # cluster never rises on its own (ticket 29h). ``dee.cpp:540`` does draw a
@@ -181,16 +183,21 @@ class PlumeStateConfig:
     # xe). Bật 2 nguồn ±0,85 m làm điểm dồn thành hai vệt bánh — thấy rõ trong
     # clip; người dùng đã chỉ ra đúng. Mặc định 0 = rải đều như paper.
     source_count: int = 0
+    # [KHÔNG DÙNG TỪ QĐ7 2026-11-19] nguồn rời rạc (hai bánh) — nguồn SSPP, R2
+    # audit đánh PHẢI BỎ. Giữ field để không phá chữ ký `PlumeStateConfig`.
     source_lateral_m: tuple[float, ...] = (-0.85, 0.85)
     source_sigma_m: float = 0.18
-    # [CHỌN] Hệ số độ dài vệt: 1.0 = đúng quãng ego đi một chu kỳ; nhỏ hơn thì
-    # cụm ít gộp hơn (nhiều cụm hơn, đuôi nhẹ hơn). Hiệu chỉnh bằng
-    # scripts/measure_plume_size_tail.py.
-    streak_scale: float = 0.5
+    # [BỎ THEO AUDIT R2 2026-11-19] `streak` KHÔNG có trong paper Linnhoff 2022
+    # (R2 audit 49 tham số: 9 tham số phải bỏ, trong đó có `streak_scale`).
+    # Cơ chế kéo dài cụm theo phương trôi để nối các đám thành băng; ở 130 km/h
+    # nó từng làm `max` điểm/cụm ~3.500 trong khi static chỉ có p95 36–181.
+    # Đặt 0.0 = tắt; chỉ bật lại nếu có bằng chứng static chứng minh cần.
+    streak_scale: float = 0.0
     # [CHỌN] Độ cao nguồn tính từ **mặt đường** (m), không phải theo chiều cao
     # hộp: lớp nước bắn lên có cùng độ dày bất kể xe cao hay thấp. Dùng chiều
     # cao hộp làm mâu thuẫn giữa các cự ly (cùng một khối cho elevation khác
     # nhau ở 10 m và 17 m) — xem plan A3.
+    # [KHÔNG DÙNG TỪ QĐ7 2026-11-19] (nguồn SSPP) — giữ field vì API.
     source_height_m: tuple[float, float] = (0.05, 0.90)
 
 
@@ -214,7 +221,7 @@ class SprayCluster:
     velocity_assumed: bool = False
     # ``y`` of the spray block centre in the ego frame; the lateral clamp in
     # :meth:`PlumeState.advance` keeps ``|pos[1] - lateral_center_y|`` inside
-    # :data:`LATERAL_CLAMP_M`. ``None`` disables the clamp (hand-built clusters
+    # clamp ngang 2,43 m cũ). ``None`` = không clamp (hand-built clusters
     # in tests).
     lateral_center_y: float | None = None
     # ``[CHỌN]`` Độ dài vệt (m) dọc phương trôi: cụm được cảm biến nhìn như một
@@ -453,29 +460,16 @@ class PlumeState:
         lateral_center = (
             float(block_center[1]) if center is not None else float(origin[1])
         )
-        # Nguồn phát: đặt mỗi cụm quanh mép TRƯỚC của khối (mép này trùng mặt
-        # sau thùng xe) tại vị trí hai bánh, thay vì rải đều cả khối.
-        sources = None
-        if center is not None and cfg.source_count > 0 and count > 0:
-            forward = (np.asarray(direction, dtype=np.float64).ravel()
-                       if direction is not None
-                       else np.array([1.0, 0.0, 0.0], dtype=np.float64))
-            norm = float(np.linalg.norm(forward[:2]))
+        # QĐ7: trục dọc của khối (để rải cụm đều trong hộp calibration static).
+        forward = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        if center is not None and direction is not None:
+            candidate = np.asarray(direction, dtype=np.float64).ravel()
+            norm = float(np.linalg.norm(candidate[:2]))
             if norm > 1e-9:
-                forward = np.array([forward[0] / norm, forward[1] / norm, 0.0])
-            else:
-                forward = np.array([1.0, 0.0, 0.0], dtype=np.float64)
-            lateral_axis = np.array([-forward[1], forward[0], 0.0])
-            rear_face = block_center + forward * block_extents[0]
-            offsets = list(cfg.source_lateral_m) or [0.0]
-            sources = np.array([
-                rear_face + lateral_axis * float(offset) for offset in offsets
-            ])
-        knots = None
-        if center is not None and cfg.placement_knots > 0 and count > 0:
-            knots = block_center + rng.uniform(
-                -1.0, 1.0, size=(cfg.placement_knots, 3)
-            ) * block_extents
+                forward = np.array(
+                    [candidate[0] / norm, candidate[1] / norm, 0.0]
+                )
+        lateral_axis = np.array([-forward[1], forward[0], 0.0])
         created: list[SprayCluster] = []
         for _ in range(count):
             radius_median = cluster_radius_median_for_speed(v_abs_kmh)
@@ -493,36 +487,21 @@ class PlumeState:
                 pos = origin + rng.uniform(
                     -_SPAWN_JITTER_HALF_M, _SPAWN_JITTER_HALF_M, size=3
                 )
-            elif sources is not None:
-                # Nguồn xác định x (mép sau thùng) và y (hai bánh); nhưng độ cao
-                # phải TRẢI ĐỀU cả dải khối: nước bắn theo nhiều độ cao, và nếu
-                # dồn giữa khối thì cụm non nằm quá gần sensor (elevation ngoài
-                # dải tia) nên không tia nào cắt -> 0 detection
-                # `[DO] 2026-11-19`: lỗi này làm 2 test raycast đỏ.
-                source = sources[rng.integers(0, sources.shape[0])]
-                jitter = rng.normal(0.0, cfg.source_sigma_m, size=3)
-                # Độ cao: nước bắn từ LỐP nên ở DẢI THẤP của khối (0–40 % chiều
-                # cao), không phải giữa khối. `[DO] 2026-11-19`: đặt giữa khối làm
-                # cụm ở elevation 6,6–8,8° — ngoài vùng nhìn của sensor hẹp
-                # (±5° trong test) nên 0 tia cắt, 2 test raycast đỏ.
-                # Độ cao: đặt trong **thân plume**, tính từ MẶT ĐƯỜNG chứ không
-                # theo chiều cao hộp — lớp nước bắn lên dày như nhau bất kể xe cao
-                # thấp, và đây là dải mà cảm biến quan sát được ở cự ly following
-                # `[CHỌN] 2026-11-19`, xem plan §A3.
-                jitter[2] = (float(context.road_z_m)
-                             + rng.uniform(*cfg.source_height_m)) - source[2]
-                pos = source + jitter
-                pos = np.clip(pos, block_center - block_extents,
-                              block_center + block_extents)
-            elif knots is not None:
-                knot = knots[rng.integers(0, knots.shape[0])]
-                pos = knot + rng.normal(
-                    0.0, cfg.placement_knot_sigma_m, size=3
-                )
-                pos = np.clip(pos, block_center - block_extents,
-                              block_center + block_extents)
             else:
-                pos = block_center + rng.uniform(-1.0, 1.0, size=3) * block_extents
+                # QĐ7 2026-11-19: vùng sinh = ĐÚNG hộp đo calibration static D2
+                # (W=3,4 m · H=1,5 m từ mặt đường · sâu 20 m sau đuôi xe), phân
+                # bố ĐỀU. Bỏ nguồn rời rạc (`source_lateral_m`), knots và clamp
+                # ngang 2,43 m (nguồn SSPP) — R2 audit đánh PHẢI BỎ. Paper chỉ
+                # nói "uniform distribution in the region behind every moving
+                # object", không cho kích thước ⇒ dùng vùng do phép đo
+                # calibration định nghĩa là lựa chọn D2-hợp lệ.
+                offset = rng.uniform(-1.0, 1.0, size=3) * block_extents
+                pos = (
+                    block_center
+                    + forward * float(offset[0])
+                    + lateral_axis * float(offset[1])
+                    + np.array([0.0, 0.0, float(offset[2])])
+                )
             vel = base_vel.copy()
             vel[2] += vz
             cluster = SprayCluster(
@@ -587,12 +566,9 @@ class PlumeState:
                             * dt
                         )
                 cluster.pos = cluster.pos + (cluster.vel - ego_velocity) * dt
-                if cluster.lateral_center_y is not None:
-                    cluster.pos[1] = np.clip(
-                        cluster.pos[1],
-                        cluster.lateral_center_y - LATERAL_CLAMP_M,
-                        cluster.lateral_center_y + LATERAL_CLAMP_M,
-                    )
+                # QĐ7 2026-11-19: BỎ clamp ngang 2,43 m (nguồn SSPP `cal`
+                # labels, R2 audit đánh PHẢI BỎ). Vùng sinh giờ đã bị giới hạn
+                # bởi hộp calibration static nên không cần clamp riêng.
                 cluster.age += dt
         self._counters.alive = self._total_alive()
 

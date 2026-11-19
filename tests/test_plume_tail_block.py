@@ -70,40 +70,37 @@ def _run_frames(count, state):
         )
 
 
-def test_block_sits_behind_tail_with_fixed_width_and_fraction_height():
+def test_spawn_box_matches_the_static_calibration_box():
+    """QĐ7 2026-11-19: cụm sinh ra nằm trong hộp calibration static.
+
+    Hộp: sâu 20 m sau mặt đuôi (BOX x=23,2 m, dài 6,83 m), ngang W=3,4 m,
+    cao H=1,5 m tính từ **mặt đường** (`road_z_m`). Thay block
+    `|v|·dt` × `tail_block_height_frac` cũ — hai tham số nguồn SSPP, R2 audit
+    đánh PHẢI BỎ. Test cũ khoá hình học cũ nên được thay, không nới lỏng.
+    """
     state = PlumeState()
 
-    # Ticket 29f: the per-cycle rate at 80 km/h is 0.69, so one call usually
-    # spawns nothing. Accumulate cycles until a cohort exists; each call
-    # advances the previous one, so what survives is the newest frame's block.
     clusters = []
     for frame in range(20):
-        before = {cluster.cluster_id for cluster in state.alive(0)}
         inject_plume_stateful(
             _empty_points(), BOX, _context(frame), state, seed=1 + frame, token=TOKEN
         )
-        # Chỉ cohort sinh ở frame này (warm start để lại vệt cũ đã trôi xa).
         clusters = [c for c in state.alive(0) if c.age < 0.0]
         if clusters:
             break
     assert len(clusters) > 0
 
-    block_len = SPEED_MPS * DT
-    x_lo = 23.2 - 6.83 / 2.0 - block_len
-    x_hi = 23.2 - 6.83 / 2.0
-    height = BOX_HEIGHT
-    # box[2] is the box bottom already, so no height is subtracted.
-    box_bottom = BOX[0][2]
-    frac_lo, frac_hi = PlumeConfig.tail_block_height_frac
-    z_lo = box_bottom + frac_lo * height
-    z_hi = box_bottom + frac_hi * height
+    x, _, _, length, _, _, _, _, _ = (float(v) for v in BOX[0])
+    rear_x = x - length / 2.0
+    x_lo, x_hi = rear_x - 20.0, rear_x
+    road_z = _context(0).road_z_m
     pos = np.array([cluster.pos for cluster in clusters])
 
     assert np.all(pos[:, 0] >= x_lo - 1e-6)
     assert np.all(pos[:, 0] <= x_hi + 1e-6)
     assert np.all(np.abs(pos[:, 1]) <= 3.4 / 2.0 + 1e-6)
-    assert np.all(pos[:, 2] >= z_lo - 1e-6)
-    assert np.all(pos[:, 2] <= z_hi + 1e-6)
+    assert np.all(pos[:, 2] >= road_z - 1e-6)
+    assert np.all(pos[:, 2] <= road_z + 1.5 + 1e-6)
 
 
 def test_tail_block_fraction_is_the_measured_0_05_to_0_92():

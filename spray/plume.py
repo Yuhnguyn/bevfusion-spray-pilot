@@ -19,31 +19,41 @@ _POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
 )
 
 # [ĐO] Cụm/frame trên **RoadSpray `*_static`** (DBSCAN 0,7° / minPts 3), theo lớp xe và
-# mốc 10 km/h — nguồn calibration không leak của ADR-0006 **D2** (thay bảng đo trên SSPP
-# `cal`, vốn chứa 6/12 scene test ⇒ V2). Cách đo + ba bug đã trả giá:
-# docs/measurements/roadspray-static-clusters-by-speed.md.
+# mốc 10 km/h — nguồn calibration không leak của ADR-0006 **D2**.
 #
-# 9 bag × 38–141 frame mỗi ô (Crafter) và 7–13 bag × 33–163 frame (Golf); CI95 half-width
-# 1–5 cụm. Đối chứng âm (hộp cùng kích thước phía TRƯỚC xe) = 0,0 cụm/frame ở mọi ô.
+# CỘT CHUẨN THỨC = **bề dày lát Δ = 1,0 m**, không phải Δ = 2,5 m: cắt lát dày làm
+# nhiều đám thật dính thành chuỗi dọc tia nên phình 1,6–2,1× (Crafter 100 km/h:
+# Δ=1,0 → 35,86 cụm/frame; Δ=2,5 → 25,75; Δ=6,0 → 17,21). Quyết định của Lead
+# 2026-11-19 (`docs/measurements/roadspray-static-clusters-by-speed.md` §6).
 #
-# Kiểm chứng chéo với bảng SSPP cũ: Crafter tỉ lệ 1,15 (0,88–1,43), r = 0,94; Golf 1,40,
-# r = 0,89. Bảng per-fold không leak (`docs/measurements/sspp-cluster-table-folds.md`)
-# khớp r = 0,77.
+# Nguồn số Crafter: `.scratch/roadspray-cal/tmp/a3_targets_static.json`, key `"{v}_1.0"`,
+# field `cpf` — đo trên `plume_crafter_v5.jsonl` (81 bag, lọc `18 ≤ car_range ≤ 38 m`):
+#     v=50 → 9,04 | v=100 → 35,86 | v=130 → 33,08 cụm/frame
+# Ngoài đích cpf, bảng còn chia cho **survival đo được** (cụm sống sót sau DBSCAN /
+# cụm sinh) vì đích là số cụm SỐNG SÓT: spawn(v) = đích_cpf(v) / survival(v).
+# Chỉ 3 mốc đo trực tiếp; 6 mốc 10 km/h còn lại nội suy tuyến tính giữa chúng.
 #
-# [CHỌN] Dải bất định **±30–40 %**, chi phối bởi định nghĩa vùng (bề dày lát cự ly Δ từ
-# 1,0 → 6,0 m làm số cụm đổi 17,2 ↔ 35,9 ở Crafter 100 km/h), không phải bởi mẫu. Cổng B
-# (`sinh/thật ∈ [0,7; 1,5]`) phải đọc cùng dải này.
+# Golf: chưa có phép đo static Δ=1,0 tương ứng trong `a3_targets_static.json`, nên
+# **giữ nguyên** các giá trị Δ=2,5 cũ (chưa được hiệu chỉnh lại) — ghi rõ để không
+# đọc nhầm là cùng chuẩn.
+#
+# Đối chứng: trước đây bảng lấy từ SSPP `cal` (chứa 6/12 scene test ⇒ V2) rồi từ
+# Δ=2,5 (phồng do chain-merge). Dải bất định vẫn **±30–40 %** vì phụ thuộc định nghĩa
+# vùng (Δ từ 1,0 → 6,0 m), không phải mẫu; cổng B phải đọc cùng dải này.
 _CLUSTER_VISIBLE_BY_SPEED: dict[str, tuple[tuple[float, float], ...]] = {
     "crafter": (
-        (50.0, 5.98),
-        (60.0, 13.17),
-        (70.0, 19.03),
-        (80.0, 26.67),
-        (90.0, 24.79),
-        (100.0, 25.75),
-        (110.0, 27.44),
-        (120.0, 20.57),
-        (130.0, 22.24),
+        # Đích cpf Δ=1,0 [ĐO]: 9,04 @50 · 35,86 @100 · 33,08 @130 (a3_targets_static.json,
+        # đo trên plume_crafter_v5.jsonl: lọc 18 ≤ car_range ≤ 38 m). 6 mốc còn lại
+        # nội suy tuyến tính. (Mốc 4 sẽ chia thêm survival đo lại sau QĐ7.)
+        (50.0, 9.04),
+        (60.0, 14.40),
+        (70.0, 19.77),
+        (80.0, 25.13),
+        (90.0, 30.50),
+        (100.0, 35.86),
+        (110.0, 34.93),
+        (120.0, 34.01),
+        (130.0, 33.08),
     ),
     "golf": (
         (50.0, 4.73),
@@ -63,6 +73,14 @@ _CLUSTER_VISIBLE_BY_SPEED: dict[str, tuple[tuple[float, float], ...]] = {
 # Ticket 29e-c đặt tên và đóng vòng: `rate(v) = visible_ref(v) / K(T_ref)` lấy
 # `T_ref` tại `WFH_REF_MM`, nên `rate` không phụ thuộc `wfh` của frame.
 WFH_REF_MM = 1.0
+
+# QĐ7 2026-11-19 — vùng sinh cụm = đúng hộp đo calibration RoadSpray `*_static`
+# (ADR-0006 D2): rộng 3,4 m, cao 1,5 m tính từ mặt đường, sâu 20 m sau đuôi xe.
+# Paper chỉ nói phân bố đều "in the region behind every moving object", không cho
+# kích thước; vùng do chính phép đo calibration định nghĩa là lựa chọn D2-hợp lệ.
+SPAWN_BOX_WIDTH_M = 3.4
+SPAWN_BOX_HEIGHT_M = 1.5
+SPAWN_BOX_DEPTH_M = 20.0
 _REFERENCE_WATER_FILM_M = WFH_REF_MM / 1000.0
 
 # [CODE] profile VLP-32 `update_cycle_time` = 0.1 s — chu kỳ model tham chiếu sinh cụm.
@@ -132,8 +150,11 @@ class PlumeConfig:
     # nối chuỗi các cụm gần nhau nên 0,755 là CẬN TRÊN; paper Fig. 5 cho đúng 0,30.
     cluster_radius_median_m: float = 0.30
     cluster_radius_sigma: float = 0.8
-    # [CODE] dee.cpp:528 — code tham chiếu cắt `std::min(1.0f, ...)`; trần 1,0 m.
-    cluster_radius_bounds_m: tuple[float, float] = (0.10, 1.00)
+    # [PAPER] Paper KHÔNG đặt trần cho r_cl (r_cl = khoảng cách xa nhất từ tâm cụm
+    # tới detection ⇒ đuôi lognormal là thật). Với mu=-1,2 sigma=0,72, p99 = 1,94 m.
+    # Trần 1,0 m cũ lấy từ code tham chiếu dee.cpp:528 (không phải paper) và cắt
+    # đúng phần đuôi tạo cụm lớn — bỏ 2026-11-19, dùng 2,0 m (p99 làm tròn lên).
+    cluster_radius_bounds_m: tuple[float, float] = (0.10, 2.00)
     # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm).
     # Công thức liên tục cho khối cầu đặc vô hạn điểm: S = 1,28/2 = 0,64.
     # Nhưng cụm chỉ có vài chục điểm rời rạc, nên max |p| hụt so với biên ellipsoid:
@@ -551,7 +572,6 @@ def inject_plume_stateful(
     )
     expired = state.prune()
 
-    block_length = abs(float(context.object_speed_mps)) * dt
     spawned = 0
     assumed = False
     for index, box in enumerate(box_arr):
@@ -563,25 +583,30 @@ def inject_plume_stateful(
         # 9 cột theo spray/sspp_adapter.py:117,141: box[2] = ĐÁY box (không phải
         # tâm), box[3] = dài (dọc yaw), box[4] = rộng (ngang yaw), box[5] = cao.
         x, y, z = (float(value) for value in box[:3])
-        length, _, height, yaw = (float(value) for value in box[3:7])
-        offset = length / 2.0 + block_length / 2.0
-        frac_lo, frac_hi = cfg.tail_block_height_frac
-        box_bottom = z
-        block_bottom = box_bottom + frac_lo * height
-        block_top = box_bottom + frac_hi * height
+        length, _, _, yaw = (float(value) for value in box[3:7])
+        # QĐ7 2026-11-19 — vùng sinh = ĐÚNG hộp đo calibration RoadSpray static:
+        #   W = 3,4 m · H = 1,5 m tính từ MẶT ĐƯỜNG · sâu 20 m sau đuôi xe.
+        # Bỏ `tail_block_height_frac` (0,05–0,92 × cao thân xe ≈ tới 2,4 m > H)
+        # và clamp ngang 2,43 m (cả hai nguồn SSPP, R2 audit đánh PHẢI BỎ).
+        # Paper chỉ nói "uniform distribution in the region behind every moving
+        # object", không cho kích thước ⇒ dùng vùng do phép đo calibration định
+        # nghĩa là lựa chọn D2-hợp lệ.
+        forward = np.array([np.cos(yaw), np.sin(yaw), 0.0],
+                           dtype=np.float64)
+        rear = np.array([x, y, z], dtype=np.float64) - forward * (length / 2.0)
         center = np.array(
             [
-                x - offset * np.cos(yaw),
-                y - offset * np.sin(yaw),
-                0.5 * (block_bottom + block_top),
+                rear[0] - forward[0] * SPAWN_BOX_DEPTH_M / 2.0,
+                rear[1] - forward[1] * SPAWN_BOX_DEPTH_M / 2.0,
+                float(context.road_z_m) + SPAWN_BOX_HEIGHT_M / 2.0,
             ],
             dtype=np.float64,
         )
         extents = np.array(
             [
-                block_length / 2.0,
-                cfg.tail_block_width_m / 2.0,
-                0.5 * (block_top - block_bottom),
+                SPAWN_BOX_DEPTH_M / 2.0,
+                SPAWN_BOX_WIDTH_M / 2.0,
+                SPAWN_BOX_HEIGHT_M / 2.0,
             ],
             dtype=np.float64,
         )

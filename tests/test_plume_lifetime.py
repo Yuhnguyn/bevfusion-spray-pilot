@@ -6,7 +6,6 @@ import pytest
 from spray import plume_state
 from spray.plume_context import PlumeContext
 from spray.plume_state import (
-    LATERAL_CLAMP_M,
     PlumeState,
     PlumeStateConfig,
     SprayCluster,
@@ -58,12 +57,13 @@ def _spawn_nonempty(state, object_id, rng, context=None, **kwargs):
 def test_cluster_count_for_speed_abs_uses_the_cal_table_and_mm_water_film():
     # Ticket 29e: visible = round(rate * K(T(wfh))), same table as the
     # per-frame generator.
-    assert cluster_count_for_speed_abs(130.0, 1.0) == 22
-    assert cluster_count_for_speed_abs(100.0, 1.0) == 26
-    assert cluster_count_for_speed_abs(50.0, 1.0) == 6
+    # [ĐO] Δ=1,0 (a3_targets_static.json) — bảng cũ Δ=2,5 đã bị bỏ.
+    assert cluster_count_for_speed_abs(130.0, 1.0) == 33
+    assert cluster_count_for_speed_abs(100.0, 1.0) == 36
+    assert cluster_count_for_speed_abs(50.0, 1.0) == 9
     assert cluster_count_for_speed_abs(40.0, 1.0) == 0
     # Passing metres by mistake gives a different count, so the unit is pinned.
-    assert cluster_count_for_speed_abs(130.0, 0.001) == 3
+    assert cluster_count_for_speed_abs(130.0, 0.001) == 4
 
 
 def test_spawn_rate_is_fractional_and_uses_the_cal_table():
@@ -292,29 +292,55 @@ def test_drag_uses_ground_velocity_when_ego_and_object_match_speed():
         assert cluster.pos[0] < -1.0
 
 
-def test_lateral_offset_is_clamped_to_the_measured_2_43_m():
+def test_lateral_clamp_is_removed():
+    """QĐ7 2026-11-19: bỏ clamp ngang 2,43 m (nguồn SSPP `cal`, R2 audit PHẢI BỎ).
+
+    Không chỉ xoá test cũ: khẳng định hằng số đã biến mất khỏi module để không
+    ai vô tình đưa cơ chế SSPP trở lại.
+    """
+    assert not hasattr(plume_state, "LATERAL_CLAMP_M")
+    assert "LATERAL_CLAMP_M" not in inspect.getsource(plume_state)
+
+
+def test_spawn_region_is_the_static_calibration_box():
+    """QĐ7: mọi cụm sinh ra nằm trong hộp calibration static.
+
+    Hộp = W 3,4 m (|y| ≤ 1,7) × H 1,5 m **tính từ mặt đường** × sâu 20 m sau
+    đuôi xe — đúng vùng `roadspray_static_plume_box.py` dùng để đo D2. Đây là
+    bất biến thay cho clamp ngang đã bị bỏ.
+    """
     state = PlumeState()
     config = PlumeStateConfig(
         lifetime_sigma_s=0.0, drag_mean=0.0, drag_std=0.0, wind_speed_mps=0.0
     )
-    clusters = _spawn_nonempty(
-        state,
-        9,
-        np.random.default_rng(4),
-        dt=0.1,
-        center=np.array([16.0, 5.0, 0.34]),
-        extents=np.array([1.8, 1.7, 0.75]),
-        config=config,
+    road_z = -0.411
+    rear_x = 16.6
+    center = np.array(
+        [rear_x - 10.0, 0.0, road_z + 0.75], dtype=np.float64
     )
-    for cluster in clusters:
-        assert cluster.lateral_center_y == pytest.approx(5.0)
-        cluster.pos[1] = 9.0
-
-    state.advance(0.1)
-
-    for cluster in clusters:
-        assert abs(cluster.pos[1] - 5.0) <= LATERAL_CLAMP_M + 1e-12
-        assert cluster.pos[1] == pytest.approx(5.0 + LATERAL_CLAMP_M)
+    extents = np.array([10.0, 1.7, 0.75], dtype=np.float64)
+    rng = np.random.default_rng(7)
+    context = _context(road_z_m=road_z)
+    positions = []
+    for _ in range(2400):
+        positions.extend(
+            cluster.pos
+            for cluster in state.spawn(
+                context,
+                object_id=0,
+                rng=rng,
+                dt=0.1,
+                center=center,
+                extents=extents,
+                direction=np.array([1.0, 0.0, 0.0]),
+                config=config,
+            )
+        )
+    points = np.asarray(positions)
+    assert points.shape[0] > 50, points.shape[0]
+    assert np.abs(points[:, 1]).max() <= 1.7 + 1e-9
+    assert points[:, 2].min() >= road_z - 1e-9
+    assert points[:, 2].max() <= road_z + 1.5 + 1e-9
 
 
 def test_radius_slope_constant_is_removed():
@@ -348,12 +374,13 @@ def test_radius_median_does_not_grow_with_speed():
     slow = radii(100.0)
     fast = radii(130.0)
     assert slow.size > 300 and fast.size > 300
-    # `[ĐO] 2026-11-19` — bảng median bán kính lấy từ **RoadSpray `*_static`**
-    # (ADR-0006 D2), KHÔNG phải hằng 0,30 m của paper và không phải SSPP:
-    # 0,48 m @100 km/h và 0,66 m @130 km/h. Số paper (0,30 m) chỉ đúng cho quả
-    # cầu đơn lẻ; bán kính đo được trên cụm DBSCAN gồm cả chuỗi nên lớn hơn.
-    assert np.median(slow) == pytest.approx(0.48, rel=0.20)
-    assert np.median(fast) == pytest.approx(0.66, rel=0.20)
+    # `[ĐO] 2026-11-19` — bán kính lấy từ **RoadSpray `*_static`, cột Δ=1,0 m**
+    # (ADR-0006 D2): 0,349 / 0,292 / 0,311 m tại 50 / 100 / 130 km/h ⇒ gần như
+    # KHÔNG phụ thuộc tốc độ, và trùng paper (0,30 m). Vì vậy code dùng một hằng số
+    # 0,31 m cho mọi tốc độ. (Con số 0,48 / 0,66 trước đây lấy từ cột Δ=2,5 m — cột
+    # bị chain-merging dọc tia làm phình 1,6–2,1×, đã bị loại bỏ.)
+    assert np.median(slow) == pytest.approx(0.31, rel=0.20)
+    assert np.median(fast) == pytest.approx(0.31, rel=0.20)
 
 
 def test_spawn_has_no_vertical_velocity():
