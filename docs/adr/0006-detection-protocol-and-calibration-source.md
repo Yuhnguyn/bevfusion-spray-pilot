@@ -409,6 +409,35 @@ nhiêu là do **mật độ** và bao nhiêu là do **bản chất**.
 (dải 19×) ⇒ dự đoán trước: fit sẽ FAIL ở phần verify. Ghi lại dự đoán này để không ai nói fit là
 thành công.
 
+### Nguyên nhân sâu hơn (2026-11-19) — near-field KHÔNG phải thủ phạm chính
+
+R2 kiểm trực tiếp `.bin`+`.label` của 18 scene (144 frame), doc `docs/measurements/sspp-point-range-distribution.md`:
+
+- SSPP **có** điểm < 4 m (2,23 % tổng điểm), nhưng **< 2 m gần như trắng** (4 điểm toàn tập, min 0,999 m) và **`label==2` không tồn tại dưới 2,5 m** (min 2,501 m).
+- Devkit `ego_box_filter` chỉ bỏ **0,65 %** tổng điểm và **0,00 %** `label==2` ⇒ repo đọc raw, **không** bị lọc near-field.
+- `label==2` tại **2–4 m chiếm 11,5–31,4 %** spray trong vùng A3-V ⇒ **GT có near-field**, chỉ trắng dưới 2,5 m.
+
+**Phân rã:** loại bỏ vùng < 4 m thì tỉ lệ vẫn **5,0–11,1×** ở 120–130, **1,7–3,1×** ở 80–110, 0,9–2,0× ở 50–70.
+⇒ Near-field chỉ giải thích **34–38 %** phần đậm ở tốc độ cao. **Mô hình thật sự quá đậm ở far-field.**
+
+**Cơ chế thật — định luật tỉ lệ theo cự ly SAI:**
+
+| | Số detection của một cụm | Phụ thuộc cự ly |
+|---|---|---|
+| Mô hình hiện tại (`raycast.py`) | ∝ `r²/R²` (số tia × góc khối) | **giảm 1/R²** ⇒ gần cảm biến thì bùng nổ |
+| Vật lý (đám hạt quang học mỏng) | ∝ `n·σ_droplet·r³` | **không phụ thuộc R** (khi `r ≪ R`) |
+
+Suy ra: với đám hạt thưa bán kính `r`, số return = (số tia qua góc khối `(r/R)²`) × (xác suất trúng hạt
+trong đường `2r`, tỉ lệ `R²`) ⇒ triệt tiêu `R²`, còn lại **∝ r³**. Mô hình của ta thiếu đúng số hạng
+`R²` đó.
+
+**Đây là gốc của cả hai bệnh:** quá đậm ở gần (A3-V 8–17×) **và** quá thưa ở xa (vì 1/R² làm cụm ở
+40–100 m gần như vô hình — xem §7.6 của `plume-a3-diagnosis.md`).
+
+**Hệ quả:** tham số được fit để tái tạo một **observable đo ở cự ly xa** (T4 static: `car_range` p50 =
+45/77/103 m ở 50/100/130) nhưng lại được dùng ở **cự ly gần** (following: xe ở ~24 m). Với định luật
+sai, một bộ tham số không thể đúng ở cả hai cự ly.
+
 ---
 
 ## D2-v2 — Hiệu chỉnh kịch bản trên dữ liệu TRAIN-ONLY (pre-registered 2026-11-19)
