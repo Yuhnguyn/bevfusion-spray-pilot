@@ -63,7 +63,9 @@ def test_cluster_count_for_speed_abs_uses_the_cal_table_and_mm_water_film():
     assert cluster_count_for_speed_abs(50.0, 1.0) == 9
     assert cluster_count_for_speed_abs(40.0, 1.0) == 0
     # Passing metres by mistake gives a different count, so the unit is pinned.
-    assert cluster_count_for_speed_abs(130.0, 0.001) == 4
+    # QĐ12: T(130,0,001mm) = 0,2 s ⇒ K = 2,5415; rate = 33,08/K(1,8s) = 1,7877
+    # ⇒ alive = 4,545 ⇒ round = 5 (trước QĐ12 là 4 vì dùng 4T/Δt+1).
+    assert cluster_count_for_speed_abs(130.0, 0.001) == 5
 
 
 def test_spawn_rate_is_fractional_and_uses_the_cal_table():
@@ -73,8 +75,10 @@ def test_spawn_rate_is_fractional_and_uses_the_cal_table():
     # Ticket 29f: T = 0.2 s at 50 km/h, hard prune at 4T with age starting at
     # -dt, so a cluster lives 4*0.2/0.1 + 1 = 9 cycles — that is the divisor,
     # not K = 2.51.
+    # QĐ12: divisor = K = 1/(1−exp(−Δt/T)) = 2,5415 ở 50 km/h (paper Eq. 1),
+    # không còn 4T/Δt+1 = 9 của cắt cứng cũ.
     rate = cluster_spawn_rate_for_speed_abs(50.0, "golf")
-    assert rate == pytest.approx(4.73 / 9.0, rel=0.02)
+    assert rate == pytest.approx(4.73 / 2.5415, rel=0.02)
     assert cluster_count_for_speed_abs(50.0, 1.0, "golf") == 5
 
 
@@ -83,32 +87,75 @@ def test_lifetime_mean_matches_reference_formula():
     assert lifetime_mean_s(50.0, 1.0) == pytest.approx(0.20, abs=1e-9)
 
 
-def test_clusters_from_frame_k_survive_later_frames():
+def test_survival_follows_paper_eq_one_exponential_decay():
+    """QĐ12: P(cụm còn sống sau n bước) = exp(−n·Δt/T) — paper Eq. 1.
+
+    Trước QĐ12 cụm sống **cứng** tới 4·T; nay tan theo xác suất mỗi bước
+    ``P = exp(−Δt/T)``. Test thống kê trên cohort lớn, seed cố định.
+    """
     state = PlumeState()
     config = PlumeStateConfig(lifetime_sigma_s=0.0)
     rng = np.random.default_rng(3)
+    context = _context()  # 130 km/h ⇒ T = 1,8 s
 
-    # Ticket 29f: the per-cycle rate at 130 km/h is 0.25, so one call usually
-    # spawns nothing. `_spawn_nonempty` accumulates cycles until a cohort
-    # exists; this test is about survival, not about the spawn count.
-    created = _spawn_nonempty(state, 7, rng, config=config)
-    assert created
-    for cluster in created:
-        assert cluster.ttl == pytest.approx(1.8)
+    # Sinh CẢ COHORT trong cùng một frame (không advance) để tuổi đồng nhất;
+    # nếu vừa sinh vừa advance thì cohort trộn tuổi, không đo được exp(−age/T).
+    created: list = []
+    while len(created) < 400:
+        created.extend(
+            state.spawn(context, object_id=7, rng=rng, config=config)
+        )
+    assert all(c.ttl == pytest.approx(1.8) for c in created)
+    n_birth = len(created)
 
-    alive_before = len(state.alive(7))
-    for _ in range(2):
+    # 18 bước = 1,8 s = đúng một T ⇒ kỳ vọng còn exp(−1) = 36,8 %.
+    for _ in range(18):
         state.advance(0.1)
-        assert len(state.alive(7)) == alive_before
+        state.prune(dt=0.1, rng=rng)
+    alive = state.alive(7)
+    fraction = len(alive) / n_birth
+    expected = float(np.exp(-1.0))
+    assert 0.6 * expected <= fraction <= 1.4 * expected, (
+        n_birth,
+        len(alive),
+        fraction,
+    )
+    assert all(cluster.age < 12.0 * cluster.ttl for cluster in alive)
 
-    # 68 more steps leave the oldest cohort at age ~6.9 s, still below
-    # 4*T = 7.2 s.
-    for _ in range(68):
+
+def test_prune_caps_age_at_twelve_lifetimes():
+    """Trần **SỐ HỌC** ``12·T`` (QĐ12): vẫn xoá cứng khi age > 12·T.
+
+    Dùng RNG luôn "sống" để tách riêng trần số học khỏi phần tan xác suất.
+    """
+    class _AlwaysSurvive:
+        def random(self) -> float:
+            return 0.0
+
+    state = PlumeState()
+    config = PlumeStateConfig(lifetime_sigma_s=0.0)
+    rng = np.random.default_rng(11)
+    context = _context()  # 130 km/h ⇒ T = 1,8 s, trần 21,6 s
+
+    while not state.alive(2):
+        state.spawn(context, object_id=2, rng=rng, config=config)
+    alive_before = len(state.alive(2))
+    assert alive_before > 0
+
+    always = _AlwaysSurvive()
+    # 214 bước = 21,4 s < 21,6 s: trần chưa cắt, RNG luôn sống ⇒ không mất cụm.
+    for _ in range(214):
         state.advance(0.1)
+        assert state.prune(dt=0.1, rng=always) == 0
+    assert len(state.alive(2)) == alive_before
 
-    assert all(cluster.age < 4.0 * cluster.ttl for cluster in state.alive(7))
-    assert state.prune() == 0
-    assert len(state.alive(7)) == alive_before
+    # 221 bước = 22,1 s > 21,6 s ⇒ trần số học xoá hết.
+    for _ in range(7):
+        state.advance(0.1)
+    expired = state.prune(dt=0.1, rng=always)
+    assert expired == alive_before
+    assert len(state.alive(2)) == 0
+    assert state.counters.alive == 0
 
 
 def test_display_probability_decays_monotonically():
@@ -121,30 +168,6 @@ def test_display_probability_decays_monotonically():
     assert middle == pytest.approx(np.exp(-0.5))
     assert late == pytest.approx(np.exp(-2.0))
     assert early > middle > late
-
-
-def test_prune_removes_clusters_past_four_lifetimes():
-    state = PlumeState()
-    config = PlumeStateConfig(lifetime_sigma_s=0.0)
-    rng = np.random.default_rng(11)
-
-    while not state.alive(2):
-        state.spawn(
-            _context(), object_id=2, rng=rng, config=config
-        )
-    alive_before = len(state.alive(2))
-    assert alive_before > 0
-
-    # 80 steps leave age at 7.9 s, past 4*T = 7.2 s.
-    for _ in range(80):
-        state.advance(0.1)
-
-    expired = state.prune()
-
-    assert expired == alive_before
-    assert state.counters.expired == expired
-    assert len(state.alive(2)) == 0
-    assert state.counters.alive == 0
 
 
 def test_default_drag_is_the_paper_constant():

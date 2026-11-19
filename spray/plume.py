@@ -74,13 +74,15 @@ _CLUSTER_VISIBLE_BY_SPEED: dict[str, tuple[tuple[float, float], ...]] = {
 # `T_ref` tại `WFH_REF_MM`, nên `rate` không phụ thuộc `wfh` của frame.
 WFH_REF_MM = 1.0
 
-# QĐ7 2026-11-19 — vùng sinh cụm = đúng hộp đo calibration RoadSpray `*_static`
-# (ADR-0006 D2): rộng 3,4 m, cao 1,5 m tính từ mặt đường, sâu 20 m sau đuôi xe.
+# QĐ11 2026-11-19 — vùng **SINH** cụm (tách khỏi vùng ĐO):
+#   dài = |v|·Δt (quãng xe đi trong một scan: 1,4 m @50 · 2,8 @100 · 3,6 @130),
+#   rộng 3,4 m, cao 1,5 m tính từ mặt đường, ngay sau đuôi xe.
+# Nguồn: implementation reference của tác giả (`openMSL/sl-1-2`,
+# `define_spray_volumes()`) + bề ngang/cao của hộp đo calibration static.
 # Paper chỉ nói phân bố đều "in the region behind every moving object", không cho
-# kích thước; vùng do chính phép đo calibration định nghĩa là lựa chọn D2-hợp lệ.
+# kích thước. QĐ7 gộp nhầm vùng sinh với vùng đo 20 m nên đã sửa lại ở QĐ11.
 SPAWN_BOX_WIDTH_M = 3.4
 SPAWN_BOX_HEIGHT_M = 1.5
-SPAWN_BOX_DEPTH_M = 20.0
 _REFERENCE_WATER_FILM_M = WFH_REF_MM / 1000.0
 
 # [CODE] profile VLP-32 `update_cycle_time` = 0.1 s — chu kỳ model tham chiếu sinh cụm.
@@ -136,8 +138,11 @@ class PlumeConfig:
     # [CODE] dee.cpp:530 — time_constant = wfh*0.02*(v_kmh - 50) + 0.2 (giây).
     lifetime_water_film_coeff: float = 0.02
     lifetime_base_s: float = 0.2
-    # [CODE] dee.cpp:446 — cụm bị xoá khi age > 4 * time_constant.
-    lifetime_max_age_factor: float = 4.0
+    # [QĐ12 2026-11-19] Trần **SỐ HỌC** 12·T, KHÔNG phải mô hình: paper Eq. 1 cho
+    # cụm tan theo xác suất P(age) = exp(-age/T); exp(-12) = 6e-6 nên trần này chỉ
+    # cắt phần đuôi không còn ý nghĩa (< 1 cụm trên 10^5). Trước đây 4,0 là cắt
+    # cứng `[CODE] dee.cpp:446` — đã bỏ theo QĐ12.
+    lifetime_max_age_factor: float = 12.0
     # Số điểm mỗi cụm: lognormal quanh median theo cự ly, sigma chọn để p90 ~ 40.
     # Trường `points_per_cluster_median` giữ lại cho tương thích constructor; generator
     # không đọc nữa vì median giờ phụ thuộc cự ly (ticket 16), xem
@@ -150,11 +155,10 @@ class PlumeConfig:
     # nối chuỗi các cụm gần nhau nên 0,755 là CẬN TRÊN; paper Fig. 5 cho đúng 0,30.
     cluster_radius_median_m: float = 0.30
     cluster_radius_sigma: float = 0.8
-    # [PAPER] Paper KHÔNG đặt trần cho r_cl (r_cl = khoảng cách xa nhất từ tâm cụm
-    # tới detection ⇒ đuôi lognormal là thật). Với mu=-1,2 sigma=0,72, p99 = 1,94 m.
-    # Trần 1,0 m cũ lấy từ code tham chiếu dee.cpp:528 (không phải paper) và cắt
-    # đúng phần đuôi tạo cụm lớn — bỏ 2026-11-19, dùng 2,0 m (p99 làm tròn lên).
-    cluster_radius_bounds_m: tuple[float, float] = (0.10, 2.00)
+    # [QĐ13 2026-11-19] Paper KHÔNG đặt trần cho r_cl. Đây là **clip SỐ HỌC theo
+    # max quan sát** của cơ chế tán xạ QĐ13 (r(t) = r₀ + α·d_rel; r ~ 3–4 m ở
+    # depth 60 m với α ≈ 0,06), không phải ràng buộc paper. Trần 1,0/2,0 cũ bị bỏ.
+    cluster_radius_bounds_m: tuple[float, float] = (0.10, 4.00)
     # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm).
     # Công thức liên tục cho khối cầu đặc vô hạn điểm: S = 1,28/2 = 0,64.
     # Nhưng cụm chỉ có vài chục điểm rời rạc, nên max |p| hụt so với biên ellipsoid:
@@ -251,14 +255,14 @@ def cluster_rate_for_speed(
 ) -> float:
     """Số cụm **sinh mỗi chu kỳ** ``Δt = 0,1 s`` để khớp số cụm/frame đo được.
 
-    ``rate(v) = visible_ref(v) / (max_age_factor·T_ref(v)/Δt)`` — **không** chứa
-    ``wfh``; độ ẩm chỉ tác động qua ``T`` khi caller tính số cụm hiển thị.
+    ``rate(v) = visible_ref(v) / K(T_ref(v))`` với ``K = 1/(1−exp(−Δt/T))``
+    (paper Eq. 1, QĐ12) — **không** chứa ``wfh``; độ ẩm chỉ tác động qua ``T``
+    khi caller tính số cụm hiển thị.
     ``T_ref`` lấy tại mức ẩm chuẩn của dataset (1 mm), để ``rate`` không đổi khi
     caller đổi ``wfh``.
 
-    Mẫu số là :func:`steady_state_alive_factor`, **không** phải ``K``: ``prune()``
-    xoá cứng ở ``age > 4T`` nên cụm sống ``4T/Δt`` frame. Dùng ``K`` từng làm số
-    cụm sống gấp 4× mục tiêu (ticket 29f).
+    Mẫu số là :func:`steady_state_alive_factor` = ``K`` của paper Eq. 1
+    (QĐ12: tan xác suất, không còn cắt cứng 4T).
     """
     cfg = config or PlumeConfig()
     visible_ref = cluster_visible_target_for_speed(speed_kmh, vehicle_class)
@@ -274,7 +278,7 @@ def visible_cluster_count_for_speed(
     config: PlumeConfig | None = None,
     vehicle_class: str = "crafter",
 ) -> int:
-    """Số cụm **nhìn thấy trong một frame** = ``round(rate × 4T/Δt)``.
+    """Số cụm **nhìn thấy trong một frame** = ``round(rate × K)`` (paper Eq. 1).
 
     Hệ số nhân là :func:`steady_state_alive_factor` (số frame một cụm sống với
     ``prune()`` xoá cứng ở ``4T``), **không** phải ``K`` — xem docstring
@@ -327,18 +331,17 @@ def steady_state_factor(
     time_constant: float,
     *,
     dt: float = _UPDATE_CYCLE_TIME_S,
-    max_age_factor: float = 4.0,
 ) -> float:
-    """``K = Σ_{k=0}^{4T/Δt} exp(-k·Δt/T)`` cho một ``T`` bất kỳ (giây).
+    """``K = Σ_{k≥0} exp(-k·Δt/T) = 1 / (1 − exp(−Δt/T))`` — paper Eq. 1.
 
-    Tách khỏi ``steady_state_cluster_factor`` để caller có thể truyền ``T`` đã
-    tính theo đơn vị khác mà không lặp lại công thức cấp số nhân.
+    [QĐ12 2026-11-19] Cụm tan theo **xác suất** mỗi bước ``P = exp(−Δt/T)``
+    (paper Eq. 1) thay vì cắt cứng ở ``4T`` như reference impl. Vì vậy hệ số
+    tích luỹ là tổng cấp số nhân **vô hạn**, không còn ``max_age_factor`` trong
+    công thức (trần số học 12·T chỉ để chặn đuôi, ảnh hưởng < 1e-5).
     """
     if time_constant <= 0.0:
         return 0.0
-    steps = int(np.floor(max_age_factor * time_constant / dt))
-    k = np.arange(steps + 1, dtype=np.float64)
-    return float(np.exp(-k * dt / time_constant).sum())
+    return float(1.0 / (1.0 - np.exp(-dt / time_constant)))
 
 
 def steady_state_cluster_factor(
@@ -349,39 +352,30 @@ def steady_state_cluster_factor(
     ``T = lifetime_time_constant(v)`` (dee.cpp:530), ``Δt = 0,1 s``. Với
     ``T = 0,2 s`` → ``K ≈ 2,51``.
 
-    **Chỉ đúng nếu** ``prune()`` xoá theo xác suất ``1 − exp(−Δt/T)`` mỗi bước.
-    Code hiện tại xoá **cứng** khi ``age > max_age_factor·T``, nên hệ số tích luỹ
-    thật là :func:`steady_state_alive_factor`, **không** phải ``K``. Dùng ``K``
-    để tính ``rate`` làm số cụm sống gấp ``max_age_factor`` lần (ticket 29f).
+    [QĐ12 2026-11-19] Từ khi `prune()` tan theo xác suất (paper Eq. 1), ``K`` này
+    **chính là** hệ số tích luỹ thật: ``alive = arrival × K``. Trước đây code cắt
+    cứng ở 4T nên phải dùng :func:`steady_state_alive_factor` khác — hai hàm giờ
+    bằng nhau, giữ tên cũ cho caller.
     """
     cfg = config or PlumeConfig()
-    return steady_state_factor(
-        lifetime_time_constant(speed_kmh, cfg),
-        max_age_factor=cfg.lifetime_max_age_factor,
-    )
+    return steady_state_factor(lifetime_time_constant(speed_kmh, cfg))
 
 
 def steady_state_alive_factor(
     speed_kmh: float, config: PlumeConfig | None = None
 ) -> float:
-    """Số frame một cụm còn sống ở trạng thái dừng = ``max_age_factor·T/Δt + 1``.
+    """Số frame kỳ vọng một cụm còn sống = ``K = 1/(1−exp(−Δt/T))``.
 
-    ``prune()`` xoá **cứng** khi ``age > max_age_factor·T`` (``[CODE]
-    dee.cpp:445-450``) và không thinning xác suất. Cụm sinh ra với ``age = −Δt``
-    (``plume_state.spawn``) nên số frame sống là ``max_age_factor·T/Δt + 1`` —
-    đo trực tiếp `[ĐO]`: 17 frame ở 60 km/h (``4T/Δt = 16``), 49 ở 100 (48),
-    66 ở 120 (64).
+    [QĐ12 2026-11-19] ``prune()`` tan theo **xác suất** ``P = exp(−Δt/T)`` mỗi
+    bước (paper Eq. 1) ⇒ tuổi kỳ vọng = ``T/Δt`` frame, chính xác là tổng cấp số
+    nhân ``K``. Giữ tên hàm cho caller; giá trị giờ **bằng**
+    :func:`steady_state_cluster_factor`.
 
-    Đây là hệ số phải dùng để đổi ``visible`` (số cụm/frame đo được) ↔ ``rate``
-    (số cụm sinh mỗi chu kỳ); dùng ``K`` thay nó làm lệch ``max_age_factor`` = 4×.
+    Đây là hệ số đổi ``visible`` (số cụm/frame đo được) ↔ ``rate`` (số cụm sinh
+    mỗi chu kỳ): ``arrival = visible / K``, ``alive = arrival × K = visible``.
     """
     cfg = config or PlumeConfig()
-    return (
-        cfg.lifetime_max_age_factor
-        * lifetime_time_constant(speed_kmh, cfg)
-        / _UPDATE_CYCLE_TIME_S
-        + 1.0
-    )
+    return steady_state_factor(lifetime_time_constant(speed_kmh, cfg))
 
 
 def inject_plume(
@@ -570,7 +564,7 @@ def inject_plume_stateful(
     state.advance(
         dt, ego_velocity=np.array([context.ego_speed_mps, 0.0, 0.0])
     )
-    expired = state.prune()
+    expired = state.prune(dt=dt, rng=rng)
 
     spawned = 0
     assumed = False
@@ -584,27 +578,26 @@ def inject_plume_stateful(
         # tâm), box[3] = dài (dọc yaw), box[4] = rộng (ngang yaw), box[5] = cao.
         x, y, z = (float(value) for value in box[:3])
         length, _, _, yaw = (float(value) for value in box[3:7])
-        # QĐ7 2026-11-19 — vùng sinh = ĐÚNG hộp đo calibration RoadSpray static:
-        #   W = 3,4 m · H = 1,5 m tính từ MẶT ĐƯỜNG · sâu 20 m sau đuôi xe.
-        # Bỏ `tail_block_height_frac` (0,05–0,92 × cao thân xe ≈ tới 2,4 m > H)
-        # và clamp ngang 2,43 m (cả hai nguồn SSPP, R2 audit đánh PHẢI BỎ).
-        # Paper chỉ nói "uniform distribution in the region behind every moving
-        # object", không cho kích thước ⇒ dùng vùng do phép đo calibration định
-        # nghĩa là lựa chọn D2-hợp lệ.
+        # QĐ11 2026-11-19 — vùng SINH = slab |v|·Δt ngay sau đuôi xe:
+        #   dài |v|·Δt (reference impl `define_spray_volumes()`), rộng 3,4 m,
+        #   cao 1,5 m tính từ mặt đường. KHÔNG phải hộp đo 20 m của calibration
+        #   (QĐ7 gộp nhầm vùng sinh với vùng đo). Bỏ `tail_block_height_frac`
+        #   (0,05–0,92 × cao thân xe) và clamp ngang 2,43 m — nguồn SSPP, R2 PHẢI BỎ.
         forward = np.array([np.cos(yaw), np.sin(yaw), 0.0],
                            dtype=np.float64)
         rear = np.array([x, y, z], dtype=np.float64) - forward * (length / 2.0)
+        slab_length = abs(float(context.object_speed_mps)) * dt
         center = np.array(
             [
-                rear[0] - forward[0] * SPAWN_BOX_DEPTH_M / 2.0,
-                rear[1] - forward[1] * SPAWN_BOX_DEPTH_M / 2.0,
+                rear[0] - forward[0] * slab_length / 2.0,
+                rear[1] - forward[1] * slab_length / 2.0,
                 float(context.road_z_m) + SPAWN_BOX_HEIGHT_M / 2.0,
             ],
             dtype=np.float64,
         )
         extents = np.array(
             [
-                SPAWN_BOX_DEPTH_M / 2.0,
+                slab_length / 2.0,
                 SPAWN_BOX_WIDTH_M / 2.0,
                 SPAWN_BOX_HEIGHT_M / 2.0,
             ],

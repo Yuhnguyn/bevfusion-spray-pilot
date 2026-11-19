@@ -66,6 +66,13 @@ class RaycastConfig:
     mean_attenuation_per_m: float = 0.02
     p_det_mu: float = PAPER_P_DET_MU
     p_det_sigma: float = PAPER_P_DET_SIGMA
+    # [CHỌN — hiệu chỉnh theo dữ liệu calibration, QĐ10/A3 2026-11-19]
+    # Hệ số nhân vào P_det, MẶC ĐỊNH 1,0 = giữ nguyên paper. Lý do cần hiệu
+    # chỉnh: mô hình tia của repo (VLP-32C, 54 750 tia) khác cảm biến của paper;
+    # đại lượng "số tia trúng × P_det" là thứ phải khớp tổng điểm/frame với
+    # RoadSpray static (D2), không phải P_det đứng riêng. Đây KHÔNG phải sửa
+    # paper: P_det vẫn lognormal paper, chỉ hiệu chỉnh tích với hình học tia.
+    p_det_scale: float = 1.0
     intensity_mu: float = 0.5
     intensity_sigma: float = 0.05
     max_distance_m: float = 100.0
@@ -269,7 +276,7 @@ def raycast_frame(
     lognormal = rng.lognormal(cfg.p_det_mu, cfg.p_det_sigma, size=keys_hit.size)
     survival_by_cluster = _survival(cluster_list)
     survival = survival_by_cluster[cluster_hit]
-    probability = np.minimum(1.0, lognormal) * survival
+    probability = np.minimum(1.0, lognormal * cfg.p_det_scale) * survival
     detected = rng.random(keys_hit.size) > 1.0 - probability
 
     midpoints = 0.5 * (t0_hit + t1_hit)

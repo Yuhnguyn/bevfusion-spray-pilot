@@ -142,3 +142,68 @@ tốc độ (`Car` ↔ `Truck`) ⇒ không dùng nhãn để chọn track; (c) t
 - ADR-0005: giữ nguyên quyết định domain detection = SSPP; ADR này sửa cách **chia** và cách **chấm**.
 - `docs/PROJECT.md` §5: bảng kết quả đã cập nhật theo D3.
 - Kế hoạch thi công: `.scratch/roadspray-cal/plan.md`.
+
+---
+
+## Sửa đổi A3 (2026-11-19) — pre-registration, chốt TRƯỚC khi có profile T4
+
+Trạng thái: **Accepted bởi Lead.** Ghi lại tiêu chí nghiệm thu A3 **trước** khi nhìn thấy số liệu vùng đo
+của dữ liệu thật (task-13/T4), để không ai có thể nói tiêu chí được chỉnh cho vừa kết quả.
+
+### 1. Vì sao phải sửa tiêu chí
+
+A3 gốc so 4 đại lượng cụm (`r50`, `p95`, `share`, `cụm/frame`) giữa generator và RoadSpray static.
+Chuỗi audit 2026-11-19 phát hiện **năm lần "lệch toán tử"** — cùng một lỗi: so hai đại lượng đo bằng
+hai cái thước khác nhau.
+
+| # | Toán tử lệch | Sửa |
+|---|---|---|
+| 1 | Đo trên điểm materialised (`ring=-1`) vs điểm lidar thật thấy | đo `RaycastResult.detections` |
+| 2 | Lưới tia tự dựng 32×1800 vs production | `load_beam_table()` 30×1825 = 54.750 tia |
+| 3 | DBSCAN cả frame vs DBSCAN trong lát Δ=1,0 m | cài toán tử lát vào dụng cụ |
+| 4 | detections cả frame vs vùng hộp 3,4×1,5×20 m | đếm theo vùng |
+| 5 | Hình học cụm: sphere model vs chuỗi điểm dày | **bỏ tiêu chí cụm** (bên dưới) |
+
+### 2. Bằng chứng cho việc bỏ tiêu chí cụm — hàm truyền của toán tử
+
+Đo bằng cách nạp quả cầu bán kính **biết trước** vào raycast + cắt lát Δ=1,0 m + `cluster_angular(0,7°; 3)`
+(`.scratch/tmp/operator_transfer.py`):
+
+| bán kính nạp (m) | 0,20 | 0,31 | 0,50 | 0,80 |
+|---|---:|---:|---:|---:|
+| r50 đo lại | 0,176 | 0,242 | 0,360 | 0,459 |
+| hệ số truyền | 0,88 | 0,78 | 0,72 | 0,57 |
+
+Tăng mật độ 1 → 120 cụm chỉ kéo r50 0,179 → 0,232 (+30 %). ⇒ Toán tử **bóp méo bán kính 0,57–0,88×**,
+và mức bóp méo **khác nhau** giữa sphere model và chuỗi điểm dày của dữ liệu thật (thật: 26 điểm/cụm;
+sphere 0,31 m: ~9 điểm/cụm).
+
+**Hệ quả 1:** muốn đo ra 0,349 (đích) phải nạp cầu **0,7–0,8 m** = **2,5× số paper 0,30 m** ⇒ đó là fudge,
+không phải hiệu chỉnh.
+
+**Hệ quả 2:** các số 0,349 / 0,292 / 0,311 là **đại lượng ĐO ĐƯỢC** (đầu ra của toán tử), **không phải**
+bán kính quả cầu (đầu vào của mô hình). Nạp đầu ra làm đầu vào là **đếm trùng** đúng hệ số bóp méo.
+⇒ **Quyết định: bán kính mô hình giữ 0,30–0,31 m của paper; huỷ đề xuất dùng bảng 9 tốc độ làm tham số.**
+
+### 3. Tiêu chí nghiệm thu A3 v2 (pre-registered)
+
+PASS cần **đủ 3** điều, đo trên vùng **0–60 m sau mặt đuôi**, bin **2 m**, mask `|y| ≤ 5,0 m` /
+`0,15 m ≤ z − road_z ≤ 3,0 m` (hai vế dùng cùng mask):
+
+| | Tiêu chí | Ngưỡng |
+|---|---|---|
+| **(a)** | tổng điểm/frame 0–60 m: tỉ lệ sinh/thật | **∈ [0,7; 1,5]** |
+| **(b')** | profile chuẩn hoá theo độ sâu: mỗi bin có ≥10 % mass lệch | **≤ 30 %** |
+| | độ sâu chứa 90 % mass lệch | **≤ 25 %** |
+| **(c)** | CI95 half-width của (a) qua seed | **≤ 25 %** — trượt ⇒ in `NHIỄU`, **không kết luận** |
+
+Mọi đại lượng cụm (`r50`, `rsig`, `p95`, `share`, `cụm/frame`) **chỉ là chẩn đoán in ra**, không tham gia
+kết luận PASS/FAIL.
+
+### 4. Điều gì sẽ khiến mở lại phần này
+
+- T4 cho thấy plume thật dồn sát đuôi (< 10 m) trong khi mô hình paper (drag `C=−0,15 m⁻¹`) dồn về xa
+  ⇒ mô hình drag/lifetime **không tái tạo được** dữ liệu này. Đó là phát hiện phải ghi, **không** phải
+  để chỉnh công thức paper cho khớp.
+- Profile khớp nhưng (a) lệch > 2× ⇒ quay lại A (theo chốt chặn B của plan).
+- Bất kỳ ai muốn đổi ngưỡng ở §3 phải mở lại ADR và ghi lý do **trước** khi đo.

@@ -108,20 +108,20 @@ def test_alive_cluster_count_matches_the_calibration_table(speed_kmh: float):
     )
 
 
-def test_alive_factor_is_hard_prune_lifetime_not_the_geometric_k():
-    """Hệ số tích luỹ là ``4T/Δt + 1``, không phải ``K``.
+def test_alive_factor_is_the_paper_geometric_k():
+    """QĐ12: ``prune()`` tan xác suất ⇒ hệ số tích luỹ = ``K`` vô hạn của paper.
 
-    Đây là regression guard cho đúng lỗi ticket 29f: hai hệ số này lệch nhau
-    đúng ``max_age_factor`` lần, nên nhầm lại là plume thừa 4× số cụm.
+    Trước QĐ12 code cắt cứng ở ``4T`` nên alive factor = ``4T/Δt + 1``; nay hai
+    hệ số **bằng nhau** (paper Eq. 1: P(sống sau t) = exp(−t/T)). Test này khoá
+    lại sự bằng nhau đó, để không ai quay lại dùng ``4T/Δt + 1``.
     """
     for speed_kmh in SPEEDS_KMH:
         time_constant = lifetime_time_constant(speed_kmh)
-        expected = 4.0 * time_constant / DT + 1.0
+        expected = 1.0 / (1.0 - np.exp(-DT / time_constant))
         assert steady_state_alive_factor(speed_kmh) == pytest.approx(expected)
-
-        alive_factor = steady_state_alive_factor(speed_kmh)
-        geometric = steady_state_cluster_factor(speed_kmh)
-        assert alive_factor == pytest.approx(4.0 * geometric, rel=0.15)
+        assert steady_state_alive_factor(speed_kmh) == pytest.approx(
+            steady_state_cluster_factor(speed_kmh)
+        )
 
 
 def test_spawn_rate_is_consistent_with_the_alive_factor():

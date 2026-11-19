@@ -56,7 +56,6 @@ from spray.plume import (
     PlumeConfig,
     cluster_rate_for_speed,
     steady_state_alive_factor,
-    steady_state_cluster_factor,
 )
 
 # [CODE] dee.cpp:509-512 and the VLP-32 profile (num_clusters_velocity_offset_kmh).
@@ -68,9 +67,15 @@ ACTIVATION_SPEED_KMH = 40.0
 # [CODE] dee.cpp:530 and hpp:47.
 LIFETIME_WFH_COEFF = 0.02
 LIFETIME_BASE_S = 0.2
-LIFETIME_SIGMA_S = 0.2
-# [CODE] dee.cpp:446.
-MAX_AGE_FACTOR = 4.0
+# [QĐ12 2026-11-19] Paper Eq. 1 cho T là hàm TẤT ĐỊNH của tốc độ + màng nước,
+# không có nhiễu Gaussian. sigma = 0,2 s là `[CODE]` `std_time_constant` của
+# reference impl (dee.cpp) — bỏ. Hệ quả cũ: ttl tail ~N(0,2;0,2) × cắt cứng 4T
+# giữ cụm tới 1,6–2,4 s, làm trail @50 km/h dài 16 m thay vì ~5 m.
+LIFETIME_SIGMA_S = 0.0
+# [QĐ12 2026-11-19] Trần **SỐ HỌC** 12·T — KHÔNG phải mô hình. Paper Eq. 1 cho
+# tan theo xác suất P = exp(−age/T); exp(−12) = 6e-6 nên ảnh hưởng < 1 cụm/10^5.
+# Trước đây 4,0 là cắt cứng `[CODE] dee.cpp:446` — đã bỏ theo QĐ12.
+MAX_AGE_FACTOR = 12.0
 # [PAPER] Linnhoff Fig. 5: ``r_cl`` là **một** phân bố lognormal duy nhất,
 # median 0,30 m (mu = -1,2), sigma ~0,8 — paper KHÔNG cho bán kính phụ thuộc tốc độ.
 #
@@ -93,10 +98,17 @@ RADIUS_MU = -1.2
 RADIUS_SIGMA = 0.72
 # [BỎ CLIP 1,0 m 2026-11-19 — paper-faithful] Paper định nghĩa r_cl = khoảng cách
 # xa nhất từ tâm cụm tới detection ⇒ đuôi lognormal là THẬT, không bị cắt.
-# Với mu = -1,2, sigma = 0,72: p99 = exp(-1,2 + 2,326*0,72) = 1,94 m. Clip 1,0 m
-# (ticket 23, từ dee.cpp:528 — là code tham chiếu, không phải paper) cắt đúng phần
-# đuôi tạo ra các cụm lớn mà đích static Δ=1,0 có (p95 172 điểm/cụm @50 km/h).
-RADIUS_MAX_M = 2.0
+# Với mu = -1,2, sigma = 0,72: p99 = exp(-1,2 + 2,326*0,72) = 1,94 m.
+# [QĐ13 2026-11-19] Nâng trần lên **4,0 m**: đây là **clip SỐ HỌC theo max quan
+# sát** của cơ chế tán xạ (r(t) = r₀ + α·d_rel, xem `diffusion_alpha`), KHÔNG
+# phải ràng buộc của paper (paper không đặt trần). 4,0 m ứng với r ở depth ~60 m
+# với α ≈ 0,06. Trần cũ 2,0 m (từ p99 paper) chặn mất phần tán xạ ở xa.
+RADIUS_MAX_M = 4.0
+# [QĐ13 2026-11-19] Hệ số tán xạ r(t) = r₀ + α·d_rel(t), d_rel = độ sâu cụm
+# đã rơi sau mặt đuôi. **Mở rộng NGOÀI paper** (ADR-0006 Sửa đổi A3), user duyệt
+# 2026-11-19. α = 0,06 hiệu chỉnh từ trail90 của RoadSpray `*_static`
+# (6 / 44 / 52 m @50/100/130; xem docs/measurements/plume-a3-diagnosis.md §7.11).
+DIFFUSION_ALPHA = 0.06
 # [ĐO] trung vị 3 mốc static Δ=1,0 = 0,311 m; paper = 0,301 m — lấy 0,31.
 # (D5 — bảng 9 tốc độ Δ=1,0 — sẽ áp ở Mốc 4 sau khi đo lại survival.)
 RADIUS_MEDIAN_M = 0.31
@@ -151,6 +163,9 @@ class PlumeStateConfig:
     radius_mu: float = RADIUS_MU
     radius_sigma: float = RADIUS_SIGMA
     radius_max_m: float = RADIUS_MAX_M
+    # [QĐ13 2026-11-19] Hệ số tán xạ r(t) = r₀ + α·d_rel(t), d_rel = độ sâu cụm
+    # sau mặt đuôi. 0,0 = tắt. Một α dùng chung cho mọi tốc độ (Lead chốt).
+    diffusion_alpha: float = DIFFUSION_ALPHA
     initial_vz_max_mps: float = INITIAL_VZ_MAX_MPS
     drag_mean: float = DRAG_MEAN
     drag_std: float = DRAG_STD
@@ -231,6 +246,18 @@ class SprayCluster:
     # Với vệt dài ≈ quãng trôi một chu kỳ, vệt của chu kỳ trước chạm chu kỳ sau
     # ⇒ tạo băng liên tục như dữ liệu thật.
     streak_m: float = 0.0
+    # [QĐ13 2026-11-19] Tham số phục vụ tán xạ: bán kính gốc (lognormal paper,
+    # không clip) + mặt đuôi/ hướng chạy tại thời điểm sinh. ``radius`` mỗi bước
+    # = min(radius_max, radius0 + diffusion_alpha * d_rel) với d_rel = độ sâu
+    # của cụm sau mặt đuôi (paper §III-B: r_cl là đại lượng ĐO ĐƯỢC ở nhiều tuổi
+    # plume; mô hình hoá tường minh sự nở theo tuổi là mở rộng CÓ KHAI BÁO).
+    radius0: float | None = None
+    rear_point: np.ndarray | None = None
+    forward: np.ndarray | None = None
+    # Tốc độ **tương đối** của xe so với ego dọc phương chạy (m/s): kịch bản
+    # static = v (xe chạy ra xa), follow = 0 (xe giữ khoảng cách). Dùng để dời
+    # mặt đuôi theo thời gian khi tính độ sâu d_rel cho tán xạ QĐ13.
+    car_speed_mps: float = 0.0
 
     def probability(self) -> float:
         """Displayed survival probability ``P_t = exp(-age/T)`` [PAPER] III-C.
@@ -278,15 +305,16 @@ def cluster_count_for_speed_abs(
 ) -> int:
     """Clusters **alive in one frame** at steady state.
 
-    ``visible = round(rate * 4T/Δt)`` — the same table as
+    ``visible = round(rate * K)``, ``K = 1/(1−exp(−Δt/T))`` (paper Eq. 1,
+    QĐ12) — the same table as
     :func:`spray.plume.visible_cluster_count_for_speed`, so the stateful path
     and the per-frame generator report the same number. The lifetime ``T`` is
     unchanged (``[CODE] dee.cpp:530``). ``wfh_mm`` is in millimetres.
 
-    The multiplier is :func:`spray.plume.steady_state_alive_factor`, **not**
-    ``K``: :meth:`PlumeState.prune` removes clusters hard at ``age > 4T`` (no
-    probabilistic thinning), so a cluster lives ``4T/Δt`` frames. Using ``K``
-    made the alive count ``max_age_factor`` = 4x the target (ticket 29f).
+    The multiplier is :func:`spray.plume.steady_state_alive_factor`, which after
+    QĐ12 is exactly ``K``: :meth:`PlumeState.prune` fades clusters with
+    probability ``1 − exp(−Δt/T)`` per step (paper Eq. 1). Trước QĐ12 code cắt
+    cứng ở ``4T`` nên hệ số là ``4T/Δt + 1``.
     """
     if v_abs_kmh <= ACTIVATION_SPEED_KMH or wfh_mm <= 0.0:
         return 0
@@ -329,6 +357,9 @@ class PlumeState:
         self._scene_token: str | None = None
         self._next_cluster_id = 0
         self._counters = PlumeCounters()
+        # RNG dự phòng cho `prune()` khi caller gọi trực tiếp không truyền rng
+        # (paper Eq. 1 có thinning xác suất). Seed cố định ⇒ tái lập được.
+        self._rng = np.random.default_rng(0)
 
     @property
     def counters(self) -> PlumeCounters:
@@ -372,7 +403,7 @@ class PlumeState:
                                 dtype=np.float64)
         for _ in range(max(0, cycles)):
             self.advance(dt, ego_velocity=ego_velocity)
-            self.prune()
+            self.prune(dt=dt, rng=rng)
             self.spawn(
                 context,
                 object_id=object_id,
@@ -471,13 +502,19 @@ class PlumeState:
                 )
         lateral_axis = np.array([-forward[1], forward[0], 0.0])
         created: list[SprayCluster] = []
+        rear_point = None
+        car_speed = 0.0
+        if center is not None:
+            # Mặt "trước" của slab = mặt đuôi xe (slab nằm ngay sau đuôi).
+            rear_point = block_center + forward * block_extents[0]
+            car_speed = float((base_vel - ego_velocity) @ forward)
         for _ in range(count):
             radius_median = cluster_radius_median_for_speed(v_abs_kmh)
-            radius = min(
-                cfg.radius_max_m,
-                float(np.exp(rng.normal(float(np.log(radius_median)),
-                                        cfg.radius_sigma))),
+            radius0 = float(
+                np.exp(rng.normal(float(np.log(radius_median)),
+                                  cfg.radius_sigma))
             )
+            radius = min(cfg.radius_max_m, radius0)
             ttl = max(
                 0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))
             )
@@ -519,6 +556,10 @@ class PlumeState:
                 # cũng là độ dài vệt cần biểu diễn để hai lớp chạm nhau.
                 streak_m=float(np.linalg.norm(ego_velocity)) * dt
                 * float(cfg.streak_scale),
+                radius0=radius0,
+                rear_point=rear_point,
+                forward=forward if rear_point is not None else None,
+                car_speed_mps=car_speed,
             )
             self._next_cluster_id += 1
             bucket.append(cluster)
@@ -552,6 +593,7 @@ class PlumeState:
             ego_velocity = np.zeros(3, dtype=np.float64)
         else:
             ego_velocity = np.asarray(ego_velocity, dtype=np.float64)
+        cfg = self._config
         for clusters in self._clusters.values():
             for cluster in clusters:
                 air = cluster.vel - wind
@@ -569,29 +611,67 @@ class PlumeState:
                 # QĐ7 2026-11-19: BỎ clamp ngang 2,43 m (nguồn SSPP `cal`
                 # labels, R2 audit đánh PHẢI BỎ). Vùng sinh giờ đã bị giới hạn
                 # bởi hộp calibration static nên không cần clamp riêng.
+                # [QĐ13] Tán xạ: r(t) = r₀ + α·d_rel(t), d_rel = độ sâu sau mặt
+                # đuôi. Paper §III-B định nghĩa r_cl là đại lượng đo được ở nhiều
+                # tuổi plume ⇒ mô hình hoá tường minh sự nở theo tuổi là nhất quán;
+                # đây là mở rộng NGOÀI paper, có khai báo + một α chung.
                 cluster.age += dt
+                alpha = float(cfg.diffusion_alpha)
+                if (
+                    alpha > 0.0
+                    and cluster.radius0 is not None
+                    and cluster.rear_point is not None
+                    and cluster.forward is not None
+                ):
+                    # Mặt đuôi DỜI theo xe: rear(t) = rear_birth + v_rel·elapsed.
+                    # elapsed = age + dt (age=-dt lúc sinh ⇒ elapsed=0).
+                    elapsed = max(0.0, float(cluster.age) + dt)
+                    depth = float(
+                        (cluster.rear_point - cluster.pos) @ cluster.forward
+                    ) + float(cluster.car_speed_mps) * elapsed
+                    cluster.radius = min(
+                        cfg.radius_max_m,
+                        cluster.radius0 + alpha * max(0.0, depth),
+                    )
         self._counters.alive = self._total_alive()
 
     def prune(
-        self, ceilings: dict[int, float] | None = None
+        self,
+        ceilings: dict[int, float] | None = None,
+        *,
+        dt: float | None = None,
+        rng: np.random.Generator | None = None,
     ) -> int:
-        """Remove expired clusters.
+        """Cho cụm tan theo **xác suất** (paper Eq. 1) + trần số học ``12·T``.
 
-        The only rule is ``age > max_age_factor * T`` (``[CODE]
-        dee.cpp:445-450``), which the paper also describes. ``ceilings`` is
-        accepted for backwards compatibility and ignored: the box-top ceiling
-        was a ``[CHỌN]`` of ours with no paper source, added only to cancel the
-        unsourced ``initial_vz``; both are gone in ticket 29h, so a cluster is
-        never removed for its height.
+        [QĐ12 2026-11-19] Xác suất sống mỗi bước là ``P = exp(−Δt/T)`` đúng paper
+        Eq. 1 ("probability ... to still exist after time t is exp(−t/T)"), thay
+        cho cắt cứng ``age > 4·ttl`` của reference impl. Trần ``12·T`` chỉ là
+        **trần số học** chặn đuôi (``exp(−12) = 6e−6``); không phải mô hình.
+
+        ``dt`` mặc định ``DEFAULT_DT_S`` (0,1 s) khi caller gọi trực tiếp;
+        ``rng`` mặc định dùng RNG nội bộ seed 0 để tái lập được. ``ceilings`` giữ
+        cho tương thích và bị bỏ qua (trần theo chiều cao đã bị xoá ở ticket 29h).
         """
+        step = DEFAULT_DT_S if dt is None else float(dt)
+        random = self._rng if rng is None else rng
+        cap_factor = float(self._config.max_age_factor)
         removed = 0
         for key, clusters in list(self._clusters.items()):
             kept = []
             for cluster in clusters:
-                if cluster.age > self._config.max_age_factor * cluster.ttl:
+                if cluster.age > cap_factor * cluster.ttl:
                     removed += 1
-                else:
-                    kept.append(cluster)
+                    continue
+                survival = (
+                    float(np.exp(-step / cluster.ttl))
+                    if cluster.ttl > 0.0
+                    else 0.0
+                )
+                if survival < 1.0 and random.random() >= survival:
+                    removed += 1
+                    continue
+                kept.append(cluster)
             self._clusters[key] = kept
         self._counters.expired = removed
         self._counters.alive = self._total_alive()

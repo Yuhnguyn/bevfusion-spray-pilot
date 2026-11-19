@@ -70,13 +70,13 @@ def _run_frames(count, state):
         )
 
 
-def test_spawn_box_matches_the_static_calibration_box():
-    """QĐ7 2026-11-19: cụm sinh ra nằm trong hộp calibration static.
+def test_spawn_box_matches_the_reference_slab():
+    """QĐ11 2026-11-19: cụm sinh ra nằm trong slab |v|·Δt ngay sau đuôi xe.
 
-    Hộp: sâu 20 m sau mặt đuôi (BOX x=23,2 m, dài 6,83 m), ngang W=3,4 m,
-    cao H=1,5 m tính từ **mặt đường** (`road_z_m`). Thay block
-    `|v|·dt` × `tail_block_height_frac` cũ — hai tham số nguồn SSPP, R2 audit
-    đánh PHẢI BỎ. Test cũ khoá hình học cũ nên được thay, không nới lỏng.
+    Slab: dài |v|·Δt (BOX x=23,2 m, dài 6,83 m, `SPEED_MPS`), ngang W=3,4 m,
+    cao H=1,5 m tính từ **mặt đường** (`road_z_m`). Nguồn: reference impl
+    `define_spray_volumes()`. Không phải hộp đo 20 m (QĐ7) và không dùng
+    `tail_block_height_frac` (SSPP, R2 audit PHẢI BỎ).
     """
     state = PlumeState()
 
@@ -92,7 +92,7 @@ def test_spawn_box_matches_the_static_calibration_box():
 
     x, _, _, length, _, _, _, _, _ = (float(v) for v in BOX[0])
     rear_x = x - length / 2.0
-    x_lo, x_hi = rear_x - 20.0, rear_x
+    x_lo, x_hi = rear_x - SPEED_MPS * DT, rear_x
     road_z = _context(0).road_z_m
     pos = np.array([cluster.pos for cluster in clusters])
 
@@ -124,11 +124,13 @@ def test_trail_keeps_clusters_alive_from_frame_two():
         )
         alive.append(len(state.all_alive()))
 
-    # Ticket 29f: at 0.69 clusters/cycle a single frame often spawns nothing,
-    # so the trail is checked from the first non-empty frame onward.
+    # QĐ12 (tan xác suất paper Eq.1): warm start đã đạt steady state nên số cụm
+    # sống dao động quanh mức bảng, KHÔNG tăng dần như trước. Bất biến cần giữ:
+    # từ frame đầu tiên có cụm, trail không bao giờ rỗng và không sụp.
     first = next(index for index, count in enumerate(alive) if count > 0)
     assert all(count > 0 for count in alive[first:])
-    assert alive[-1] > alive[first]
+    plateau = float(np.mean(alive[first:]))
+    assert alive[-1] >= 0.6 * plateau, (alive, plateau)
 
 
 def test_trail_spans_more_than_one_block_so_it_persists():

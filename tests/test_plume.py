@@ -198,14 +198,18 @@ def test_cluster_count_at_80_kmh_matches_the_table():
     assert cluster_count_for_speed(80.0) == 25
 
 
-def test_steady_state_cluster_factor_is_geometric_sum():
-    """K = Σ exp(-k·Δt/T), Δt = 0,1 s, T = 0,2 s → 2,51; không phải hằng số bịa."""
+def test_steady_state_cluster_factor_is_the_paper_geometric_sum():
+    """K = Σ_{k≥0} exp(-k·Δt/T) = 1/(1−exp(−Δt/T)) — paper Eq. 1 (QĐ12).
+
+    Trước QĐ12 code cắt cứng ở 4T nên tổng chỉ tới k = 8 và K = 2,5133. Nay cụm
+    tan xác suất nên cấp số nhân **vô hạn**: T = 0,2 s, Δt = 0,1 s → 2,5415.
+    """
     config = PlumeConfig()
     at_fifty = steady_state_cluster_factor(50.0, config)
-    expected = sum(np.exp(-k * 0.1 / 0.2) for k in range(9))
+    expected = 1.0 / (1.0 - np.exp(-0.1 / 0.2))
 
     assert at_fifty == pytest.approx(expected)
-    assert at_fifty == pytest.approx(2.5133, abs=1e-3)
+    assert at_fifty == pytest.approx(2.5415, abs=1e-4)
     # T tăng nhẹ theo tốc độ (dee.cpp:530) nên K ở 130 km/h lớn hơn.
     assert steady_state_cluster_factor(130.0, config) > at_fifty
 
@@ -290,15 +294,15 @@ def test_radial_thinning_matches_measured_ratio():
     assert 1.22 <= float(np.median(ratios)) <= 1.34
 
 
-def test_cluster_radius_capped_at_two_meters():
-    """Trần 2,0 m = p99 của lognormal paper (mu=-1,2 sigma=0,72 -> 1,94 m).
+def test_cluster_radius_cap_is_numerical_four_meters():
+    """Trần 4,0 m = **clip SỐ HỌC theo max quan sát** của cơ chế tán xạ QĐ13.
 
-    [ĐO] 2026-11-19: trần 1,0 m cũ lấy từ code tham chiếu dee.cpp:528 (KHÔNG có
-    trong paper) và cắt đúng phần đuôi tạo cụm lớn mà đích RoadSpray static
-    Δ=1,0 có. Paper không đặt trần; dùng 2,0 m (p99 làm tròn lên, ~0,9 % vượt).
+    [QĐ13 2026-11-19] Paper KHÔNG đặt trần cho r_cl; cơ chế tán xạ (user duyệt)
+    cho r(t) = r₀ + α·d_rel với r ~ 3–4 m ở depth 60 m (α ≈ 0,06). Trần này chỉ
+    để chặn số học, không phải ràng buộc paper; trần 1,0/2,0 cũ bị bỏ.
     """
     config = PlumeConfig()
-    assert config.cluster_radius_bounds_m == (0.10, 2.00)
+    assert config.cluster_radius_bounds_m == (0.10, 4.00)
 
     rng = np.random.default_rng(23)
     radii = np.array(
@@ -313,10 +317,10 @@ def test_cluster_radius_capped_at_two_meters():
         ]
     )
 
-    assert radii.max() <= 2.0
-    at_cap = float((radii >= 2.0).mean())
-    # P(r >= 2,0 | median 0,30, sigma 0,80) = 1 - Phi(ln(2/0,3)/0,8) ~ 0,9 %
-    assert 0.004 <= at_cap <= 0.015, at_cap
+    assert radii.max() <= 4.0
+    at_cap = float((radii >= 4.0).mean())
+    # P(r >= 4,0 | median 0,30, sigma 0,80) = 1 - Phi(ln(4/0,3)/0,8) ~ 0,06 %
+    assert 0.0001 <= at_cap <= 0.0025, at_cap
 
 
 def test_points_per_cluster_decreases_with_range():

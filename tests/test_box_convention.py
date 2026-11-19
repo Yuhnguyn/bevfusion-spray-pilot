@@ -79,18 +79,18 @@ def test_box_z_is_bottom_not_centre():
     assert z.max() <= BOX_BOTTOM + HEIGHT + 1e-6
 
 
-def test_spawn_box_is_the_static_calibration_box_behind_the_tail():
-    """QĐ7 2026-11-19: vùng sinh = hộp đo calibration RoadSpray static.
+def test_spawn_box_is_the_reference_slab_behind_the_tail():
+    """QĐ11 2026-11-19: vùng sinh = slab |v|·Δt ngay sau đuôi xe.
 
-    Sâu 20 m sau **mặt đuôi** (dùng chiều DÀI xe, không phải chiều rộng),
-    ngang ±1,7 m, cao 1,5 m tính từ mặt đường. Thay cho block dài |v|·dt cũ
-    (nguồn SSPP, R2 audit đánh PHẢI BỎ).
+    Nguồn: implementation reference của tác giả (`define_spray_volumes()`);
+    ngang ±1,7 m, cao 1,5 m tính từ mặt đường. Không còn là hộp đo 20 m (QĐ7
+    gộp nhầm vùng sinh với vùng đo), cũng không quay lại `tail_block_height_frac`.
     """
     clusters = _spawn_one_frame()
     assert clusters
 
     rear_x = 0.0 - LENGTH / 2.0
-    x_lo, x_hi = rear_x - 20.0, rear_x
+    x_lo, x_hi = rear_x - SPEED_MPS * DT, rear_x
     pos = np.array([cluster.pos for cluster in clusters])
     assert np.all(pos[:, 0] >= x_lo - 1e-6)
     assert np.all(pos[:, 0] <= x_hi + 1e-6)
