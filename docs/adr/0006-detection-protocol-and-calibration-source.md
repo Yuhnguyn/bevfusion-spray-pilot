@@ -207,3 +207,56 @@ kết luận PASS/FAIL.
   để chỉnh công thức paper cho khớp.
 - Profile khớp nhưng (a) lệch > 2× ⇒ quay lại A (theo chốt chặn B của plan).
 - Bất kỳ ai muốn đổi ngưỡng ở §3 phải mở lại ADR và ghi lý do **trước** khi đo.
+
+### 5. KẾT QUẢ NGHIỆM THU A3 (2026-11-19) — **KHÔNG ĐẠT**
+
+Nghiệm thu: 8 seed, kịch bản static (ego đứng yên, xe chạy xa), `diffusion_alpha = 0,06`,
+`p_det_scale = 1,0`, commit `6cb75dc`. Số đầy đủ: `.scratch/tmp/a3_acceptance.json`.
+
+| km/h | điểm/frame ± CI95 | tỉ lệ (a) | trail90 | tỉ lệ | profile (b') lệch max | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| 50 | 13,0 ± 11,3 % | **0,15×** | 2,2 m | **0,38×** | 98 % | **FAIL — ngoài miền** |
+| 100 | 144,0 ± 5,8 % | 0,71× ✅ | 40,2 m | 0,91× ✅ | **268 %** | **FAIL** |
+| 130 | 283,4 ± 9,1 % | 1,36× ✅ | 49,8 m | 0,96× ✅ | **995 %** | **FAIL** |
+
+- (a) và (c) **đạt** ở 100/130; trail **đạt** ở 100/130; **(b') profile trượt cả 3**.
+- Nguyên nhân trượt profile: near-field 0–6 m của generator chiếm 4–5 % mass trong khi dữ liệu thật
+  chỉ 0,4–0,7 % ⇒ mass của ta dồn sát đuôi hơn thật ở tốc độ cao.
+- **Không** ghi "A3 đạt một phần"; trạng thái là **KHÔNG ĐẠT**.
+
+#### 5.1 Lỗi trong chính tiêu chí đã đăng ký — phải ghi lại
+
+Luật (b') đăng ký ở §3 viết *"mỗi bin có ≥10 % mass thật thì lệch ≤30 %"*. Nhưng ở 100/130
+**không bin nào đạt 10 %** (max 9,86 % / 9,64 %) ⇒ đọc nguyên văn thì tiêu chí **rỗng và tự đạt**
+(vacuous) — nếu dùng nguyên văn thì 100/130 sẽ PASS giả tạo.
+
+**Định nghĩa hiệu lực:** `|gen_norm(i) − real_norm(i)| / real_norm(i) ≤ 30 %` cho **mọi bin nằm
+trong vùng chứa 90 % mass thật**.
+
+Việc sửa này đi theo hướng **nghiêm hơn** (bản rỗng tự đạt → bản sửa cho 268 % / 995 %), nên không
+phải chỉnh tiêu chí cho dễ. Vẫn phải khai vì nó thay đổi văn bản đã đăng ký.
+
+#### 5.2 Hai mở rộng ngoài paper đang được dùng (phải khai trong luận văn)
+
+| # | Mở rộng | Tham số | Căn cứ |
+|---|---|---|---|
+| 1 | Bỏ `streak` (vệt kéo dài) | — | Cơ chế tự thêm, không có trong paper |
+| 2 | Tán xạ: `r(t) = r₀ + α·d_rel(t)` | α = 0,06 | `r_cl` của paper là *khoảng cách xa nhất từ tâm tới detection* — đại lượng đo ở nhiều tuổi plume ⇒ mô hình hoá tường minh sự nở theo tuổi là nhất quán. α hiệu chỉnh **chỉ từ** trail90 của RoadSpray static (6 / 44 / 52 m). User-approved 2026-11-19 |
+
+#### 5.3 Miền tin cậy và hệ quả downstream
+
+- **Dùng được: 100–130 km/h.** **Ngoài miền: ≤ 60 km/h.**
+- Lý do ngoài miền: lifetime `T = 0,02·wfh·(v−50)+0,2` là `[CODE] dee.cpp:530`; tại `v ≤ 50` cho
+  `T = 0,2 s` **bất kể màng nước**, trong khi dữ liệu đòi `T_eff ≈ 1,0 s`. Paper chỉ cho T qua
+  **Fig. 6**, không cho công thức ⇒ **limitation của reference impl**, không sửa công thức.
+- **Cổng B** phải báo **riêng theo nhóm tốc độ**; gộp sẽ che mất nhóm ≤60 km/h lệch.
+- Augmentation ở ≤60 km/h **yếu hơn thực tế** (thiếu đuôi plume) ⇒ nếu arm B không cải thiện ở
+  nhóm tốc độ thấp thì đó là **kỳ vọng đã biết**, không phải bằng chứng phản bác.
+- A3 không đạt **không** chứng minh augmentation vô dụng — việc đó là cổng C.
+
+#### 5.4 Điều kiện dừng của plan đã bị vượt — ghi lại
+
+`plan.md` §7 ghi *"B: sau A vẫn lệch > 2× → dừng, quay lại A"*. Ở 50 km/h lệch **6,7×**, tức vượt
+điều kiện dừng. Quyết định của user ngày 2026-11-19: **tiếp tục với miền giới hạn 100–130 km/h**,
+50–60 km/h loại khỏi miền claim. Quyết định này phải được trích dẫn mỗi khi báo kết quả từ cổng B
+trở đi.
