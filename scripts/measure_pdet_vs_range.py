@@ -166,6 +166,35 @@ N_BOOT = 2000
 # chứ không suy ra từ đại số.
 FIXED_RADIUS_M = 0.31
 
+# --- n_max ĐÚNG như generator tính (Bước 1 của task P_det(R)) --------------
+# Generator KHÔNG dùng lưới tia đo được của bag: nó dùng ``load_beam_table()``
+# (30 ring đều 0,333° trong FOV −4,06…+5,88°, 1 825 cột az) và bán kính **rút
+# từ lognormal paper** (median 0,31 m, sigma 0,72, clip 4,0 m — xem
+# ``spray/plume_state.py``). Vì vậy số mũ ``b`` phải được fit với ``n_max``
+# tính bằng **cùng** bảng tia + cùng luật bán kính đó, nếu không thì hai vế của
+# phép chia ``n / n_max`` không còn là "số tia cắt quả cầu" nữa.
+GEN_RADIUS_MEDIAN_M = 0.31
+GEN_RADIUS_SIGMA = 0.72
+GEN_RADIUS_MAX_M = 4.0
+# Trung bình ``n_max`` theo phân bố bán kính (không chỉ tại median): generator
+# rút r cho từng cụm, và ``n_max ∝ r²`` nên ``E[n_max] > n_max(median)``. Lấy
+# 5 điểm lượng vị trí của lognormal đã clip để tính kỳ vọng rời rạc.
+GEN_RADIUS_QUANTILES = (0.1, 0.3, 0.5, 0.7, 0.9)
+
+
+def generator_radius_draws() -> np.ndarray:
+    """Bán kính (m) tại 5 lượng vị trí của lognormal paper đã clip 4,0 m."""
+    from scipy.stats import norm as _norm
+
+    draws = np.exp(
+        np.log(GEN_RADIUS_MEDIAN_M)
+        + GEN_RADIUS_SIGMA * _norm.ppf(GEN_RADIUS_QUANTILES)
+    )
+    return np.minimum(draws, GEN_RADIUS_MAX_M)
+
+
+GEN_RADII_M = generator_radius_draws()
+
 
 # --------------------------------------------------------------------------
 # chùm tia
@@ -316,7 +345,8 @@ def process_bag(
 
     records: list[dict] = []
     diag = {
-        "frames": 0, "clusters": 0, "n_max_obs_zero": 0, "p_gt_one": 0,
+        "frames": 0, "clusters": 0, "n_max_obs_zero": 0, "n_max_gen_zero": 0,
+        "p_gt_one": 0,
         "n_above_height": 0, "n_region": 0, "n_raw_region": 0,
         "rings": int(elevation_obs.size), "az_offset_deg": round(az_offset, 4),
         "elev_min": round(float(elevation_obs.min()), 3),
@@ -407,6 +437,12 @@ def process_bag(
                 n_max_fixed = count_beams_in_sphere(
                     dirs_obs, cluster_centre, FIXED_RADIUS_M)
                 n_max_prod = count_beams_in_sphere(dirs_prod, cluster_centre, radius)
+                # n_max đúng như generator: bảng tia production + r paper.
+                n_max_gen = count_beams_in_sphere(
+                    dirs_prod, cluster_centre, GEN_RADIUS_MEDIAN_M)
+                n_max_gen_er = int(round(float(np.mean([
+                    count_beams_in_sphere(dirs_prod, cluster_centre, value)
+                    for value in GEN_RADII_M]))))
                 n_rings = int(np.unique(cloud[members, 3]).size)
                 # Hull góc chỉ có nghĩa khi cụm trải >= 2 ring và đủ điểm; cụm
                 # 3–5 điểm nằm trên một hàng ô thì hull là đoạn thẳng ⇒ vô nghĩa.
@@ -425,6 +461,8 @@ def process_bag(
                     "radius": round(radius, 3),
                     "n_max_obs": int(n_max_obs),
                     "n_max_prod": int(n_max_prod),
+                    "n_max_gen": int(n_max_gen),
+                    "n_max_gen_er": int(n_max_gen_er),
                     "n_max_sil": int(n_max_sil),
                     "n_max_fix": int(n_max_fixed),
                     "depth": round(float(depth[members].mean()), 2),
@@ -436,6 +474,8 @@ def process_bag(
                     "intensity_mean": round(float(cloud[members, 4].mean()), 2),
                     "n_rings": n_rings,
                 }
+                if n_max_gen <= 0:
+                    diag["n_max_gen_zero"] += 1
                 if n_max_obs <= 0:
                     diag["n_max_obs_zero"] += 1
                 elif record["n"] > n_max_obs:
@@ -541,6 +581,10 @@ def run(args: argparse.Namespace) -> None:
             "accumulate_dir": "roadspray_static_depth_profile.py",
             "clustering": "DBSCAN góc (az, el) eps=0.7°, minPts=3, lát sâu "
                           f"{args.slice_m} m",
+            "gen_radius_median_m": GEN_RADIUS_MEDIAN_M,
+            "gen_radius_sigma": GEN_RADIUS_SIGMA,
+            "gen_radius_quantiles": list(GEN_RADIUS_QUANTILES),
+            "gen_radii_draws_m": GEN_RADII_M.round(3).tolist(),
         }) + "\n")
         for record in rows_out:
             handle.write(json.dumps(record) + "\n")
@@ -679,6 +723,18 @@ def summarise_bins(rows: list[dict]) -> list[dict]:
                 if r["n_max_fix"] > 0])) if any(r["n_max_fix"] > 0 for r in subset)
                 else float("nan"),
             "n_max_fix_med": float(np.median([r["n_max_fix"] for r in subset])),
+            "p_gen_med": float(np.median([
+                r["n"] / r["n_max_gen"] for r in subset
+                if r.get("n_max_gen", 0) > 0]))
+            if any(r.get("n_max_gen", 0) > 0 for r in subset) else float("nan"),
+            "p_gen_n": sum(1 for r in subset if r.get("n_max_gen", 0) > 0),
+            "n_max_gen_med": float(np.median([r["n_max_gen"] for r in subset])),
+            "p_gen_er_med": float(np.median([
+                r["n"] / r["n_max_gen_er"] for r in subset
+                if r.get("n_max_gen_er", 0) > 0]))
+            if any(r.get("n_max_gen_er", 0) > 0 for r in subset) else float("nan"),
+            "n_max_gen_er_med": float(np.median(
+                [r["n_max_gen_er"] for r in subset])),
             "n_med": float(np.median(n_values)),
             "n_q1": float(np.percentile(n_values, 25)),
             "n_q3": float(np.percentile(n_values, 75)),
@@ -735,10 +791,56 @@ def aggregate(args: argparse.Namespace) -> None:
     print(f"\nCụm dùng được (n_max_obs > 0): {len(usable)}/{len(rows)}; "
           f"n_max_obs = 0: {len(rows) - len(usable)}")
 
+    # --- n_max ĐÚNG như generator: load_beam_table() + bán kính paper --------
+    gen = [r for r in rows if r.get("n_max_gen", 0) > 0]
+    gen_er = [r for r in rows if r.get("n_max_gen_er", 0) > 0]
+    dropped_gen = len(rows) - len(gen)
+    print(f"Cụm dùng được với n_max CỦA GENERATOR (bảng production + r = "
+          f"{GEN_RADIUS_MEDIAN_M:.2f} m): {len(gen)}/{len(rows)}; "
+          f"n_max_gen = 0: {dropped_gen} "
+          f"({100.0 * dropped_gen / max(len(rows), 1):.1f} %)")
+    print(f"  trong đó {len(gen_er)}/{len(rows)} cụm có n_max_gen_er > 0 "
+          f"(E[n_max] theo lognormal paper, 5 lượng vị trí)")
+    if gen:
+        print(f"  cự ly của {len(gen)} cụm đó: "
+              f"{min(r['range'] for r in gen):.1f}–"
+              f"{max(r['range'] for r in gen):.1f} m (median "
+              f"{np.median([r['range'] for r in gen]):.1f} m)")
+
     # --- fit chính -----------------------------------------------------
     p_fit = fit_block(usable, lambda r: r["n"] / r["n_max_obs"], rng, "P_det")
     n_fit = fit_block(rows, lambda r: float(r["n"]), rng, "n")
     r_fit = fit_block(usable, lambda r: r["radius"], rng, "r")
+    p_gen = fit_block(gen, lambda r: r["n"] / r["n_max_gen"], rng, "P_gen")
+    p_gen_er = fit_block(
+        gen_er, lambda r: r["n"] / r["n_max_gen_er"], rng, "P_gen_er")
+    nmax_gen_fit = fit_block(gen, lambda r: float(r["n_max_gen"]), rng,
+                             "n_max_gen")
+    nmax_gen_er_fit = fit_block(gen_er, lambda r: float(r["n_max_gen_er"]), rng,
+                                "n_max_gen_er")
+    summary["fits"]["p_gen_vs_r"] = p_gen
+    summary["fits"]["p_gen_er_vs_r"] = p_gen_er
+    summary["fits"]["nmax_gen_vs_r"] = nmax_gen_fit
+    summary["fits"]["nmax_gen_er_vs_r"] = nmax_gen_er_fit
+    summary["generator"] = {
+        "radius_median_m": GEN_RADIUS_MEDIAN_M,
+        "radius_sigma": GEN_RADIUS_SIGMA,
+        "radius_max_m": GEN_RADIUS_MAX_M,
+        "radius_quantiles": list(GEN_RADIUS_QUANTILES),
+        "clusters": len(gen), "clusters_er": len(gen_er),
+        "clusters_total": len(rows), "dropped_nmax_zero": dropped_gen,
+        "b": p_gen["b"], "b_ci": p_gen["b_ci"], "b_bag_fe": p_gen["b_fe"],
+        "b_bag_fe_ci": p_gen["b_fe_ci"],
+        "b_er": p_gen_er["b"], "b_er_ci": p_gen_er["b_ci"],
+        "b_er_bag_fe": p_gen_er["b_fe"],
+        "nmax_slope": nmax_gen_fit["b"],
+        "nmax_slope_ci": nmax_gen_fit["b_ci"],
+        "nmax_er_slope": nmax_gen_er_fit["b"],
+        "n_slope": n_fit["b"],
+        "b_required_check": n_fit["b"] - nmax_gen_fit["b"],
+        "p_at_25_fit": float(np.exp(p_gen["a"] + p_gen["b"] * np.log(25.0)))
+        if np.isfinite(p_gen["b"]) else float("nan"),
+    }
     fixed = [r for r in usable if r["n_max_fix"] > 0]
     p_eff = fit_block(fixed, lambda r: r["n"] / r["n_max_fix"], rng, "P_eff")
     nmax_fix_fit = fit_block(fixed, lambda r: float(r["n_max_fix"]), rng, "n_max_fix")
@@ -765,6 +867,39 @@ def aggregate(args: argparse.Namespace) -> None:
           f"{p_eff['b_fe']:.3f} (CI95 [{p_eff['b_fe_ci'][0]:.3f}; "
           f"{p_eff['b_fe_ci'][1]:.3f}])")
 
+    # --- P_det(R) cho GENERATOR (n_max = load_beam_table() + r paper) -------
+    print("\n## P_det(R) với n_max ĐÚNG của generator "
+          "(load_beam_table() + r paper)\n")
+    print(f"| biến thể | cụm | b | CI95 | bag-FE b | CI95 | R² |")
+    print("|---|---:|---:|---|---:|---|---:|")
+    for label, block in (
+        (f"n_max_generator, r = {GEN_RADIUS_MEDIAN_M:.2f} m (median)",
+         p_gen),
+        ("n_max_generator, E[r] lognormal paper", p_gen_er),
+    ):
+        print(f"| {label} | {block['n']} | **{block['b']:.3f}** | "
+              f"[{block['b_ci'][0]:.3f}; {block['b_ci'][1]:.3f}] | "
+              f"{block['b_fe']:.3f} | "
+              f"[{block['b_fe_ci'][0]:.3f}; {block['b_fe_ci'][1]:.3f}] | "
+              f"{block['r2']:.3f} |")
+    print(f"\n(n_max_generator ∝ R^{nmax_gen_fit['b']:.3f} "
+          f"[{nmax_gen_fit['b_ci'][0]:.3f}; {nmax_gen_fit['b_ci'][1]:.3f}]; "
+          f"n ∝ R^{n_fit['b']:.3f} ⇒ kiểm tra chéo "
+          f"b = b_n − slope(n_max) = "
+          f"{n_fit['b'] - nmax_gen_fit['b']:.3f}; "
+          f"P_det tại 25 m từ fit = "
+          f"{summary['generator']['p_at_25_fit']:.3f})")
+    print("\n### So với các số mũ đã báo cáo\n")
+    print("| nguồn | b |")
+    print("|---|---:|")
+    print("| lưới tia thật + `r` từng cụm (§4) | −0,17 |")
+    print("| lưới tia thật + `r` = 0,31 m (§4) | +0,34 |")
+    print("| công thức paper `Ω/ω` (§4) | +1,06 |")
+    print("| giả thuyết quang học mỏng `b_n + 2` (§7.4) | +1,89 |")
+    print(f"| **generator: bảng production + `r` paper** | "
+          f"**{p_gen['b']:+.2f}** "
+          f"[{p_gen['b_ci'][0]:+.2f}; {p_gen['b_ci'][1]:+.2f}] |")
+
     # fit trên MEDIAN TỪNG BIN (bền hơn với nhiễu cụm; mỗi bin 1 điểm)
     def bin_median_fit(y_key: str, weight: str = "usable") -> tuple[float, float, int]:
         xs, ys = [], []
@@ -786,8 +921,27 @@ def aggregate(args: argparse.Namespace) -> None:
     summary["fits"]["n_bin_medians"] = {"a": an_bin, "b": bn_bin}
     summary["fits"]["p_eff_bin_medians"] = {
         "b": bin_median_fit("p_eff_med")[1]}
+    summary["fits"]["p_gen_bin_medians"] = {
+        "a": bin_median_fit("p_gen_med")[0],
+        "b": bin_median_fit("p_gen_med")[1]}
+    summary["fits"]["p_gen_er_bin_medians"] = {
+        "b": bin_median_fit("p_gen_er_med")[1]}
     print(f"Fit bin-median  P_det: b = {b_bin:.3f} ({n_bin} bin) | "
-          f"n: b = {bn_bin:.3f}")
+          f"n: b = {bn_bin:.3f} | "
+          f"P_gen (n_max generator): b = "
+          f"{summary['fits']['p_gen_bin_medians']['b']:.3f}")
+
+    print("\n## Bảng bin với n_max của generator\n")
+    print("| bin (m) | cụm (P_gen) | median n_max_gen | median P_gen | "
+          "median P_gen(E[r]) |")
+    print("|---|---:|---:|---|---|")
+    for item in bins:
+        if not item.get("p_gen_n"):
+            print(f"| {item['label']} | 0 | — | — | — |")
+            continue
+        print(f"| {item['label']} | {item['p_gen_n']} | "
+              f"{item['n_max_gen_med']:.0f} | {item['p_gen_med']:.3f} | "
+              f"{item['p_gen_er_med']:.3f} |")
 
     # --- theo lớp / tốc độ --------------------------------------------
     print("\n## Theo lớp và tốc độ\n")
@@ -828,6 +982,17 @@ def aggregate(args: argparse.Namespace) -> None:
                                           lambda r: r["n"] / r["n_max_sil"]),
         "n_max = bảng production": ([r for r in usable if r["n_max_prod"] > 0],
                                     lambda r: r["n"] / r["n_max_prod"]),
+        "n_max = GENERATOR (production + r 0,31 m)":
+            (gen, lambda r: r["n"] / r["n_max_gen"]),
+        "n_max = GENERATOR, chỉ cụm n >= 10":
+            ([r for r in gen if r["n"] >= 10],
+             lambda r: r["n"] / r["n_max_gen"]),
+        "n_max = GENERATOR, chỉ depth <= 6 m":
+            ([r for r in gen if r["depth"] <= 6.0],
+             lambda r: r["n"] / r["n_max_gen"]),
+        "n_max = GENERATOR, chỉ depth > 6 m":
+            ([r for r in gen if r["depth"] > 6.0],
+             lambda r: r["n"] / r["n_max_gen"]),
         "n_max = công thức paper (Ω/ω)": (
             usable, lambda r: r["n"] / paper_nmax(r["radius"], r["range"])),
     }

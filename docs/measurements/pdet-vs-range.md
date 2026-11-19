@@ -16,6 +16,11 @@ Nhãn: `[ĐO]` · `[SUY RA]` (đại số trên số đo) · `[CHỌN]` (quyết
 3. **Ở 25 m, `P_det` đo được = 0,181** (bin 20–25 m; fit tại 25 m = 0,193; công thức paper = 0,169–0,204) so với **0,10** của paper ⇒ **lệch 1,7–2×, cùng bậc** ⇒ phép đo đúng phương pháp, sai số chuẩn hoá ~2× phải khai.
 4. **Điểm/cụm ở 2 m so với 25 m** (bảng đầy đủ ở §7.4): **157×** với mô hình paper (`P_det` hằng); **240×** với `b` đo được kiểu paper-faithful; **66×** với `r` cố định; **1,3×** nếu `P_det ∝ R^1,89`. Muốn hết bùng nổ phải có `b ≈ 2`, **hoặc** cho `r ∝ R` (đo được `r ∝ R^0,42`).
 
+**Đã áp dụng vào generator (§11, 2026-11-19):** `P_det(R) = P_det0·(R/25 m)^b` với `b` đo
+lại bằng chính `load_beam_table()` ⇒ **b = +0,22** (CI95 `[−0,14; +0,55]`). Kết quả: A3 vẫn
+**KHÔNG ĐẠT 0/3** (thay đổi ≤ +5 % ở (a)); A3-V **0/6 ô** tập B (median giảm 1,14–1,34×, vẫn
+2,0–13,4× quá đậm). ⇒ **P_det(R) không phải chỗ sửa** near-field; xem §11.5.
+
 Ba phát hiện phương pháp (quan trọng ngang 4 câu trả lời):
 
 - **8.1** `r ∝ R^0,42` (CI95 `[0,30; 0,58]`): bán kính cụm **vật lý** lớn dần theo cự ly vì cụm được gom bằng ngưỡng **góc** (0,7°). Đây là chỗ phụ thuộc `R` bị "ẩn" khỏi `P_det`.
@@ -278,3 +283,196 @@ CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
 
 Đổi `--slice` (0,5 / 2,0 m), `--height-max` (3,0 m) hoặc `--lateral-half` để chạy độ bền; đổi
 `--plan` để đổi số bag. Mọi tham số của một lần chạy được ghi ở dòng `_kind: params` trong JSONL.
+
+```bash
+# §11 — đo lại với n_max CỦA GENERATOR (load_beam_table() + r = 0,31 m), ~91 s
+CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
+  scripts/measure_pdet_vs_range.py --plan 50:2,100:1,130:2 \
+  --out .scratch/tmp/pdet_gen.jsonl --summary .scratch/tmp/pdet_gen_summary.json
+CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
+  scripts/measure_pdet_vs_range.py --mode aggregate \
+  --out .scratch/tmp/pdet_gen.jsonl --summary .scratch/tmp/pdet_gen_summary.json
+
+# §11 — hai nghiệm thu ở chế độ b = +0,22 (bỏ biến = b = 0,0 = P_det hằng)
+PLUME_PDET_RANGE_EXPONENT=0.22195 CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. \
+  /opt/anaconda3/bin/python scripts/measure_plume_size_tail.py --seeds 8 --frames 120
+PLUME_PDET_RANGE_EXPONENT=0.22195 CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. \
+  /opt/anaconda3/bin/python scripts/measure_following_scenario.py --frames-per-scene 30
+```
+
+---
+
+## 11. Áp dụng vào generator — `P_det(R) = P_det0 · (R / 25 m)^b` (2026-11-19)
+
+Người cài: subagent kỹ thuật. Code: `spray/raycast.py::RaycastConfig.pdet_range_exponent`
++ `_range_factor()` trong `raycast_frame()`. Đo lại bằng `scripts/measure_pdet_vs_range.py`
+với **`n_max` do chính `load_beam_table()` sinh ra**: `.scratch/tmp/pdet_gen.jsonl`
+(1 656 cụm / 10 bag), `.scratch/tmp/pdet_gen_summary.json`.
+
+### 11.1 Số mũ `b` — đo với ĐÚNG bảng tia của generator `[ĐO]`
+
+Số mũ phải đo bằng **cùng** mẫu số mà generator dùng, nếu không phép chia `n / n_max`
+không còn là "số tia cắt quả cầu": `n_max` = số tia của `load_beam_table()`
+(30 ring đều 0,333° trong FOV −4,06…+5,88° × 1 825 cột az) cắt quả cầu bán kính
+**cố định 0,31 m** (`RADIUS_MEDIAN_M`, `spray/plume_state.py`) đặt tại tâm cụm thật.
+Tiêu chí đếm y hệt `_collect_hits` (khoảng cách từ đường thẳng chứa tia tới tâm ≤ r,
+tâm ở phía trước cảm biến).
+
+| biến thể `n_max` | cụm dùng được | loại vì `n_max=0` | `b` | CI95 (bag) | bag-FE `b` | CI95 | R² |
+|---|---:|---:|---:|---|---:|---|---:|
+| **generator: production + `r` = 0,31 m** (chuẩn) | **980** | **676 (40,8 %)** | **+0,222** | `[−0,135; +0,547]` | +0,212 | `[−0,143; +0,555]` | 0,005 |
+| generator, `E[n_max]` theo lognormal paper (5 lượng vị trí) | 1 408 | 248 (15,0 %) | −0,327 | `[−0,895; +0,075]` | −0,385 | `[−0,948; +0,098]` | 0,011 |
+| (tham chiếu §4) lưới tia thật + `r` từng cụm | 1 656 | 0 | −0,166 | `[−0,377; +0,005]` | −0,254 | `[−0,421; −0,084]` | 0,006 |
+| (tham chiếu §4) lưới tia thật + `r` = 0,31 m | 1 656 | 0 | +0,344 | `[+0,206; +0,529]` | +0,343 | `[+0,188; +0,566]` | 0,031 |
+| (tham chiếu §4) công thức paper `Ω/ω` | 1 656 | 0 | +1,059 | `[+0,753; +1,270]` | — | — | 0,180 |
+| (tham chiếu §7.4) `b_n + 2`, bảng tia ĐỀU | 1 656 | 0 | +1,89 | `[+1,83; +1,98]` | — | — | — |
+
+Ba số `[ĐO]` giải thích vì sao `+1,89` **không** phải số đúng cho generator:
+
+1. `n_max` của bảng production **không** giảm như `R⁻²`: đo được `n_max_gen ∝ R^−0,679`
+   (CI95 `[−1,068; −0,408]`) trên 980 cụm dùng được. Hai lý do: (i) FOV chỉ 9,94° nên quả
+   cầu 0,31 m ở gần bị **cắt cụt** bởi sàn −4,06° (nó "được" ít tia hơn góc khối hình học);
+   (ii) cụm gần nằm ở elevation thấp (median −5,0° ở bin 5–10 m) tức đúng vùng sàn, còn cụm
+   xa ở −3,0…−3,6° tức nằm trọn trong FOV. Hai hiệu ứng bù nhau.
+2. Vì `n` đo được gần như phẳng (`b_n = −0,112`) nên `P_det` **chỉ cần** tăng `R^0,22`,
+   không phải `R^1,89` — chênh **1,67** đơn vị số mũ, đúng bằng phần "bảng tia thật + FOV
+   hẹp" đã hấp thụ (so §8.2–8.3).
+3. `676` cụm bị loại **không phải nhiễu**: elevation −15,65…−5,11° (median −7,25°) tức
+   **nằm dưới sàn FOV** của bảng production (§8.3; 676 = 669 cụm của §8.3 + 7 cụm mà bán kính
+   0,31 m cố định không với tới FOV trong khi bán kính đo được thì vừa). Hệ quả: **không cụm nào
+   ở `R < 6 m` dùng được** (cụm gần nhất còn `n_max > 0` ở 6,02 m) ⇒ với bảng tia này 40,8 % cụm
+   thật "vô hình", và đó đúng là vùng near-field mà A3-V lệch 8–17×.
+   **Số mũ vì vậy chỉ được đo trên 6–30 m** (median 18,0 m).
+
+Hai kiểm tra chéo:
+
+- **Hằng đẳng thức `b = b_n − slope(n_max)`** chỉ đúng khi hai vế dùng **cùng mẫu**. Trên 980
+  cụm dùng được: `b_n`(mẫu) = −0,457, `slope(n_max)` = −0,679 ⇒ **+0,222**, khớp tuyệt đối với
+  fit trực tiếp (OLS trên cùng mẫu là đại số). Trên cả 1 656 cụm: `b_n = −0,112` ⇒ +0,567;
+  số đó **sai cho generator** vì trộn các cụm mà generator không thể nhìn thấy (nó cho `n = 0`,
+  không phải `n` nhỏ).
+- **bin-median** (5 bin) cho `b = +0,135`, cùng dấu và cùng bậc với +0,222 ⇒ không do vài cụm
+  lớn chi phối.
+
+`[CHỌN]` Dùng **b = +0,22** (chuẩn, `r` cố định 0,31 m). Lý do không dùng biến thể `E[r]`
+(−0,327): (i) nó đặt vào mẫu số những bán kính 0,50–1,94 m trong khi bán kính **đo được** của
+chính các cụm đó là 0,25–0,37 m — một phản thực tế bị phóng 6×; (ii) CI95 `[−0,895; +0,075]`
+vắt qua 0 **và** +0,1, tức không phân biệt được `P_det` hằng với `P_det ∝ R^0,1`; (iii) dấu âm
+sẽ **tăng** mật độ near-field, ngược chiều sai lệch đã đo ở A3-V. Cả hai biến thể thống nhất ở
+điểm quan trọng: **|b| ≤ 0,5 — dữ liệu static KHÔNG phân biệt được `P_det` hằng với `P_det(R)`
+dốc nhẹ.**
+
+### 11.2 Cài đặt `[CODE]`
+
+```
+P_det(R) = P_det0 · (R / R0)^b,  R0 = 25 m (cự ly paper đo, Fig. 7),  b = pdet_range_exponent
+```
+
+- `R` = khoảng cách từ cảm biến tới **tâm cụm** (`np.linalg.norm(cluster.pos)`), đúng như
+  `_collect_hits` dùng; `P_det0` vẫn là mẫu lognormal paper (`mu = −2,3`, `sigma = 1,1`) —
+  chỉ **luật theo cự ly** là mới, giá trị tại 25 m không đổi.
+- `RaycastConfig.pdet_range_exponent: float = 0.0` ⇒ **mặc định là hành vi cũ** (`P_det` hằng);
+  nhánh `!= 0.0` là nhánh duy nhất bị thêm, nên mọi kết quả cũ tái lập **bit-for-bit**
+  (test `test_pdet_at_paper_distance_does_not_depend_on_the_exponent`: ở đúng 25 m hệ số = 1,0
+  nên mảng detection trùng tuyệt đối). Đã kiểm chứng ở mức nghiệm thu: chạy lại A3 8 seed và
+  A3-V 30 frame/scene với `b = 0` cho **đúng từng số** của ADR-0006 §5/A3-V (13,0/144,0/283,4;
+  1,98/0,86/2,73/4,63/16,92/8,02) ⇒ không có thay đổi ẩn.
+- Hai script nghiệm thu không nhận config từ CLI (và không được sửa), nên chế độ chọn bằng biến
+  môi trường `PLUME_PDET_RANGE_EXPONENT`; nó chỉ cấp **giá trị mặc định** cho dataclass, config
+  truyền tường minh luôn thắng. Production (`PlumeTransform` → `raycast_frame()` không truyền
+  config) vì vậy **vẫn chạy b = 0,0** trừ khi ai đó set biến này — bật cho production là quyết
+  định của ADR, không phải của code.
+- **Không** đụng `diffusion_alpha`, `RADIUS_*`, lifetime, drag, `spawn_scale`, bảng
+  `_CLUSTER_VISIBLE_BY_SPEED`, `p_det_scale`.
+- Test: `tests/test_raycast.py` +5 test; toàn bộ **213 passed** (trước: 208).
+
+### 11.3 A3 (static) trước/sau `[ĐO]`
+
+Nghiệm thu đủ: 8 seed × 120 frame (thực 120/66/51), `.scratch/tmp/a3_full_b0.txt` /
+`a3_full_b0222.txt` + profile JSON cùng tên hậu tố `_profiles.json`. Bản nhanh
+(`--seeds 2 --frames 60`) cho cùng kết luận.
+
+| km/h | điểm/frame ± CI95 | (a) | trail90 | (b') trail | %mass≤20 | (b') profile | (c) | verdict |
+|---|---:|---:|---:|---|---:|---|---:|:---:|
+| **b = 0** | | | | | | | | |
+| 50 | 13,0 ±11,1 % | 0,15× ✗ | 2,2 m | 0,37× ✗ | 100,0 % | 94 % (0–2 m) ✗ | ✓ | FAIL |
+| 100 | 144,0 ±5,8 % | 0,71× ✓ | 40,2 m | 0,91× ✓ | 60,8 % | 268 % (2–4 m) ✗ | ✓ | FAIL |
+| 130 | 283,4 ±9,0 % | 1,36× ✓ | 49,8 m | 0,96× ✓ | 44,1 % | 995 % (0–2 m) ✗ | ✓ | FAIL |
+| **b = +0,22** | | | | | | | | |
+| 50 | 13,4 ±10,5 % | 0,16× ✗ | 2,2 m | 0,37× ✗ | 100,0 % | 93 % (0–2 m) ✗ | ✓ | FAIL |
+| 100 | 150,6 ±5,6 % | 0,74× ✓ | 40,8 m | 0,93× ✓ | 59,5 % | 255 % (2–4 m) ✗ | ✓ | FAIL |
+| 130 | 294,8 ±8,6 % | 1,41× ✓ | 50,0 m | 0,96× ✓ | 43,1 % | 959 % (0–2 m) ✗ | ✓ | FAIL |
+
+**A3: 0/3 tốc độ PASS ở cả hai chế độ** ⇒ `P_det(R)` **không** đổi phán quyết. Chi tiết:
+
+- (a) xấu đi nhẹ **+4,6 %** ở 100/130 km/h (144,0 → 150,6; 283,4 → 294,8) vì cụm ở kịch bản
+  static phần lớn ở **> 25 m**, nơi `(R/25)^0,22 > 1` làm `P_det` **tăng**. `b = +0,22` đẩy
+  (a)@130 lên **1,41×**, sát trần 1,5× ⇒ **không thể tăng b thêm** mà không phá A3 (a).
+- (b') profile-shape **giảm nhẹ** (268 → 255 %; 995 → 959 %) nhưng vẫn trượt xa ngưỡng 30 %;
+  %mass≤20 đổi ≤ 1 pp. Kết luận (b') không đổi.
+- (b')@50 ở bảng trên dùng profile thật của `roadspray-static-depth-profile.md`; toán tử đã kiểm
+  chứng: nó cho **268,0 % / 994,9 %** ở 100/130, đúng số ADR đã công bố. @50 nó cho 93,9 % cho
+  cấu hình ADR (ADR ghi 98,2 %) ⇒ riêng @50 sai khác ~4 pp do profile thật @50 trong doc thuộc
+  một biến thể khác; không đổi verdict.
+
+### 11.4 A3-V (following) trước/sau `[ĐO]`
+
+`scripts/measure_following_scenario.py --frames-per-scene 30`, cùng seed, cùng 108 scene
+(A 36 boxed + B 72 unboxed). Số thô: `.scratch/tmp/following_b0.json` / `following_b0222.json`.
+**Verdict đọc trên tập B** (pre-registered, 171 scene không box). Tập A là eval set, chỉ để đối
+chiếu.
+
+| lớp | nhóm | median trước | CI95 | median sau | CI95 | đổi | <10 m sau | <4 m sau | verdict sau |
+|---|---|---:|---|---:|---|---:|---:|---:|:---:|
+| Crafter | 50–70 | 1,98 | `[1,58; 2,60]` | **1,74** | `[1,49; 2,25]` | 0,88× | 33,7 % | 11,9 % | FAIL |
+| Golf | 50–70 | **0,86** | `[0,51; 1,68]` | **0,76** | `[0,48; 1,36]` | 0,88× | 43,4 % | 17,7 % | FAIL (CI dưới 0,48) |
+| Crafter | 80–110 | 2,73 | `[2,30; 3,14]` | **2,04** | `[1,71; 2,33]` | 0,75× | 75,9 % | 41,0 % | FAIL |
+| Golf | 80–110 | 4,63 | `[3,97; 5,73]` | **3,53** | `[2,88; 4,29]` | 0,76× | 72,3 % | 35,6 % | FAIL |
+| Crafter | 120–130 | **16,92** | `[13,88; 20,88]` | **13,43** | `[11,13; 15,51]` | 0,79× | 74,4 % | 41,1 % | FAIL |
+| Golf | 120–130 | 8,02 | `[6,07; 11,64]` | **5,99** | `[4,66; 8,65]` | 0,75× | 73,4 % | 38,1 % | FAIL |
+
+Trước: **1/6 ô PASS** (Golf 50–70). Sau: **0/6 ô PASS**. Tập A (không phải verdict):
+Crafter 50–70 0,80 → 0,79 PASS; Golf 50–70 0,36 → 0,32 FAIL; Crafter 80–110 1,30 → **0,98 PASS**;
+Golf 80–110 3,50 → 2,72 FAIL; 120–130 4,61 → 3,75 và 4,51 → 3,44 FAIL (2/6 PASS cả trước và sau).
+
+Ba điều phải khai:
+
+1. **Mức giảm đúng bằng cận trên của số mũ.** `(R/25)^0,22` = **0,57** ở 2 m, 0,66 ở 4 m, 0,85 ở
+   10 m, 0,94 ở 16 m, **1,00 ở ≥ 25 m** ⇒ tối đa chỉ giảm được 1,75× ở near-field, và **không
+   giảm gì** ở far-field. Đo được 1,14–1,34× ⇒ đúng cận trên, không phải "chưa tune đủ".
+2. **Ô duy nhất từng PASS nay FAIL** (Golf 50–70: 0,86 → 0,76, CI dưới 0,51 → 0,48). Ô này vốn
+   **thiếu** điểm (0,86×) nên `b > 0` làm tệ thêm. Đây là hệ quả tất yếu của một luật đơn điệu.
+3. **Near-field chỉ giảm vài pp**: `range < 10 m` 81,1 → 74,4 %, `range < 4 m` 49,2 → 41,1 %
+   (Crafter 120–130). Trong khi đó 40–80 % detection vẫn nằm sát cảm biến ⇒ nguyên nhân không
+   phải `P_det`.
+
+### 11.5 Kết luận — `P_det(R)` sửa được gì, còn lệch bao nhiêu `[SUY RA]`
+
+**Sửa được:** đúng phần hình học mà nó đại diện — 1,14–1,34× ở A3-V (cận trên lý thuyết 1,75×
+ở 2 m), và không đổi phán quyết nào. **Không sửa được** near-field, vì hai lý do định lượng:
+
+1. **Hai kịch bản đòi hai dấu ngược nhau.** Static (12–200 m) đã **quá đậm** ở 130 km/h
+   ((a) = 1,36× trước, 1,41× sau) nên nó chỉ chịu được `b ≤ ~0,25`; following (1–25 m) cần
+   `P_det` **tăng mạnh** ở gần. Một luật luỹ thừa neo ở 25 m **không thể** làm cả hai.
+2. **Số mũ mà near-field cần lớn hơn số đo 7×.** Với bảng production, `n_max(2 m, r = 0,31)`
+   = **2 566** tia ⇒ ở `P_det0 = 0,10` generator đặt **257 điểm** vào một cụm ở 2 m, trong khi
+   dữ liệu thật cho **~5 điểm/cụm** (phẳng từ 4 đến 30 m). Muốn ~5 điểm ở 2 m thì
+   `P_det(2 m) ≈ 0,002` ⇒ **b ≈ +1,56**. Nhưng cùng `b` đó cho `P_det(50 m) = 0,30` (3× hiện
+   tại) và `P_det(100 m) ≈ 0,87` ⇒ (a)@130 của A3 sẽ bùng nổ, và nó **vượt xa** số đo +0,22.
+   Không có giá trị `b` nào thoả cả hai; đây là bằng chứng định lượng cho câu "định luật tỉ lệ
+   theo cự ly SAI" ở ADR-0006 §"Nguyên nhân sâu hơn" — nhưng **sửa bằng `P_det` là sai chỗ**.
+3. **Calibration không có chỗ tựa ở near-field.** 40,8 % cụm thật (toàn bộ `R < 6 m`) có
+   `n_max = 0` với bảng production vì plume thật nằm dưới sàn FOV −4,06° (§8.3). Không có dữ
+   liệu nào trong phép đo này ràng buộc `P_det` dưới 6 m ⇒ mọi giá trị `b` dưới 6 m là **ngoại
+   suy**, và ngoại suy theo luật sai (bảng tia 9,94° thay vì 40° của VLP-32C) thì không thể đúng.
+
+**Đề xuất bước tiếp (chưa làm, cần mở ADR):**
+
+- `pdet_range_exponent` **giữ 0,0** trong production: +0,22 làm A3 (a)@130 xấu thêm mà không
+  cứu được A3-V ⇒ bật là net-negative cho tới khi có quyết định khác.
+- Sửa **hình học**, không sửa `P_det`: (i) cho `r` phụ thuộc cự ly theo số đo `r ∝ R^0,42`
+  (§8.1) — đây là nguyên nhân **độc lập** gây bùng nổ; (ii) dùng lưới ring **đo được** của
+  VLP-32C (−25…+15°, §8.3) thay lưới 9,94° — nhưng đổi bảng tia là đổi toàn bộ nghiệm thu cũ.
+- Phần **mức tuyệt đối** còn lại (5–13× ở 80–130 km/h) là việc của `following_density_scale`
+  (D2-v2, một số vô hướng) — và dải 0,76 → 13,43× vẫn vượt khả năng của một số vô hướng, đúng
+  như dự đoán đã ghi trong ADR-0006.

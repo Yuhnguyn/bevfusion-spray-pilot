@@ -13,6 +13,22 @@ Three mechanisms from the reference implementation [CODE]:
 - ``add_max_detection`` keeps the strongest echo per beam, so a plume can hide
   a weak real return and vice versa.
 
+``P_det`` is the paper's lognormal **modulated by range** (Eq. 7 measures it at
+one distance only, 25 m):
+
+    P_det(R) = P_det0 * (R / R0) ** b,   R0 = 25 m,   b = pdet_range_exponent
+
+with ``R`` the distance from the sensor to the **cluster centre**. ``b = 0``
+keeps the constant ``P_det`` of the paper (and of every earlier run). The
+non-zero exponent is a **calibration to data**, not a mechanism: ``b`` is fit
+on the RoadSpray ``*_static`` clusters with the same beam table this module
+ray-casts with — ``b = +0.222``, CI95 ``[-0.135, +0.547]``, 676/1656 clusters
+excluded because ``n_max = 0``. See ``docs/measurements/pdet-vs-range.md`` §11
+"Áp dụng vào generator" (D2-chặt: static calibration is an allowed source).
+It exists because the paper's ``n_max`` depends on ``R`` while ``P_det`` was
+measured at 25 m only, so a constant ``P_det`` makes the number of detections
+per cluster scale like ``1/R²`` and explode next to the sensor.
+
 Deliberate difference from the reference: segments on one beam are sorted by
 ``t0`` before the travelled length ``L`` is accumulated. The reference walks
 clusters in list order (``dee.cpp:230-281``), which depends on spawn order; the
@@ -24,8 +40,9 @@ Only numpy and the standard library are used.
 
 from __future__ import annotations
 
+import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Sequence
 
 import numpy as np
@@ -38,6 +55,7 @@ from spray.beam_model import (
 from spray.plume_state import SprayCluster
 
 __all__ = [
+    "PDET_RANGE_EXPONENT_ENV",
     "RaycastConfig",
     "RaycastResult",
     "RaycastStats",
@@ -51,6 +69,28 @@ __all__ = [
 PAPER_P_DET_MU = -2.3
 PAPER_P_DET_SIGMA = 1.1
 
+# [PAPER] Fig. 7 measures ``P_det`` at **one** distance, 25 m; ``R0`` is that
+# distance, so ``P_det(R0) = P_det0`` and only the range **law** is new.
+PAPER_P_DET_RANGE_REF_M = 25.0
+
+# Override for tools that build their own ``RaycastConfig`` and must run both
+# modes without editing their own source (A3 / A3-V acceptance scripts). The
+# dataclass field stays the API; the variable only supplies the default.
+PDET_RANGE_EXPONENT_ENV = "PLUME_PDET_RANGE_EXPONENT"
+
+
+def _default_pdet_range_exponent() -> float:
+    """``pdet_range_exponent`` default: 0.0 unless the env override is set."""
+    raw = os.environ.get(PDET_RANGE_EXPONENT_ENV, "").strip()
+    if not raw:
+        return 0.0
+    try:
+        return float(raw)
+    except ValueError as error:
+        raise ValueError(
+            f"{PDET_RANGE_EXPONENT_ENV} must be a float, got {raw!r}"
+        ) from error
+
 
 @dataclass(frozen=True)
 class RaycastConfig:
@@ -61,6 +101,16 @@ class RaycastConfig:
     ``-2.3/1.1``. ``N(0.5, 0.05)`` is only a **ranking score** for the
     strongest-return step: it is not scaled to 0-255 and the emitted detection
     intensity is exactly 0 [PAPER] (over 80 % of real spray returns are 0).
+
+    ``pdet_range_exponent`` is ``b`` in ``P_det(R) = P_det0·(R/R0)^b``
+    (``R0 = 25 m``, ``R`` = distance from the sensor to the cluster centre).
+    ``0.0`` — the default — is the paper's constant ``P_det`` and reproduces
+    every earlier run bit for bit. The non-zero value is a **calibration from
+    data**, fit on RoadSpray ``*_static`` with ``load_beam_table()``:
+    ``docs/measurements/pdet-vs-range.md`` §11 (D2-chặt: static calibration is
+    allowed; it is not a free fudge factor). It only changes the *range law*;
+    ``P_det0`` stays the paper lognormal and ``p_det_scale`` still multiplies on
+    top.
     """
 
     mean_attenuation_per_m: float = 0.02
@@ -73,6 +123,12 @@ class RaycastConfig:
     # RoadSpray static (D2), không phải P_det đứng riêng. Đây KHÔNG phải sửa
     # paper: P_det vẫn lognormal paper, chỉ hiệu chỉnh tích với hình học tia.
     p_det_scale: float = 1.0
+    # [CHỌN — hiệu chỉnh P_det(R), 2026-11-19] Số mũ b của P_det(R) trong
+    # docs/measurements/pdet-vs-range.md §11. Mặc định 0,0 = P_det hằng (hành
+    # vi cũ, paper chỉ đo ở 25 m). Giá trị dương làm cụm GẦN ít điểm hơn.
+    pdet_range_exponent: float = field(
+        default_factory=_default_pdet_range_exponent
+    )
     intensity_mu: float = 0.5
     intensity_sigma: float = 0.05
     max_distance_m: float = 100.0
@@ -276,7 +332,13 @@ def raycast_frame(
     lognormal = rng.lognormal(cfg.p_det_mu, cfg.p_det_sigma, size=keys_hit.size)
     survival_by_cluster = _survival(cluster_list)
     survival = survival_by_cluster[cluster_hit]
-    probability = np.minimum(1.0, lognormal * cfg.p_det_scale) * survival
+    scale = cfg.p_det_scale
+    if cfg.pdet_range_exponent != 0.0:
+        # P_det(R) = P_det0·(R/R0)^b: R = |tâm cụm| trong khung cảm biến.
+        scale = scale * _range_factor(cluster_list, cfg.pdet_range_exponent)[
+            cluster_hit
+        ]
+    probability = np.minimum(1.0, lognormal * scale) * survival
     detected = rng.random(keys_hit.size) > 1.0 - probability
 
     midpoints = 0.5 * (t0_hit + t1_hit)
@@ -497,6 +559,28 @@ def _collect_hits(
         np.concatenate(t1_chunks),
         np.concatenate(cluster_chunks),
     )
+
+
+def _range_factor(
+    clusters: Sequence[SprayCluster], exponent: float
+) -> np.ndarray:
+    """``(R / R0) ** b`` per cluster, ``R = |tâm cụm|`` in metres.
+
+    ``R0`` is the paper's measurement distance (25 m) so ``P_det(R0) = P_det0``.
+    ``R`` is floored at 1 mm: a cluster at the sensor origin intersects every
+    beam, and the probability is clamped to 1 afterwards anyway.
+    """
+    ranges = np.array(
+        [
+            float(np.linalg.norm(np.asarray(cluster.pos, dtype=np.float64).ravel()))
+            for cluster in clusters
+        ],
+        dtype=np.float64,
+    )
+    if ranges.size == 0:
+        return ranges
+    ratios = np.maximum(ranges, 1e-3) / PAPER_P_DET_RANGE_REF_M
+    return np.power(ratios, float(exponent))
 
 
 def _survival(clusters: Sequence[SprayCluster]) -> np.ndarray:

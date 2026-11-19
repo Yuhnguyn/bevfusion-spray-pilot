@@ -258,3 +258,67 @@ def test_marker_has_the_six_required_keys(capsys):
     match = regex.fullmatch(lines[0])
     assert match is not None
     assert match.group(5) == "42"
+
+
+# --- P_det(R): hiệu chỉnh cự ly của xác suất phát hiện (2026-11-19) ---------
+# Nguồn số: docs/measurements/pdet-vs-range.md §11. Các test dưới đây chỉ khoá
+# **cơ chế** (đúng luật R^b, đúng R0 = 25 m, mặc định tắt, env override), không
+# khoá giá trị b đã fit — giá trị đó là tham số hiệu chỉnh, đổi được bằng config.
+def _detections_at(position, exponent, seed=11, mu=-2.3):
+    result = raycast_frame(
+        np.zeros((0, 5)),
+        [_cluster(position)],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=np.random.default_rng(seed),
+        config=RaycastConfig(p_det_mu=mu, pdet_range_exponent=exponent),
+    )
+    return result.detections
+
+
+def test_pdet_range_exponent_is_off_by_default():
+    assert RaycastConfig().pdet_range_exponent == 0.0
+
+
+def test_pdet_range_exponent_env_override(monkeypatch):
+    monkeypatch.setenv("PLUME_PDET_RANGE_EXPONENT", "0.75")
+    assert RaycastConfig().pdet_range_exponent == pytest.approx(0.75)
+    # config tường minh luôn thắng env
+    assert RaycastConfig(pdet_range_exponent=0.0).pdet_range_exponent == 0.0
+    monkeypatch.setenv("PLUME_PDET_RANGE_EXPONENT", "không-phải-số")
+    with pytest.raises(ValueError):
+        RaycastConfig()
+
+
+def test_pdet_range_law_is_anchored_at_the_paper_distance():
+    from spray.raycast import _range_factor
+
+    def factor(metres, exponent):
+        return float(_range_factor([_cluster((metres, 0.0, 0.0))], exponent)[0])
+
+    assert factor(25.0, 2.0) == pytest.approx(1.0, abs=1e-12)
+    assert factor(2.0, 2.0) == pytest.approx((2.0 / 25.0) ** 2, rel=1e-12)
+    assert factor(5.0, 1.0) == pytest.approx(0.2, rel=1e-12)
+    assert factor(5.0, 0.0) == pytest.approx(1.0, rel=1e-12)
+
+
+def test_pdet_at_paper_distance_does_not_depend_on_the_exponent():
+    # P_det(R0) = P_det0: ở đúng 25 m, luật cự ly là phép nhân với 1,0 nên
+    # chuỗi ngẫu nhiên và kết quả phải TRÙNG TUYỆT ĐỐI với P_det hằng.
+    base = _detections_at((25.0, 0.0, 0.0), 0.0)
+    scaled = _detections_at((25.0, 0.0, 0.0), 1.5)
+
+    assert base.shape[0] > 0
+    assert np.array_equal(base, scaled)
+
+
+def test_positive_exponent_suppresses_a_near_cluster():
+    near = (4.0, 0.0, 0.0)
+    base = np.mean([_detections_at(near, 0.0, seed=seed).shape[0]
+                    for seed in range(6)])
+    damped = np.mean([_detections_at(near, 1.0, seed=seed).shape[0]
+                      for seed in range(6)])
+
+    assert base > 0.0
+    # factor = (4/25)^1 = 0,16 ⇒ tỉ lệ phải cùng bậc 0,16, không phải 1,0.
+    assert damped < 0.5 * base
