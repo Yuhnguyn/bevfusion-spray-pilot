@@ -432,7 +432,7 @@ def inject_plume(
                 cfg.cluster_radius_sigma,
                 cfg.cluster_radius_bounds_m,
             )
-            count = _count_for_distance(rng, d, cfg)
+            count = _count_for_distance(rng, d, cfg, radius)
             offsets = _ball(rng, count, radius)
             if d > 0.0:
                 offsets = _thin_radial(offsets, center3 / d, cfg.radial_squash)
@@ -606,7 +606,7 @@ def inject_plume_stateful(
     chunks: list[np.ndarray] = []
     for cluster in state.all_alive():
         distance = float(np.linalg.norm(cluster.pos))
-        count = _count_for_distance(rng, distance, cfg)
+        count = _count_for_distance(rng, distance, cfg, cluster.radius)
         offsets = _ball(rng, count, cluster.radius)
         if distance > 0.0:
             offsets = _thin_radial(
@@ -743,10 +743,31 @@ def _points_median_for_distance(distance: float) -> int:
 
 
 def _count_for_distance(
-    rng: np.random.Generator, distance: float, cfg: PlumeConfig
+    rng: np.random.Generator,
+    distance: float,
+    cfg: PlumeConfig,
+    radius: float | None = None,
 ) -> int:
+    """Số điểm một cụm, **tỉ lệ với tiết diện quả cầu** như mô hình paper.
+
+    Paper mô hình cụm là quả cầu và *suy ra* số detection từ giao tia × ``P_det``,
+    nên cụm to hơn bị nhiều tia cắt qua hơn: số điểm ∝ ``r²``. Bản port trước đây
+    lấy ``count`` **độc lập với** ``radius`` (hai lần lấy mẫu rời nhau) — đó là lỗi
+    mô hình chứ không phải lựa chọn: nó bỏ mất cơ chế duy nhất khiến đuôi phân bố
+    dài ra. `[ĐO] 2026-11-19`: bảng median theo cự ly giữ nguyên (đã hiệu chỉnh ở
+    bán kính median), thêm hệ số ``(r / r_median)²``; vì ``r`` là lognormal
+    ``σ = 0,8`` (Linnhoff Fig. 5) nên ``r²`` cho ``σ_hiệu_dụng = 1,6`` **không cần
+    thêm tham số tự do nào**.
+    """
     median = _points_median_for_distance(distance)
-    value = round(median * float(np.exp(cfg.points_per_cluster_sigma * rng.normal())))
+    spread = 1.0
+    if radius is not None and cfg.cluster_radius_median_m > 0.0:
+        spread = (radius / cfg.cluster_radius_median_m) ** 2.0
+    value = round(
+        median
+        * spread
+        * float(np.exp(cfg.points_per_cluster_sigma * rng.normal()))
+    )
     lo, hi = cfg.points_per_cluster_bounds
     return int(min(max(value, lo), hi))
 
