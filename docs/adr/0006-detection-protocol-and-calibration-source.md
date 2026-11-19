@@ -594,3 +594,31 @@ chuẩn `*_static` có tổng lượng spray cao hơn following (`trail90` 44 m 
 **Hệ quả cho A7:** plume giờ **thưa hơn** spray thật ở 4/6 ô (0,25–0,65×), nhưng `R p05` đã về thang
 thật. Nếu `Δrecall(plume−clean)` về ngang `Δrecall(real−clean) = −0,049` **thì** kết luận là cơ chế
 near-field mới là nguyên nhân. Nếu vẫn `< −0,15` thì mục 3 buộc **DỪNG**.
+
+### §5.8 KẾT QUẢ CỔNG C (2026-11-19) — doc đầy đủ `docs/measurements/gate-c-result.md`
+
+Kernel v5 (`--paper-domain` = Cách A), 954 frame / 12 scene, paired, τ = 0,20, IoU 0,5.
+
+| nhánh | recall | FP/frame |
+|---|---:|---:|
+| clean | **0,8208** | 1,018 |
+| plume (Cách A) | **0,6080** | 1,334 |
+| real | **0,7767** | 1,243 |
+
+**Δrecall(plume − clean) = −0,2188 [−0,2949; −0,1555]** · ΔFP = +0,3278 [+0,1956; +0,4540] ·
+Δrecall(real − clean) = −0,0441. **12/12 scene âm.**
+
+**Chấm theo mục 3 (pre-registered ở `ecfdb23`):** TC1 **ĐẠT**; TC2 **TRƯỢT NẶNG** (−0,2188, ngoài
+dải [−0,099; +0,001]); `< −0,15` ⇒ **DỪNG** kích hoạt. Dự đoán ghi trước (−0,05) sai 4,4 lần —
+Cách A chỉ lấy lại 0,049/0,268 = **18 %**.
+
+**Cơ chế [ĐO] — KHÔNG phải che khuất:** spray chỉ 0,04–1,47 % điểm nền; `corr(Δrecall, inj%) =
++0,192` (dương ⇒ nhiều spray hại ÍT hơn); hộp dự đoán gần như đứng yên (IoU 0,84–0,93). Trên 678
+frame có GT khớp: **73,3 % giữ hộp**, **20,1 % rớt score** (IoU ≥ 0,5 nhưng score < 0,20),
+**6,6 % mất hộp**. Score hộp đúng p50 **0,482 → 0,352**; ca điển hình IoU 0,85 với score
+0,337 → 0,050. ⇒ Spray làm detector **mất tự tin vào hộp đúng**, không che nó.
+
+**Biến gây nhiễu chưa tách:** `wet_ground` bật chỉ ở nhánh plume (982 814 điểm bị attenuate =
+3,48 %), `clean` và `real` không có. Cần ablation `--no-wet-ground` (A7-b) trước khi quy kết.
+
+**Kết luận theo pre-register: DỪNG.** Không thêm hệ số, không đổi τ, không đổi ngưỡng.
