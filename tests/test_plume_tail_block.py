@@ -78,10 +78,12 @@ def test_block_sits_behind_tail_with_fixed_width_and_fraction_height():
     # advances the previous one, so what survives is the newest frame's block.
     clusters = []
     for frame in range(20):
+        before = {cluster.cluster_id for cluster in state.alive(0)}
         inject_plume_stateful(
             _empty_points(), BOX, _context(frame), state, seed=1 + frame, token=TOKEN
         )
-        clusters = state.alive(0)
+        # Chỉ cohort sinh ở frame này (warm start để lại vệt cũ đã trôi xa).
+        clusters = [c for c in state.alive(0) if c.age < 0.0]
         if clusters:
             break
     assert len(clusters) > 0

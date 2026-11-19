@@ -36,7 +36,7 @@ import numpy as np
 from spray.beam_model import BeamTable, ELEVATION_MAX_DEG, ELEVATION_MIN_DEG
 from spray.plume import PlumeConfig, inject_plume_stateful
 from spray.plume_context import PlumeContext
-from spray.plume_state import PlumeState
+from spray.plume_state import PlumeState, PlumeStateConfig
 from spray.raycast import raycast_frame
 from spray.semantic_stats import ANGULAR_EPS_DEG, MIN_PTS, cluster_angular
 
@@ -82,16 +82,18 @@ def _context(speed_kmh: float, frame_index: int) -> PlumeContext:
 
 def measure_speed(speed_kmh: float, seed: int, table: BeamTable,
                   spawn_scale: float = 1.0,
-                  radius_sigma: float = 0.8) -> dict:
+                  radius_sigma: float = 0.8,
+                  streak_scale: float = 1.0) -> dict:
     """Chạy tới trạng thái dừng; đo **tầng raycast** trên các frame đo.
 
     Chỉ raycast ở cửa sổ đo (state không phụ thuộc raycast) — 54 750 tia/frame
     nên đỡ được phần lớn thời gian ở 260 frame warming.
     """
     config = PlumeConfig()
-    from spray.plume_state import PlumeStateConfig
+    from spray.plume_state import PlumeState, PlumeStateConfig
     state = PlumeState(PlumeStateConfig(spawn_scale=spawn_scale,
-                                        radius_sigma=radius_sigma))
+                                        radius_sigma=radius_sigma,
+                                        streak_scale=streak_scale))
     speed_mps = speed_kmh / 3.6
     # Box theo quy ước adapter: box[2] = ĐÁY hộp, box[3] = dài, box[4] = rộng,
     # box[5] = cao. Kích thước ĐÚNG của VW Crafter (6.8 × 2.4 × 2.6 m) như dữ
@@ -157,8 +159,10 @@ def measure_speed(speed_kmh: float, seed: int, table: BeamTable,
 def main() -> None:
     import argparse as _argparse
     _ap = _argparse.ArgumentParser()
-    _ap.add_argument("--spawn-scale", type=float, default=1.0)
+    _ap.add_argument("--spawn-scale", type=float,
+                     default=PlumeStateConfig().spawn_scale)
     _ap.add_argument("--radius-sigma", type=float, default=0.8)
+    _ap.add_argument("--streak-scale", type=float, default=1.0)
     _args = _ap.parse_args()
     table = vlp32c_table()
     header = (f"{'km/h':>5} {'det/frame':>10} {'cụm':>6} {'p50':>4} {'mean':>6} "
@@ -168,7 +172,7 @@ def main() -> None:
     verdicts = []
     for speed_kmh in sorted(REAL):
         runs = [measure_speed(speed_kmh, seed, table, _args.spawn_scale,
-                              _args.radius_sigma)
+                              _args.radius_sigma, _args.streak_scale)
                 for seed in range(SEEDS)]
         got = {key: float(np.mean([run[key] for run in runs]))
                for key in runs[0]}

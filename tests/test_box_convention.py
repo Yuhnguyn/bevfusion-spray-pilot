@@ -49,6 +49,7 @@ def _spawn_one_frame():
     state = PlumeState()
     clusters = []
     for frame in range(20):
+        before = {cluster.cluster_id for cluster in state.alive(0)}
         inject_plume_stateful(
             np.zeros((0, 5), dtype=np.float32),
             _box(),
@@ -57,7 +58,13 @@ def _spawn_one_frame():
             seed=11 + frame,
             token=TOKEN,
         )
-        clusters = state.alive(0)
+        # Chỉ lấy **cohort sinh ở frame này**: từ khi có warm start, `alive`
+        # còn chứa vệt cũ đã trôi xa; các assert dưới đây nói về hình học khối
+        # của cụm MỚI, không phải toàn bộ vệt.
+        # Cụm sinh ở frame này có `age < 0` (spawn đặt age = -dt); cụm cũ đã
+        # được advance nên age >= 0. Dùng age thay vì id để không dính cohort
+        # do warm start sinh ra trong chính lần gọi đầu.
+        clusters = [c for c in state.alive(0) if c.age < 0.0]
         if clusters:
             break
     return clusters

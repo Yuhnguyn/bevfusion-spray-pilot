@@ -177,6 +177,10 @@ class PlumeStateConfig:
     source_count: int = 2
     source_lateral_m: tuple[float, ...] = (-0.85, 0.85)
     source_sigma_m: float = 0.18
+    # [CHỌN] Hệ số độ dài vệt: 1.0 = đúng quãng ego đi một chu kỳ; nhỏ hơn thì
+    # cụm ít gộp hơn (nhiều cụm hơn, đuôi nhẹ hơn). Hiệu chỉnh bằng
+    # scripts/measure_plume_size_tail.py.
+    streak_scale: float = 0.5
     # [CHỌN] Độ cao nguồn tính từ **mặt đường** (m), không phải theo chiều cao
     # hộp: lớp nước bắn lên có cùng độ dày bất kể xe cao hay thấp. Dùng chiều
     # cao hộp làm mâu thuẫn giữa các cự ly (cùng một khối cho elevation khác
@@ -320,6 +324,52 @@ class PlumeState:
     @property
     def wind(self) -> np.ndarray:
         return wind_vector(self._config)
+
+    def needs_warm_start(self, scene_token: str) -> bool:
+        """True khi state chưa từng chạy cho scene này (sẽ reset khi spawn)."""
+        return scene_token != self._scene_token
+
+    def warm_start(
+        self,
+        context,
+        *,
+        object_id: int,
+        rng: np.random.Generator,
+        dt: float,
+        center: np.ndarray,
+        extents: np.ndarray,
+        vehicle_class: str = "crafter",
+        direction: np.ndarray | None = None,
+        cycles: int | None = None,
+    ) -> None:
+        """Chạy ``cycles`` chu kỳ GIẢ để scene bắt đầu ở trạng thái dừng.
+
+        ``[ĐO] 2026-11-19``: scene SSPP chỉ 40–67 frame, trong khi plume cần
+        ``max_age_factor*T/dt`` (48 frame @100 km/h, 73 @130) mới bão hoà. Khởi
+        động từ state RỖNG làm nửa đầu mỗi scene thiếu spray và cuối scene lại
+        dư — phân tích pixel trên clip cho thấy generator dày 0 lần ở frame đầu
+        và 1,9× ở frame giữa. Dữ liệu thật thì frame 0 đã có plume vì xe đã chạy
+        từ trước scene. Warm start tái tạo đúng điều kiện đó.
+        """
+        if cycles is None:
+            v_abs_kmh = context.object_speed_mps * 3.6
+            ttl = lifetime_mean_s(v_abs_kmh, context.wfh_mm)
+            cycles = int(np.ceil(self._config.max_age_factor * ttl / dt)) + 1
+        ego_velocity = np.array([context.ego_speed_mps, 0.0, 0.0],
+                                dtype=np.float64)
+        for _ in range(max(0, cycles)):
+            self.advance(dt, ego_velocity=ego_velocity)
+            self.prune()
+            self.spawn(
+                context,
+                object_id=object_id,
+                rng=rng,
+                dt=dt,
+                center=center,
+                extents=extents,
+                vehicle_class=vehicle_class,
+                direction=direction,
+            )
 
     def spawn(
         self,
@@ -482,7 +532,8 @@ class PlumeState:
                 lateral_center_y=lateral_center,
                 # Quãng ego đi trong một chu kỳ = khoảng cách giữa hai lớp cụm,
                 # cũng là độ dài vệt cần biểu diễn để hai lớp chạm nhau.
-                streak_m=float(np.linalg.norm(ego_velocity)) * dt,
+                streak_m=float(np.linalg.norm(ego_velocity)) * dt
+                * float(cfg.streak_scale),
             )
             self._next_cluster_id += 1
             bucket.append(cluster)

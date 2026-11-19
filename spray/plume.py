@@ -586,6 +586,17 @@ def inject_plume_stateful(
             dtype=np.float64,
         )
 
+        if state.needs_warm_start(context.scene_token):
+            state.warm_start(
+                context,
+                object_id=index,
+                rng=rng,
+                dt=dt,
+                center=center,
+                extents=extents,
+                vehicle_class=vehicle_class,
+                direction=np.array([np.cos(yaw), np.sin(yaw), 0.0]),
+            )
         created = state.spawn(
             context,
             object_id=index,
