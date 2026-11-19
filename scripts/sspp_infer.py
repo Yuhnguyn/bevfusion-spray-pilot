@@ -661,12 +661,36 @@ def _as_box_array(value, columns: int = 9) -> np.ndarray:
     return np.asarray(array, dtype=np.float32).reshape(-1, columns)
 
 
-def detect(model, facts: dict, points: np.ndarray, device: str) -> dict:
+def detect(
+    model,
+    facts: dict,
+    points: np.ndarray,
+    device: str,
+    legacy_channel4: bool = False,
+    z_shift_m: float = 0.0,
+) -> dict:
     import torch
     from mmdet3d.core.bbox import LiDARInstance3DBoxes
 
+    # SỬA LỖI 2026-11-19 (chẩn đoán: docs/measurements/model0-blindness-diagnosis.md)
+    # nuScenes/BEVFusion dùng cột 4 = **time-lag** trong [-0.5; 0]
+    # (`mmdet3d/datasets/pipelines/loading.py:182` đặt 0 cho keyframe, `:223` đặt
+    # `ts - sweep_ts` cho sweep). File .bin của SSPP có cột 4 = **ring** (0..31).
+    # Nạp thẳng ring vào chỗ time-lag phá lớp conv đầu (trọng số kênh 4 của
+    # checkpoint có RMS 0,874 / max|w| 15,15, gấp 7,4x / 16,6x các kênh khác):
+    # activation bị đẩy 5-17 sigma và biến thiên theo không gian ⇒ model bắn box
+    # quanh ego (98,5 % trong 5 m), TP = 0/954 frame, chỉ 4/954 frame score >= 0,2.
+    # Với frame không có sweep, pipeline chuẩn đặt time-lag = 0 cho mọi điểm.
+    cloud = np.array(points[:, :POINT_DIM], dtype=np.float32, copy=True)
+    if cloud.ndim == 2 and cloud.shape[1] > 4 and not legacy_channel4:
+        cloud[:, 4] = 0.0
+        assert float(np.abs(cloud[:, 4]).max(initial=0.0)) < 1e-6
+    if z_shift_m:
+        # Covariate của phép đo này, không phải fix: mặt đường SSPP z=-0,38 so
+        # với nuScenes z=-1,84 (docs/measurements/model0-blindness-diagnosis.md §4.1).
+        cloud[:, 2] += np.float32(z_shift_m)
     tensor = torch.as_tensor(
-        np.ascontiguousarray(points[:, :POINT_DIM], dtype=np.float32),
+        np.ascontiguousarray(cloud),
         dtype=torch.float32,
         device=device,
     )
@@ -1060,6 +1084,24 @@ def run(args) -> int:
     scenes = read_split(split_json, args.split)
     infos = read_infos(infos_path)
     frames = select_frames(infos, scenes, args.split, args.limit)
+    if getattr(args, "tokens", None):
+        # Ghim đúng frame cần đo (verify kênh 4 trên Kaggle): thay
+        # cho --limit, để hai chế độ chạy trên cùng frame. Thứ tự giữ nguyên.
+        wanted = [str(token) for token in args.tokens]
+        by_token = {str(info["token"]): info for info in infos}
+        missing = [token for token in wanted if token not in by_token]
+        if missing:
+            raise SystemExit(f"GATE_C_FAILED --tokens not in {infos_path}: {missing}")
+        scene_set = set(scenes)
+        unknown_scene = [
+            token for token in wanted
+            if str(token).rsplit("/", 1)[0] not in scene_set
+        ]
+        if unknown_scene:
+            raise SystemExit(
+                f"GATE_C_FAILED --tokens outside split {args.split!r}: {unknown_scene}"
+            )
+        frames = [by_token[token] for token in wanted]
     indices = frame_indices(frames)
     device = _device(args.device)
     if device == "cpu":
@@ -1080,6 +1122,12 @@ def run(args) -> int:
     transform = make_plume_transform(args)
     state = PlumeState()
     records: list[dict] = []
+    print(
+        "GATE_C_INPUT_MODE "
+        f"legacy_channel4={int(bool(getattr(args, 'legacy_channel4', False)))} "
+        f"z_shift_m={float(getattr(args, 'z_shift_m', 0.0)):.3f} "
+        f"tokens={len(args.tokens) if getattr(args, 'tokens', None) else 0}"
+    )
     order = sorted(range(len(frames)), key=lambda index: (
         str(frames[index]["token"]).rsplit("/", 1)[0], indices[index]
     ))
@@ -1133,7 +1181,14 @@ def run(args) -> int:
                 }
             else:  # pragma: no cover - argparse restricts choices
                 raise SystemExit(f"unknown arm {arm!r}")
-            detection = detect(model, facts, input_points, device)
+            detection = detect(
+                model,
+                facts,
+                input_points,
+                device,
+                legacy_channel4=bool(getattr(args, "legacy_channel4", False)),
+                z_shift_m=float(getattr(args, "z_shift_m", 0.0)),
+            )
             record = dict(common)
             record.update(point_stats)
             record["arm"] = arm
@@ -1204,6 +1259,8 @@ def run(args) -> int:
         "iou_thresh": float(args.iou_thresh),
         "range_m": float(args.range_m),
         "seed": int(args.seed),
+        "legacy_channel4": bool(getattr(args, "legacy_channel4", False)),
+        "z_shift_m": float(getattr(args, "z_shift_m", 0.0)),
         "epoch": int(args.epoch),
         "wfh_mm": float(args.wfh_mm),
         "road_z_m": float(args.road_z_m),
@@ -1289,6 +1346,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="run the Hahner wet-ground stage (arm B uses it)")
     parser.add_argument("--no-wet-ground", dest="wet_ground", action="store_false",
                         help="disable the wet-ground stage (sensitivity only)")
+    parser.add_argument("--legacy-channel4", dest="legacy_channel4",
+                        action="store_true",
+                        help="tái hiện lỗi cũ: nạp thẳng cột 4 của file .bin "
+                             "(ring 0..31) vào chỗ time-lag của nuScenes; mặc "
+                             "định là zero hoá cột 4 như pipeline chuẩn")
+    parser.add_argument("--z-shift-m", type=float, default=0.0,
+                        help="chẩn đoán covariate độ cao: cộng giá trị này vào "
+                             "z trước khi vào detector (thử -1.45)")
+    parser.add_argument("--tokens", nargs="+", default=None,
+                        help="chỉ chạy đúng các frame token này (thay --limit)")
     parser.add_argument("--log-every", type=int, default=50)
     args = parser.parse_args(argv)
     if args.infos is None:
