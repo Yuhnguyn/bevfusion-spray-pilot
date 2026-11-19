@@ -28,7 +28,11 @@ from spray.plume import (
     steady_state_cluster_factor,
 )
 from spray.plume_context import PlumeContext
-from spray.plume_state import PlumeState, cluster_spawn_rate_for_speed_abs
+from spray.plume_state import (
+    PlumeState,
+    PlumeStateConfig,
+    cluster_spawn_rate_for_speed_abs,
+)
 
 DT = 0.1
 SPEEDS_KMH = (60.0, 100.0, 120.0)
@@ -80,7 +84,17 @@ def _alive_mean(speed_kmh: float, seed: int) -> float:
 
 @pytest.mark.parametrize("speed_kmh", SPEEDS_KMH)
 def test_alive_cluster_count_matches_the_calibration_table(speed_kmh: float):
-    target = cluster_visible_target_for_speed(speed_kmh)
+    """Số **cầu sống** = `spawn_scale` × bảng `visible`, không phải = bảng.
+
+    `[ĐO] 2026-11-19`: bảng `_CLUSTER_VISIBLE_BY_SPEED` đo bằng DBSCAN trên
+    **detections** của cảm biến, tức số **detection-cluster**, không phải số quả
+    cầu tồn tại. Nhiều quả cầu gộp thành một detection-cluster (và một số cầu
+    không che đủ `minPts` tia nên biến mất), nên muốn khớp ở tầng detector phải
+    sinh `spawn_scale` lần số cầu. Hệ số 3,0 hiệu chỉnh ở 100 km/h
+    (`scripts/measure_plume_size_tail.py`). Test vẫn giữ nguyên mục đích: bắt
+    lỗi ngân sách kiểu 4× (400 %).
+    """
+    target = cluster_visible_target_for_speed(speed_kmh) * PlumeStateConfig().spawn_scale
     assert target > 0.0
 
     alive = float(np.mean([_alive_mean(speed_kmh, seed) for seed in range(SEEDS)]))

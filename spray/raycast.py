@@ -448,15 +448,39 @@ def _collect_hits(
         azimuth_mesh = azimuth_mesh.ravel()
         ring_mesh = ring_mesh.ravel()
         beam_global = azimuth_mesh * elevation_count + ring_mesh
-        t0, t1 = ray_sphere_intersect(directions[beam_global], center, radius)
-        hit = np.isfinite(t0)
-        if not hit.any():
+        # Vệt: xấp xỉ bằng chuỗi quả cầu dọc phương trôi (streak_m). Mỗi quả cầu
+        # con được chiếu cùng bộ tia; downstream vẫn gộp theo beam key như cũ.
+        streak = float(getattr(cluster, "streak_m", 0.0) or 0.0)
+        direction = np.asarray(cluster.vel, dtype=np.float64)
+        speed = float(np.linalg.norm(direction))
+        sub_centers = [center]
+        if streak > 0.0 and speed > 1e-6 and radius > 0.0:
+            count = int(min(8, max(1, np.ceil(streak / max(radius, 0.05)))))
+            offsets = np.linspace(0.0, streak, count + 1)[1:]
+            unit = direction / speed
+            # Vệt kéo về phía cụm ĐÃ ĐI QUA (ngược chiều trôi): cụm hiện tại ở
+            # cuối vệt, vệt phủ quãng nó vừa quét.
+            sub_centers.extend(center + unit * float(off) for off in offsets)
+        hit_keys: list[np.ndarray] = []
+        hit_t0: list[np.ndarray] = []
+        hit_t1: list[np.ndarray] = []
+        for sub_center in sub_centers:
+            t0, t1 = ray_sphere_intersect(directions[beam_global], sub_center,
+                                          radius)
+            hit = np.isfinite(t0)
+            if not hit.any():
+                continue
+            hit_keys.append(ring_mesh[hit] * azimuth_count + azimuth_mesh[hit])
+            hit_t0.append(t0[hit])
+            hit_t1.append(t1[hit])
+        if not hit_keys:
             continue
-
-        key_chunks.append(ring_mesh[hit] * azimuth_count + azimuth_mesh[hit])
-        t0_chunks.append(t0[hit])
-        t1_chunks.append(t1[hit])
-        cluster_chunks.append(np.full(int(hit.sum()), cluster_index))
+        key_chunks.append(np.concatenate(hit_keys))
+        t0_chunks.append(np.concatenate(hit_t0))
+        t1_chunks.append(np.concatenate(hit_t1))
+        cluster_chunks.append(
+            np.full(sum(chunk.size for chunk in hit_keys), cluster_index)
+        )
 
     if not key_chunks:
         return None

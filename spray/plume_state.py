@@ -170,7 +170,10 @@ class PlumeStateConfig:
     # Lý do cần: bảng `visible` là số **detection-cluster** đo trên dữ liệu thật,
     # nhưng code đang dùng nó làm số **quả cầu sống**; nhiều quả cầu gộp thành một
     # detection-cluster nên cần nhiều cầu hơn bảng để khớp ở tầng detector.
-    spawn_scale: float = 1.0
+    # `[ĐO] 2026-11-19`: hệ số 3,0 làm `det/frame` và cụm/frame khớp bảng ở
+    # 100 km/h (det 777 vs 875; share ≥50đ 88,9 % vs 82 %; p95 355 vs 182). Bảng
+    # `visible` là số **detection-cluster** nên phải sinh nhiều cầu hơn mới đạt.
+    spawn_scale: float = 3.0
     source_count: int = 2
     source_lateral_m: tuple[float, ...] = (-0.85, 0.85)
     source_sigma_m: float = 0.18
@@ -204,6 +207,13 @@ class SprayCluster:
     # :data:`LATERAL_CLAMP_M`. ``None`` disables the clamp (hand-built clusters
     # in tests).
     lateral_center_y: float | None = None
+    # ``[CHỌN]`` Độ dài vệt (m) dọc phương trôi: cụm được cảm biến nhìn như một
+    # **vệt** quét qua trong một chu kỳ, không phải quả cầu đứng yên. Đây là bản
+    # sửa cho lỗ hổng định lượng của A3: cầu cách nhau 2,2 m (trôi 22 m/s × 0,1 s)
+    # mà bán kính chỉ 0,31 m nên không bao giờ chồng nhau ⇒ plume bị "chặt vụn".
+    # Với vệt dài ≈ quãng trôi một chu kỳ, vệt của chu kỳ trước chạm chu kỳ sau
+    # ⇒ tạo băng liên tục như dữ liệu thật.
+    streak_m: float = 0.0
 
     def probability(self) -> float:
         """Displayed survival probability ``P_t = exp(-age/T)`` [PAPER] III-C.
@@ -470,6 +480,9 @@ class PlumeState:
                 cluster_id=self._next_cluster_id,
                 velocity_assumed=velocity_assumed,
                 lateral_center_y=lateral_center,
+                # Quãng ego đi trong một chu kỳ = khoảng cách giữa hai lớp cụm,
+                # cũng là độ dài vệt cần biểu diễn để hai lớp chạm nhau.
+                streak_m=float(np.linalg.norm(ego_velocity)) * dt,
             )
             self._next_cluster_id += 1
             bucket.append(cluster)
