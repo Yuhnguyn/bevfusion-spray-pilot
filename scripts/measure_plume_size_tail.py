@@ -1,23 +1,28 @@
-"""Đo **đuôi phân bố điểm/cụm của plume sinh ra** và so với spray thật.
+#!/usr/bin/env python3
+"""Đo đuôi phân bố điểm/cụm của plume **ở tầng detector thật sự thấy**.
 
-Đây là dụng cụ **chấp nhận A3**: chạy generator ở trạng thái dừng, lấy các điểm
-spray được chèn (`PlumeResult.injected`), gom cụm bằng **đúng toán tử đã dùng
-cho dữ liệu thật** (`spray.semantic_stats.cluster_angular`: DBSCAN trên
-`(azimuth, elevation)`, `eps = 0,7°`, `minPts = 3`), rồi so bốn đại lượng với
-bảng thật trong `docs/measurements/sspp-cluster-size-distribution.md`:
+**Bài học sửa dụng cụ (2026-11-19, do user phát hiện):** bản cũ đo trên
+``PlumeResult.injected`` — các điểm *vật chất hoá* bên trong quả cầu cụm với
+``ring = -1``. Nhưng ``spray/raycast.py:117`` nói rõ: điểm ``ring`` ngoài
+``0..M-1`` *"take no part in intersection or occlusion"* ⇒ tầng vật chất hoá
+**vô hiệu** với detector; detection thật sự sinh từ giao của **bộ tia
+(VLP-32C: 32 ring × 1800 az) với mặt cầu cụm** (``_collect_hits``), một lượt rút
+thăm ``P_det`` mỗi đoạn, giữ mạnh nhất mỗi tia (``_keep_strongest_per_beam``).
+Đo trên tầng vô hiệu tức đo một con số không tồn tại với detector ⇒ các phán
+quyết A3 trước đây (50/100 PASS, 130 FAIL) **vô hiệu**, phải đo lại ở tầng
+``RaycastResult.detections`` — cùng tầng với ``label == 2`` của dữ liệu thật
+(đều là *detections của cảm biến*).
 
-* `điểm/frame`
-* `điểm/cụm` p50 (thật: 5–7 ở mọi tốc độ)
-* `điểm/cụm` p95 (thật: 17 / 182 / 158 ở 50 / 100 / 130 km/h)
-* **`% điểm nằm trong cụm ≥ 50 điểm`** (thật: 15 % / 82 % / 83 %) ← tiêu chí chính
+Đường đo (đúng như PlumeTransform dùng khi train):
 
-Vì sao `% điểm trong cụm ≥50` là tiêu chí chính: phân bố thật **hai đỉnh** —
-rất nhiều cụm nhỏ (p50 = 5–7 điểm, generator đã khớp) + một ít chuỗi khổng lồ giữ
-phần lớn khối lượng điểm. Nếu chỉ nhìn `điểm/frame` thì không phân biệt được
-"thiếu chuỗi" với "mọi cụm nhỏ đi".
+    inject_plume_stateful  ->  state.all_alive()  ->  raycast_frame  ->  detections
+    (chỉ cần để giữ state)     cụm sống                54 750 tia          cái detector thấy
+
+Đo bằng **đúng toán tử** dữ liệu thật: DBSCAN trên ``(azimuth, elevation)``,
+``eps = 0,7°``, ``minPts = 3``.
 
 Chạy:
-    CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
+    CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \\
         scripts/measure_plume_size_tail.py
 """
 
@@ -28,29 +33,37 @@ import io
 
 import numpy as np
 
+from spray.beam_model import BeamTable, ELEVATION_MAX_DEG, ELEVATION_MIN_DEG
 from spray.plume import PlumeConfig, inject_plume_stateful
 from spray.plume_context import PlumeContext
 from spray.plume_state import PlumeState
+from spray.raycast import raycast_frame
 from spray.semantic_stats import ANGULAR_EPS_DEG, MIN_PTS, cluster_angular
 
-DT = 0.1
-# Cloud nền ~30k điểm như frame SSPP thật: `_injected_budget` = 5 % số điểm
-# thật (tối thiểu 500), nên truyền cloud rỗng sẽ cap plume ở 500 điểm và đo sai.
-BACKGROUND_POINTS = 30_000
 WARMUP_FRAMES = 260
 MEASURE_FRAMES = 60
 SEEDS = 2
 BIG_CLUSTER_POINTS = 50
+BACKGROUND_POINTS = 30_000
 
-# docs/measurements/sspp-cluster-size-distribution.md (Crafter, gộp 3 fold).
+# docs/measurements/sspp-cluster-size-distribution.md (Crafter, gộp 3 fold) —
+# các số THẬT đều là detections của cảm biến nên so ở tầng raycast mới công bằng.
 REAL = {
-    50.0: {"points": 43, "p50": 6, "mean": 8.8, "p95": 17, "max": 144,
-           "share_big": 15.0},
-    100.0: {"points": 875, "p50": 6, "mean": 40.4, "p95": 182, "max": 2241,
-            "share_big": 82.0},
-    130.0: {"points": 592, "p50": 6, "mean": 45.3, "p95": 158, "max": 2485,
-            "share_big": 83.0},
+    50.0: {"points": 43, "clusters": 4.8, "p50": 6, "mean": 8.8, "p95": 17,
+           "max": 144, "share_big": 15.0},
+    100.0: {"points": 875, "clusters": 21.6, "p50": 6, "mean": 40.4, "p95": 182,
+            "max": 2241, "share_big": 82.0},
+    130.0: {"points": 592, "clusters": 13.1, "p50": 6, "mean": 45.3, "p95": 158,
+            "max": 2485, "share_big": 83.0},
 }
+
+
+def vlp32c_table() -> BeamTable:
+    """Bộ tia VLP-32C — copy y từ scripts/visualize_sspp_plume.py (nhánh smoke)."""
+    elevation = np.linspace(ELEVATION_MIN_DEG, ELEVATION_MAX_DEG, 32,
+                            dtype=np.float64)
+    return BeamTable(elevation_deg=tuple(float(v) for v in elevation),
+                     azimuth_step_deg=0.2)
 
 
 def _context(speed_kmh: float, frame_index: int) -> PlumeContext:
@@ -67,21 +80,25 @@ def _context(speed_kmh: float, frame_index: int) -> PlumeContext:
     )
 
 
-def measure_speed(speed_kmh: float, seed: int) -> dict:
-    """Chạy tới trạng thái dừng rồi đo đuôi phân bố của các frame đo."""
+def measure_speed(speed_kmh: float, seed: int, table: BeamTable) -> dict:
+    """Chạy tới trạng thái dừng; đo **tầng raycast** trên các frame đo.
+
+    Chỉ raycast ở cửa sổ đo (state không phụ thuộc raycast) — 54 750 tia/frame
+    nên đỡ được phần lớn thời gian ở 260 frame warming.
+    """
     config = PlumeConfig()
     state = PlumeState()
     speed_mps = speed_kmh / 3.6
     # Box theo quy ước adapter: box[2] = ĐÁY hộp, box[3] = dài, box[4] = rộng.
     box = np.array([[20.0, 0.0, -1.6, 4.5, 1.9, 1.5, 0.0, speed_mps, 0.0]],
                    dtype=np.float64)
+    rng_background = np.random.default_rng(seed)
     background = np.zeros((BACKGROUND_POINTS, 5), dtype=np.float32)
-    background[:, 0] = np.random.default_rng(seed).uniform(-27, 27, BACKGROUND_POINTS)
-    background[:, 1] = np.random.default_rng(seed + 1).uniform(-27, 27, BACKGROUND_POINTS)
+    background[:, 0] = rng_background.uniform(-27, 27, BACKGROUND_POINTS)
+    background[:, 1] = rng_background.uniform(-27, 27, BACKGROUND_POINTS)
     background[:, 2] = -1.6
-    frames: list[dict] = []
-    capped = 0
-    alive_samples: list[int] = []
+
+    frames: list[np.ndarray] = []
     sink = io.StringIO()
     with contextlib.redirect_stdout(sink):
         for index in range(WARMUP_FRAMES + MEASURE_FRAMES):
@@ -94,75 +111,73 @@ def measure_speed(speed_kmh: float, seed: int) -> dict:
                 token=f"tail/{index}",
                 config=config,
             )
-            capped += result.stats.capped
-            if index >= WARMUP_FRAMES:
-                alive_samples.append(int(result.stats.clusters))
             if index < WARMUP_FRAMES:
                 continue
-            spray = result.injected[:, :3].astype(np.float64)
-            if spray.shape[0] < MIN_PTS:
-                frames.append({"points": int(spray.shape[0]), "sizes": [],
-                               "unclustered": int(spray.shape[0])})
-                continue
-            labels = cluster_angular(spray, eps_deg=ANGULAR_EPS_DEG,
-                                     min_pts=MIN_PTS)
-            valid = labels[labels >= 0]
-            sizes = [int(value) for value in np.bincount(valid)] \
-                if valid.size else []
-            frames.append({"points": int(spray.shape[0]), "sizes": sizes,
-                           "unclustered": int((labels < 0).sum())})
-    flat = np.array([size for frame in frames for size in frame["sizes"]],
-                    dtype=np.int64)
-    totals = np.array([frame["points"] for frame in frames], dtype=np.int64)
-    if flat.size == 0:
-        return {"alive": 0.0, "capped": float(capped), "points": float(totals.mean()), "n_cluster": 0.0,
-                "p50": 0.0, "mean": 0.0, "p95": 0.0, "max": 0,
-                "share_big": 0.0, "clusters_per_frame": 0.0,
-                "unclustered_share": 100.0}
-    big = flat[flat >= BIG_CLUSTER_POINTS]
-    unclustered = float(np.mean([frame["unclustered"] for frame in frames]))
+            ray = raycast_frame(
+                result.points,
+                state.all_alive(),
+                table=table,
+                road_z_m=-1.6,
+                rng=np.random.default_rng(seed * 777 + index),
+            )
+            frames.append(ray.detections)
+
+    flat_sizes: list[int] = []
+    totals: list[int] = []
+    for detections in frames:
+        totals.append(int(detections.shape[0]))
+        pos = detections[:, :3].astype(np.float64)
+        if pos.shape[0] < MIN_PTS:
+            continue
+        labels = cluster_angular(pos, eps_deg=ANGULAR_EPS_DEG, min_pts=MIN_PTS)
+        valid = labels[labels >= 0]
+        if valid.size:
+            flat_sizes.extend(int(v) for v in np.bincount(valid))
+    array = np.asarray(flat_sizes, dtype=np.int64)
+    big = array[array >= BIG_CLUSTER_POINTS]
     return {
-        "alive": float(np.mean(alive_samples)) if alive_samples else 0.0,
-        "capped": float(capped),
-        "points": float(totals.mean()),
-        "n_cluster": float(flat.size) / len(frames),
-        "p50": float(np.median(flat)),
-        "mean": float(flat.mean()),
-        "p95": float(np.percentile(flat, 95)),
-        "max": int(flat.max()),
-        "share_big": 100.0 * float(big.sum()) / float(flat.sum()),
-        "clusters_per_frame": float(flat.size) / len(frames),
-        "unclustered_share": 100.0 * unclustered / max(float(totals.mean()), 1e-9),
+        "detections_frame": float(np.mean(totals)),
+        "n_cluster": float(array.size) / max(len(frames), 1),
+        "p50": float(np.median(array)) if array.size else 0.0,
+        "mean": float(array.mean()) if array.size else 0.0,
+        "p95": float(np.percentile(array, 95)) if array.size else 0.0,
+        "max": int(array.max()) if array.size else 0,
+        "share_big": 100.0 * float(big.sum()) / max(float(array.sum()), 1e-9),
+        "big_count": int(big.size),
     }
 
 
 def main() -> None:
-    print(f"{'km/h':>5} {'điểm/frame':>11} {'cụm/frame':>10} {'p50':>5} {'mean':>6} "
-          f"{'p95':>5} {'max':>5} {'%điểm≥50đ':>10} {'%lẻ':>6} | so với thật")
+    table = vlp32c_table()
+    header = (f"{'km/h':>5} {'det/frame':>10} {'cụm':>6} {'p50':>4} {'mean':>6} "
+              f"{'p95':>5} {'max':>5} {'%≥50đ':>7} | thật (det, cụm, p50, p95, "
+              "max, %≥50đ) | A3")
+    print(header)
     verdicts = []
     for speed_kmh in sorted(REAL):
-        runs = [measure_speed(speed_kmh, seed) for seed in range(SEEDS)]
-        merged = {key: float(np.mean([run[key] for run in runs]))
-                  for key in ("points", "p50", "mean", "p95", "max",
-                              "share_big", "clusters_per_frame", "capped",
-                              "unclustered_share", "alive")}
+        runs = [measure_speed(speed_kmh, seed, table) for seed in range(SEEDS)]
+        got = {key: float(np.mean([run[key] for run in runs]))
+               for key in runs[0]}
         real = REAL[speed_kmh]
-        share_gap = merged["share_big"] - real["share_big"]
         criteria = [
-            abs(share_gap) <= 10.0,
-            real["p95"] * 0.5 <= merged["p95"] <= real["p95"] * 2.0,
+            abs(got["share_big"] - real["share_big"]) <= 10.0,
+            0.5 * real["p95"] <= got["p95"] <= 2.0 * real["p95"],
+            0.7 <= got["detections_frame"] / real["points"] <= 1.5,
         ]
         verdicts.append(all(criteria))
-        status = "PASS" if all(criteria) else "FAIL"
-        print(f"{speed_kmh:>5.0f} {merged['points']:>11.0f} "
-              f"{merged['clusters_per_frame']:>10.1f} {merged['p50']:>5.0f} "
-              f"{merged['mean']:>6.1f} {merged['p95']:>5.0f} {merged['max']:>5.0f} "
-              f"{merged['share_big']:>9.1f}% {merged['unclustered_share']:>5.1f}% | thật {real['points']:>4} điểm, "
-              f"p95 {real['p95']:>3}, ≥50đ {real['share_big']:>4.0f}% -> {status} "
-              f"(capped {merged['capped']:.0f})")
+        mark = "PASS" if all(criteria) else "FAIL"
+        which = ("đúng" if all(criteria) else "thiếu" if
+                 got["detections_frame"] < real["points"] else "thừa")
+        print(f"{speed_kmh:>5.0f} {got['detections_frame']:>10.0f} "
+              f"{got['n_cluster']:>6.1f} {got['p50']:>4.0f} {got['mean']:>6.1f} "
+              f"{got['p95']:>5.0f} {got['max']:>5.0f} {got['share_big']:>6.1f}% "
+              f"| {real['points']:>4} đ, {real['clusters']:>5.1f}, {real['p50']}, "
+              f"{real['p95']:>3}, {real['max']:>4}, {real['share_big']:>4.0f}% "
+              f"-> {mark} ({which} det/frame)")
     print()
-    print("TIÊU CHÍ A3: |%điểm trong cụm ≥50đ − thật| ≤ 10 điểm % VÀ p95 trong "
-          "[0,5×; 2×] thật, với cụm/frame không đổi.")
+    print("TIÊU CHÍ A3 (đo ở tầng raycast = tầng detector thật sự thấy): "
+          "|%điểm ≥50đ − thật| ≤ 10 điểm % · p95 ∈ [0,5×; 2×] · "
+          "det/frame ∈ [0,7×; 1,5×] · cụm/frame không đổi.")
     print(f"KẾT QUẢ A3: {'PASS' if all(verdicts) else 'FAIL'}")
 
 

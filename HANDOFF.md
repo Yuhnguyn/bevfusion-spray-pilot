@@ -28,16 +28,16 @@ Lý do đảo ngược: `docs/adr/0005-sspp-as-detection-domain.md`. Bản ADR c
 - **Giai đoạn A:** A1 ✅ (`8cc9207`) · A2 ✅ (`f9c8b44`) · **A3 = 2/3 tốc độ đạt, hạn chế đã khai**
   (xem dưới) · **A4 ✅** (`95aa118`, `tests/test_sspp_plume_integration.py`, đã chứng minh test bắt
   được bug "box[2] = tâm": cài bug thì đỏ, phục hồi thì xanh).
-- **A3 — trạng thái chốt (2026-11-19):** sau 3 bước sửa đều dựa trên phép đo —
-  (1) `count` tỉ lệ tiết diện `r²` (`d159f05`, sửa lỗi đứt chố nối count↔radius so với mô hình
-  paper, không thêm tham số); (2) đo bán kính cụm ⇒ **số paper 0,30 m là số tốc độ cao**, ở 50 km/h
-  chỉ **0,079 m** (`a67eb77`); (3) dùng **bảng median bán kính theo tốc độ** (`8e48ab1`).
-  Kết quả: **50 km/h PASS** (35 vs 43 điểm/frame), **100 km/h PASS** (725 vs 875), **130 km/h FAIL**
-  (252 vs 592 = 0,43×). Hạn chế 130 km/h là **cấu trúc**: khối lượng thật ở tốc độ cao nằm trong
-  chuỗi (p90 bán kính 5,4 m) mà mô hình một-quả-cầu không biểu diễn được; đã chứng minh nhân số cụm
-  1→6 chỉ làm `share` bão hoà ~65 % (thật 83 %). Quyết định: **đi tiếp A4 + cổng C**, làm cơ chế
-  chuỗi chỉ khi cổng C chứng minh nó chặn kết luận.
-  Doc: `docs/measurements/{plume-a3-diagnosis,sspp-cluster-radius-by-speed}.md`.
+- **A3 — RÚT LẠI (2026-11-19 tối): dụng cụ cũ đo sai tầng, mọi phán quyết trước vô hiệu.**
+  User bắt được trong clip: generator vẽ "cụm tròn" = tầng vật chất hoá `ring=-1` mà
+  `spray/raycast.py:117` loại khỏi giao tia ⇒ vô hiệu với detector. Đo lại ở tầng
+  `RaycastResult.detections`: **det/frame 4 / 274 / 74** ở 50/100/130 vs thật
+  **43 / 875 / 592** ⇒ **FAIL cả 3 tốc độ** (thiếu 10× / 3,2× / 8×). Cơ chế: cụm nhỏ → ít tia →
+  `P_det` (median ≈ 0,1) hạ gần hết; và "cầu sống" ≠ "detection-cluster" (bảng `visible` đang bị
+  dùng làm số cầu). Việc A3 đích thực: **đóng vòng hiệu chỉnh ở tầng detector**
+  (simulate-and-match trên det/frame + cụm/frame với núm = số cầu sống,
+  bán kính cầu, P_det) — tầng vật chất hoá không còn là núm.
+  Doc: `docs/measurements/{plume-a3-diagnosis,sspp-cluster-radius-by-speed}.md` (lưu ý: hai doc này đo ở tầng vô hiệu — đã chú thích trong plan §A3).
 - **V2 (calibration leak) — XONG cả đo lẫn code:**
   - `_CLUSTER_VISIBLE_BY_SPEED` đã thay bằng bảng **RoadSpray static** cho cả Crafter và Golf
     (9 bag/lớp/tốc độ; đối chứng âm phía trước xe = 0,0 cụm/frame):

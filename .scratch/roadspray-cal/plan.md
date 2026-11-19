@@ -125,24 +125,31 @@ Không cần đổi `_CLUSTER_VISIBLE_BY_SPEED`.
 
 **Chốt chặn A:** `pytest -q tests/` xanh **và** A1 + A2 có test mới. Không đạt thì **không** sang B.
 
-> **Trạng thái 2026-11-19 (A3):** **2/3 tốc độ ĐẠT** sau ba bước sửa đều dựa trên phép đo:
-> (1) `count` tỉ lệ tiết diện quả cầu `r²` (sửa lỗi chố nối count↔radius bị đứt so với mô hình
-> paper — không thêm tham số); (2) đo bán kính cụm ⇒ phát hiện **số paper 0,30 m là số tốc độ cao**,
-> ở 50 km/h chỉ **0,079 m**; (3) dùng **bảng median bán kính theo tốc độ** thay hằng số.
-> Kết quả `scripts/measure_plume_size_tail.py`:
+> **Trạng thái A3 (sửa lần 3, 2026-11-19 tối): dùng cụ ĐÚNG — mọi phán quyết A3 trước đây vô hiệu.**
+> User xem clip phát hiện generator "tạo thẳng cụm tròn vo, không giống spray thật"; kiểm code
+> xác nhận: `inject_plume_stateful` vật chất hoá điểm `ring=-1` mà `spray/raycast.py:117` loại
+> khỏi giao tia — **tầng vật chất hoá vô hiệu với detector**; detection thật = tia×mặt cầu →
+> `P_det` → strongest-per-beam. Dụng cụ A3 cũ đo trên tầng vô hiệu ⇒ "50/100 PASS" **rút lại**.
+> Đo lại ở tầng `RaycastResult.detections` (đúng tầng `label==2` của thật, cùng toán tử DBSCAN):
 >
-> | km/h | điểm/frame | thật | `%≥50đ` | thật | |
-> |---|---:|---:|---:|---:|---|
-> | 50 | 35 | 43 | 11,9 % | 15 % | ✅ PASS |
-> | 100 | 725 | 875 | 77,1 % | 82 % | ✅ PASS |
-> | 130 | 252 | 592 | 60,7 % | 83 % | ❌ (0,43×) |
+> | km/h | det/frame | thật | cụm | thật | %≥50đ | thật | |
+> |---|---:|---:|---:|---:|---:|---:|---|
+> | 50 | **4** | 43 | 0,3 | 4,8 | 0 % | 15 % | ❌ thiếu 10× |
+> | 100 | **274** | 875 | 19,9 | 21,6 | 36 % | 82 % | ❌ thiếu 3,2× |
+> | 130 | **74** | 592 | 5,3 | 13,1 | 22 % | 83 % | ❌ thiếu 8× |
 >
-> **Hạn chế đã khai (`[SUY LUẬN]`, có bằng chứng):** phần dư 130 km/h là **hạn chế cấu trúc** —
-> khối lượng thật ở tốc độ cao nằm trong **chuỗi** (p90 bán kính 5,4 m), mô hình một-quả-cầu không
-> biểu diễn được; đã đo và chứng minh **nhân số cụm 1→6 chỉ làm `share` bão hoà ~65 %** (thật 83 %)
-> nên không sửa được bằng tham số. Quyết định: **ghi nhận hạn chế, sang A4 + cổng C**, làm cơ chế
-> chuỗi chỉ khi cổng C cho thấy nó thực sự chặn kết luận. Chi tiết: `docs/measurements/plume-a3-diagnosis.md`,
-> `docs/measurements/sspp-cluster-radius-by-speed.md`.
+> **KẾT QUẢ A3: FAIL cả 3 tốc độ ở tầng detector.** Hai cơ chế:
+> 1. Tầng vật chất hoá không liên quan detector — "núm" thực chỉ còn (số cụm sống, bán kính,
+>    P_det, survival); cụm nhỏ → ít tia → `P_det` (median e^-2,3 ≈ 0,1) hạ gần hết ⇒ ở 50 km/h
+>    bán kính 0,079 m chỉ che ~2-6 tia ⇒ gần như vô hình.
+> 2. "Cụm sống" ≠ "cụm nhìn thấy": bảng `visible` đang bị dùng làm số **cầu sống**, trong khi nó
+>    là số **detection-cluster**; cầu nhỏ hơn minPts tia là mất hẳn. Vòng hiệu chỉnh phải đóng ở
+>    tầng detector: chọn tham số sao cho det/frame + cụm/frame khớp (simulate-and-match).
+>
+> Dụng cụ đã viết lại: `scripts/measure_plume_size_tail.py` (in PASS/FAIL ở tầng raycast);
+> vẽ hộ đã sửa (`scripts/visualize_plume_vs_real.py` vẽ det sau raycast; clip mới trong .scratch).
+> **Un-ảnh hưởng:** cổng C dùng `PlumeTransform` (đường đầy đủ inject→raycast) nên không bị lỗi
+> dụng cụ này chạm tới.
 >
 > **Trạng thái 2026-11-18:** A1 ✅ (`8cc9207`, cụm sống/frame 11,9/29,5/17,5 vs bảng
 > 11,3/29,2/17,6; test `tests/test_plume_cluster_budget.py`) · A2 ✅ (`f9c8b44`, wet ground

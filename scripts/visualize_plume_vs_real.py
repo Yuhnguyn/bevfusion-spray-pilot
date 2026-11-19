@@ -33,14 +33,24 @@ from pathlib import Path
 
 import numpy as np
 
+from spray.beam_model import BeamTable, ELEVATION_MAX_DEG, ELEVATION_MIN_DEG
 from spray.plume import PlumeConfig, inject_plume_stateful
 from spray.plume_context import PlumeContext
 from spray.plume_state import PlumeState
+from spray.raycast import raycast_frame
 from spray.sspp_adapter import _boxes_to_arrays, read_frame_boxes
 
 BACKGROUND = 0
 VEHICLE = 1
 SPRAY = 2
+
+
+def vlp32c_table() -> BeamTable:
+    """Bộ tia VLP-32C (32 ring, bước az 0,2°) — như scripts/visualize_sspp_plume.py."""
+    elevation = np.linspace(ELEVATION_MIN_DEG, ELEVATION_MAX_DEG, 32,
+                            dtype=np.float64)
+    return BeamTable(elevation_deg=tuple(float(v) for v in elevation),
+                     azimuth_step_deg=0.2)
 
 
 def read_metadata_row(scene_dir: Path) -> dict[str, str]:
@@ -162,7 +172,19 @@ def main() -> None:
             clean.astype(np.float32), boxes, context, state,
             seed=1000 + position, token=f"viz/{position}", config=config,
         )
-        synthetic = result.injected
+        # TẦNG DETECTOR: panel phải vẽ raycast.detections — những gì cảm biến
+        # nhìn thấy (tia×mặt cầu + P_det + strongest-per-beam), KHÔNG phải các
+        # điểm vật chất hoá ring=-1 vốn vô hiệu với detector
+        # (spray/raycast.py:117). Bản cũ vẽ injected => trông "tròn vo" như cụm
+        # cứng — đúng cái user bắt được trong clip.
+        ray = raycast_frame(
+            result.points,
+            state.all_alive(),
+            table=vlp32c_table(),
+            road_z_m=road_z,
+            rng=np.random.default_rng(555 + position),
+        )
+        synthetic = ray.detections
 
         figure, (left, right) = plt.subplots(
             1, 2, figsize=(13.5, 5.4), facecolor="#ffffff")
@@ -176,7 +198,7 @@ def main() -> None:
         ]) if labels.size else np.full(synthetic.shape[0], SPRAY, dtype=np.uint32)
         synthetic_mask = augmented_labels == SPRAY
         draw_panel(right, augmented, augmented_labels, synthetic_mask, boxes,
-                   f"GENERATOR — plume sinh ({int(synthetic.shape[0])} điểm)",
+                   f"GENERATOR — det sau raycast ({int(synthetic.shape[0])} điểm)",
                    args.subsample)
         figure.text(0.5, 0.02,
                     f"{args.scene}  ·  frame {position + 1}/{len(selected)}  ·  "
