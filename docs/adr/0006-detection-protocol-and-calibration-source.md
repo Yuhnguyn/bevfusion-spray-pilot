@@ -483,3 +483,78 @@ nới sau khi thấy số.
 **Nếu sau khi fit `following_density_scale` mà phần verify vẫn FAIL:** ghi limitation, **dừng** —
 không thêm hệ số thứ hai, không đổi ngưỡng. Đó là kết luận rằng mô hình plume không tái tạo được
 kịch bản following, và nó ảnh hưởng trực tiếp tới cách đọc cổng C.
+
+---
+
+## §5.7 — Miền hợp lệ "Cách A" của generator (pre-registered 2026-11-19)
+
+Trạng thái: **chốt TRƯỚC khi sửa `spray/` và TRƯỚC khi chạy lại A3-V / cổng C.**
+Bản sửa: `.scratch/paper-faithful/cach-a-steps.md`. Nền chẩn đoán: `.scratch/paper-faithful/plan.md`.
+
+### 1. Vì sao cần mục này
+
+Paper A (Linnhoff et al. 2022, arXiv 2212.08558) hiệu chuẩn mô hình với **ego ĐỖ** ở cự ly **25 m**
+(§II-A: *"An object distance of 25 m from the sensor is chosen"*) và kiểm chứng trên **0–50 m**
+(§V-D). Repo áp nó vào kịch bản **following** (ego bám đuôi; đo `|ego − object| = 0,00 km/h` trên
+**207/207** scene SSPP). Ba tham số được thêm để mô hình "chạy được" ở kịch bản mới làm sinh quá
+nhiều điểm:
+
+| chỗ lệch | nguồn | đo được (Ablation, 4 scene Crafter) |
+|---|---|---|
+| tán xạ `r(t) = r₀ + α·d_rel`, trần 4,0 m | `[CHỌN]`, KHÔNG có trong paper | tắt α: det 3.290 → 497 (**6,6×**) |
+| áp `C` ngoài miền 25 m | `[PAPER]` số đúng, **miền sai** | tắt drag: R min 0,66 → 15,9 m, det → 126 (**26×**) |
+| bảng `cal` đo RoadSpray `*_static` dùng làm đích cho following | lỗi **miền** | static ego 0,005 km/h; SSPP following |
+
+### 2. Quyết định: giữ nguyên mọi số paper, chặn phát ngôn ngoài miền
+
+**KHÔNG đổi** bất kỳ số nào của paper: `C = −0,15 m⁻¹` (§III-C Eq. 5; `Δt = 0,1 s` — SSPP đo
+0,064–0,134 s ⇒ không cần hiệu chỉnh lại, đúng điều kiện paper nêu), `r_cl` lognormal(−1,2; 0,8),
+`P_det` lognormal(−2,3; 1,09), `P_t = exp(−t/T)`, extinction `0,02 m⁻¹`.
+
+**Chỉ thêm ba điều kiện miền** (bật bằng `PLUME_PAPER_DOMAIN=1`; mặc định tắt, tái lập bit-for-bit
+hành vi cũ):
+
+| # | điều kiện | giá trị | căn cứ |
+|---|---|---|---|
+| 1 | biên cự ly 3D | `2,5 ≤ ‖pos‖ ≤ 50,0 m` | `[ĐO]` spray thật: `r` p01 = 2,75 m (không tồn tại `label==2` dưới 2,5 m), chỉ **0,02 %** điểm có `r > 50 m`; `[PAPER]` §V-D đánh giá 0–50 m; §V cảnh báo mô hình cầu vỡ ở gần cảm biến |
+| 2 | tắt luật nở | `diffusion_alpha = 0` | `[PAPER]` Fig. 5: `r_cl` là **một** lognormal đo được trên cụm ở nhiều tuổi, không phải luật nở; repo biến nó thành luật nở, hệ số fit trên static rồi dùng ở following |
+| 3 | mức ẩm lấy mẫu | `wfh ~ 0,1 + Exp(mean 1,0)`, clip `[0,1; 1,2] mm`, **cố định theo scene** | `[PAPER]` §V nguyên văn: *"the water level is sampled from an exponential distribution from the interval 0.1 − 1.2 mm during training"*. Cố định **theo scene** (không theo frame) để paired A/B của cổng C vẫn sạch: hai nhánh phải cùng `wfh` trên cùng frame |
+
+**Ghi rõ một giả định đã SAI và bị loại bỏ:** điều kiện `x ≥ 0` (cụm không ở sau mặt phẳng cảm biến)
+từng được đề xuất với lý do "paper hiệu chuẩn ego đỗ". **Sai**: spray thật trên SSPP có **62,5 %**
+điểm ở `x < 0` (`x` p01 = −26,5 m; min −49,6 m; đo trên 137.821 điểm, 2 lớp, 16 tốc độ) vì ego chạy
+**xuyên qua** đám spray. Vì `r = ‖pos‖ ≥ |x|`, điều kiện `‖pos‖ ≤ 50` **đã bao hàm** `x ≥ −50`
+(kiểm: chỉ cắt `r ≤ 50` cho `x min = −49,4 / −49,9 m`, 0,00 % dưới −50) ⇒ không cần biên sau riêng.
+
+### 3. Tiêu chí cổng C (ghi TRƯỚC khi chạy)
+
+Giữ TC1 cũ: `ΔFP(plume − clean)` phải có CI95 **không** chứa 0.
+
+Thay TC2 bằng tiêu chí theo mức spray thật tự gây:
+
+```
+Δrecall(plume − clean) phải nằm trong Δrecall(real − clean) ± 0,05
+Δrecall(real − clean) = −0,049  [−0,083; −0,019]     (954 frame, τ = 0,20, paired theo scene)
+⇒ ĐẠT khi Δrecall(plume − clean) ∈ [−0,099 ; +0,001]
+```
+
+**Dự đoán ghi trước:** `Δrecall(plume − clean)` sẽ dịch từ **−0,268** về khoảng **−0,05**.
+Nếu kết quả vẫn `< −0,15` ⇒ miền **không** phải nguyên nhân duy nhất ⇒ **DỪNG**, ghi kết luận âm
+tính, không thêm hệ số nào.
+
+### 4. Điều kiện đo kèm (bắt buộc, để không lặp lại lỗi thước đo)
+
+Mọi báo cáo A3-V và cổng C theo mục này phải in, cho **từng ô / từng nhánh**:
+
+- `det < 3 m` — điều kiện cứng: phải **0** (thật không có `label==2` dưới 2,5 m);
+- `R_det` p05 / p50 / p95 — vì tỉ lệ tổng có thể khớp trong khi **phân bố cự ly** sai (đó chính là
+  bệnh cũ: 1,42–1,58 m so với 3,72 m của thật);
+- `x` p01 / min — để thấy cụm không trôi quá xa về sau (thật: p01 −26,5 m).
+
+### 5. Cấm
+
+1. Không thêm `pdet_range_exponent`, `spawn_scale`, `density_scale`, hay bất kỳ hệ số bù nào.
+2. Không đổi **default** của `PlumeStateConfig` — production cũ phải tái lập **bit-for-bit**.
+3. Không sửa `scripts/diag_*.py` (phải tái lập được số cũ).
+4. Không lọc bên trong `raycast.py` — raycast phải thuần.
+5. Không đổi ngưỡng ở §3 sau khi đã thấy số.
