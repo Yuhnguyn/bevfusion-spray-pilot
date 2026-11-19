@@ -558,3 +558,30 @@ Mọi báo cáo A3-V và cổng C theo mục này phải in, cho **từng ô / t
 3. Không sửa `scripts/diag_*.py` (phải tái lập được số cũ).
 4. Không lọc bên trong `raycast.py` — raycast phải thuần.
 5. Không đổi ngưỡng ở §3 sau khi đã thấy số.
+
+### §5.7 KẾT QUẢ A5 (2026-11-19) — đo sau khi wire, doc `docs/measurements/a5-domain-a3v.md`
+
+Tập B (72 scene không box), 30 frame/scene, cấu hình Cách A đầy đủ (α=0, 2,5–50 m, wfh lấy mẫu).
+
+| ô | production | **Cách A** | giảm | `det<3m` | `x min` |
+|---|---:|---:|---:|---:|---:|
+| Crafter 50–70 | 1,98× | **1,04 [0,86; 1,34]** | 1,9 | 0 | −21,0 |
+| Golf 50–70 | 0,86× | **0,35 [0,20; 0,78]** | 2,5 | 0 | −21,7 |
+| Crafter 80–110 | 2,73× | **0,31 [0,21; 0,42]** | 8,9 | 0 | −49,6 |
+| Golf 80–110 | 4,63× | **0,57 [0,39; 0,78]** | 8,1 | 0 | −49,5 |
+| Crafter 120–130 | **16,92×** | **0,99 [0,55; 1,49]** | **17,1** | 0 | −49,9 |
+| Golf 120–130 | 8,02× | **0,72 [0,34; 1,14]** | 11,1 | 0 | −49,8 |
+
+**Ba điều kiện cứng của §5.7 ĐẠT:** `det < 3 m` = 0 cả 6 ô; `x min` ≈ −50 m (không còn −137/−294);
+tỉ lệ giảm 1,9–17,1 lần, ca tệ nhất về 0,99×.
+
+**Ngưỡng A3-V `[0,5; 2,0]`: 2/6 ô PASS** (Crafter 50–70 = 1,04; Crafter 120–130 = 0,99); Golf
+80–110 = 0,57 sát biên dưới. **4/6 ô THƯA hơn thật (0,31–0,72×)** — lệch **đổi dấu** so với
+production (trước: đậm quá; giờ: thưa quá). Nguyên nhân: nguồn hiệu chuẩn `*_static` có tổng lượng
+spray cao hơn following (`trail90` 44 m vs ~20 m) — limitation của **nguồn hiệu chuẩn**, không phải
+của tham số. **Không bù bằng `spawn_scale`** (mục 5 của §5.7).
+
+**Hệ quả cho A7:** mọi so sánh cổng C phải nói rõ plume giờ **thưa hơn** spray thật ở 4/6 ô. Nếu
+`Δrecall(plume−clean)` về ngang `Δrecall(real−clean) = −0,049` **thì** kết luận là cơ chế near-field
+mới là nguyên nhân, và độ thưa không phá được kết luận đó. Nếu vẫn `< −0,15` thì §5.7 mục 3 buộc
+**DỪNG**.
