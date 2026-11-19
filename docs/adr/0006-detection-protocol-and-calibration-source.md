@@ -286,4 +286,29 @@ giống tuyệt đối.
 
 **Còn nợ dọn doc** (R3 phát hiện, chưa sửa): `plume-a3-diagnosis.md` §6.6 vẫn nêu tiêu chí cụm cũ
 (r50/rsig) mà không đánh dấu *superseded*; §7.9 còn ghi α default = 0,0 trong khi đã bake 0,06;
-§7.4 nói đã bỏ `tail_block_height_frac` nhưng field còn và còn 1 test + 1 script đọc.
+§6.3 (không phải §7.4) nói đã bỏ `tail_block_height_frac` nhưng field còn; đếm thực tế là **2 test**
+(`tests/test_plume_tail_block.py` assert `== (0.05, 0.92)`, `tests/test_sspp_plume_integration.py`) +
+**1 script** (`scripts/diag_verify_conventions.py`) — muốn xoá hẳn phải sửa cả 3 file.
+
+#### 5.6 Khoảng trống giữa nghiệm thu A3 và production (R3 kiểm, 2026-11-19)
+
+R3 kiểm đường production thật (`spray/plume_transform.py` → `inject_plume_stateful` → `all_alive` →
+`raycast_frame(load_beam_table())`). **4/6 tham số khớp**, nhưng có ba khoảng trống phải khai:
+
+1. **KỊCH BẢN KHÁC HẲN — nghiêm trọng nhất.** A3 nghiệm thu ở kịch bản **static** (ego đứng yên, xe
+   chạy ra xa tới 200 m). Production chạy ở kịch bản **following** (`PlumeContext` SSPP thật: ego
+   chạy, object 20–50 m phía trước) + warm-start. Vì α tác động qua `d_rel`, mà phân bố `d_rel`
+   khác nhau giữa hai kịch bản ⇒ **các số (a)/(b')/(c) của A3 KHÔNG chứng minh kịch bản train**.
+2. **Attenuation + occlusion của real returns.** Production xuất `real_points` bị attenuate
+   `exp(−2·0,02·L)` và bị plume che; A3 **chỉ đếm detections**, chưa đo phần real returns bị mất.
+   Hệ quả: plume có thể làm **giảm recall** (che vật thể) — A3 không thấy điều này.
+3. **`vehicle_class` không được truyền** trong `inject_plume_stateful` ⇒ **mọi scene dùng bảng
+   Crafter**, kể cả Golf (bảng Golf còn ở Δ=2,5, chưa validate Δ=1,0).
+
+Ghi chú thêm: `diffusion_alpha = 0,06` khớp **gián tiếp** qua module default (`PlumeTransform` khởi
+tạo `PlumeState()` không config) — không được pin tường minh, đổi hằng số là đổi nghiệm thu.
+`PlumeTransform` **không được khai báo trong config nào của repo** ⇒ chỉ verify được ở mức class.
+
+**Hệ quả bắt buộc cho cổng C:** đây là **phép đo đầu tiên ở đúng kịch bản production**, nên cổng C
+phải đo **cả recall** (real returns mất do attenuation/occlusion) chứ không chỉ false-positive, và
+phải ghi rõ nó chạy ở kịch bản following. Nếu chỉ đo FP thì không kết luận được về tác dụng ròng.

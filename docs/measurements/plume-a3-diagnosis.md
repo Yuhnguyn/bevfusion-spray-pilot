@@ -123,9 +123,14 @@ Cột A tái lập đúng số Lead đã báo trước đây (dụng cụ còn b
 ## 6.3 QĐ7 — vùng sinh = hộp calibration static, và việc chờ T4
 
 Đã sửa `spray/plume.py` + `spray/plume_state.py`: cụm sinh **phân bố đều** trong hộp
-sau đuôi **W = 3,4 m × H = 1,5 m tính từ mặt đường × sâu 20 m**; bỏ `tail_block_height_frac`,
-`LATERAL_CLAMP_M`, nguồn 2 bánh và `placement_knots` (tất cả nguồn SSPP — R2 audit PHẢI BỎ).
-Field cũ giữ lại (không dùng) để không phá chữ ký `PlumeConfig`/`PlumeStateConfig`.
+sau đuôi **W = 3,4 m × H = 1,5 m tính từ mặt đường × sâu 20 m**; bỏ `LATERAL_CLAMP_M`,
+nguồn 2 bánh và `placement_knots` (nguồn SSPP — R2 audit PHẢI BỎ).
+Riêng `tail_block_height_frac`: **KHÔNG còn được generator dùng để sinh cụm** (vùng sinh giờ =
+slab `|v|·Δt` × W3,4 × H1,5), nhưng **field vẫn tồn tại** (`PlumeConfig`, ClassVar 0,05/0,92)
+để không phá API; **2 test và 1 script còn đọc nó** — `tests/test_plume_tail_block.py`
+(assert giá trị), `tests/test_sspp_plume_integration.py` (đọc `FRAC_LO/HI`), và
+`scripts/diag_verify_conventions.py` (đọc `cfg.tail_block_height_frac`); muốn xoá hẳn phải sửa
+cả ba. `PlumeStateConfig.source_*` cũng giữ field (không dùng) vì lý do API.
 
 **Cửa kiểm QĐ7 (≥ 90 % detections trong hộp): FAIL — 42,8 % / 16,3 % / 5,9 %** (50/100/130).
 
@@ -183,9 +188,13 @@ Kết luận này cũng đang chờ T4 trước khi dùng để sửa tham số.
 | `wfh_mm` | 1,0 | `[CHỌN]` dataset không khai báo độ ướt | giữ làm mức chuẩn |
 | Drag `C` | −0,15 m⁻¹ | `[PAPER]` | |
 
-## 6.6 Tiêu chí A3 hiện hành (Lead ký 2026-11-19)
+## 6.6 Tiêu chí A3 (QĐ8 — LỊCH SỬ, đã bị thay)
 
-- Nghiệm thu: **8 seed × 120 frame**; sweep nhanh 2 seed × 60 frame (không dùng để kết luận).
+> ⚠️ **SUPERSEDED — tiêu chí hiện hành là ADR-0006 §5.3 (a)(b')(c)** (profile độ sâu, không
+> dùng cluster statistics). Phần dưới đây giữ làm **lịch sử** của QĐ8; đừng dùng để chấm PASS.
+
+- Nghiệm thu: **8 seed; frame thực 120 / 66 / 51 (120 là cap)**; sweep nhanh 2 seed × 60 frame
+  (không dùng để kết luận).
 - **(a)** `mean(det)/mean(real)` ∈ [0,7; 1,5].
 - **(b)** QĐ8: `r50_slice` và `rsig_slice` trong **±20 %** đích static Δ=1,0
   (0,349/0,292/0,311; rsig 0,754/0,727/0,711). `p95_slice`/`share_slice` **chỉ in chẩn đoán**.
@@ -201,7 +210,7 @@ Kết luận này cũng đang chờ T4 trước khi dùng để sửa tham số.
 # sweep nhanh (2 seed × 60 frame, ~50-110 s tuỳ tải)
 CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
     scripts/measure_plume_size_tail.py --seeds 2 --frames 60
-# nghiệm thu (8 seed × 120 frame, ~7 phút)
+# nghiệm thu (8 seed; frame thực 120/66/51, ~2,3 phút)
 CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
     scripts/measure_plume_size_tail.py
 # tests
@@ -446,7 +455,8 @@ là 0,35× target (trượt (a)) và **không thể** sửa bằng một số ch
 Căn cứ khai báo: paper §III-B định nghĩa `r_cl` = *khoảng cách xa nhất từ tâm cụm tới detection* —
 đại lượng **đo được ở nhiều tuổi plume**; mô hình hoá tường minh sự nở theo tuổi là nhất quán với
 định nghĩa đó, và khuếch tán rối làm đám sương nở theo quãng đường. **Đây là mở rộng ngoài paper**
-(ADR sẽ ghi rõ), mặc định `diffusion_alpha = 0,0` (tắt) cho tới khi chốt α.
+(ADR sẽ ghi rõ). `diffusion_alpha` khởi đầu bằng 0,0 để quét; **α = 0,06 đã được bake làm
+default ngày 2026-11-19 sau khi user duyệt** (kết quả cuối ở §7.11 + §8.3).
 
 Cài đặt: `PlumeStateConfig.diffusion_alpha`, `SprayCluster.radius0/rear_point/forward`,
 cập nhật trong `advance()`; CLI `--diffusion-alpha`. `pytest` 208 passed.
@@ -473,7 +483,11 @@ cập nhật trong `advance()`; CLI `--diffusion-alpha`. `pytest` 208 passed.
   **không vật lý** (real plume bị giới hạn bởi mật độ hạt, không phải bởi số tia). Nở bán kính làm
   số điểm near-field tăng theo **góc khối** (∝ r²/R²) nhanh hơn far-field ⇒ **ngược** tác dụng cần.
 - Vì vậy **không tồn tại cặp (α, s) khớp cả 3** trong dải α đã thử; theo luật Lead: **DỪNG, báo bảng,
-  không thêm bậc tự do thứ ba**. α mặc định vẫn 0,0 (QĐ13 core đã cài, chưa bật).
+  không thêm bậc tự do thứ ba**.
+
+> **Ghi chú phạm vi:** phép quét α ngay trên được làm trong **bối cảnh ego-chạy-theo** — chính là
+> lần lệch toán tử thứ 7; QĐ14 sửa bối cảnh và α được **thử lại ở §7.11** (kết quả cuối: α = 0,06).
+> Đừng đọc kết luận "α không hiệu quả" ở mục này như kết quả cuối cùng.
 
 ## 7.10 QĐ14 — instrument phải mô phỏng ĐÚNG kịch bản static `[ĐO]`
 
