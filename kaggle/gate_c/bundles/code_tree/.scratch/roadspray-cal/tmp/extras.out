@@ -1,0 +1,90 @@
+==============================================================================
+A. m-corrected CI widths (10-frame per-scene noise removed, m=80 at eval)
+==============================================================================
+clusters/frame: grand mean=16.80 CV_between=0.378 CV_within=0.948 (observed CV of 10-frame scene means=0.483)
+   n= 6 m=  80: analytic SE_rel=0.160 hw95=0.314 CI of a 30% effect=[-0.014, 0.614]
+   n=12 m=  80: analytic SE_rel=0.113 hw95=0.222 CI of a 30% effect=[0.078, 0.522]
+   n=36 m=  72: analytic SE_rel=0.066 hw95=0.129 CI of a 30% effect=[0.171, 0.429]
+   n needed for hw95=30%: 6.1; for 80% power (CI leg): 12.4
+noise points/frame: grand mean=671.54 CV_between=0.691 CV_within=1.006 (observed CV of 10-frame scene means=0.761)
+   n= 6 m=  80: analytic SE_rel=0.286 hw95=0.560 CI of a 30% effect=[-0.260, 0.860]
+   n=12 m=  80: analytic SE_rel=0.202 hw95=0.396 CI of a 30% effect=[-0.096, 0.696]
+   n=36 m=  72: analytic SE_rel=0.117 hw95=0.229 CI of a 30% effect=[0.071, 0.529]
+   n needed for hw95=30%: 20.4; for 80% power (CI leg): 41.6
+
+==============================================================================
+B. uncertainty of the CV itself (bootstrap over scenes)
+==============================================================================
+  clusters  test12 n=12 CV=0.527 bootstrap CI of CV=[0.313,0.693]
+  clusters  all36  n=36 CV=0.483 bootstrap CI of CV=[0.381,0.566]
+  noise     test12 n=12 CV=0.824 bootstrap CI of CV=[0.484,1.199]
+  noise     all36  n=36 CV=0.761 bootstrap CI of CV=[0.599,0.913]
+
+==============================================================================
+C. P(pass) of the frozen decision rule, normal model on scene-level SE
+   pass = (point estimate >= 30% relative reduction) AND (95% CI excludes 0)
+==============================================================================
+clusters/frame: SE_rel = CV_b/sqrt(n), CV_b=0.378
+   true effect |       n=6      n=12      n=36
+   20%        |      0.25      0.18      0.06
+   25%        |      0.37      0.32      0.21
+   30%        |      0.49      0.50      0.50
+   35%        |      0.62      0.68      0.79
+   40%        |      0.74      0.82      0.94
+   45%        |      0.83      0.92      0.99
+   50%        |      0.90      0.97      1.00
+noise/frame: SE_rel = CV_b/sqrt(n), CV_b=0.691
+   true effect |       n=6      n=12      n=36
+   20%        |      0.11      0.17      0.19
+   25%        |      0.14      0.24      0.33
+   30%        |      0.18      0.32      0.50
+   35%        |      0.24      0.42      0.67
+   40%        |      0.29      0.52      0.81
+   45%        |      0.36      0.62      0.90
+   50%        |      0.43      0.71      0.96
+
+==============================================================================
+D. FOLDS: fold = rank(speed) mod 3
+==============================================================================
+fold 1: held-out speeds=[50.0, 80.0, 110.0] test=12 scenes/886 frames train=24 scenes/1701 frames
+   test scenes per speed: 50km/h:4, 80km/h:4, 110km/h:4
+   test mean clusters/frame=16.45 noise/frame=634 | train mean noise/frame=690
+   test CV clusters=0.644 noise=0.986
+   test cal scenes=6/12 cal frames=473/886
+fold 2: held-out speeds=[60.0, 90.0, 120.0] test=12 scenes/893 frames train=24 scenes/1694 frames
+   test scenes per speed: 60km/h:4, 90km/h:4, 120km/h:4
+   test mean clusters/frame=15.72 noise/frame=586 | train mean noise/frame=714
+   test CV clusters=0.446 noise=0.707
+   test cal scenes=6/12 cal frames=463/893
+fold 3: held-out speeds=[70.0, 100.0, 130.0] test=12 scenes/808 frames train=24 scenes/1779 frames
+   test scenes per speed: 70km/h:4, 100km/h:4, 130km/h:4
+   test mean clusters/frame=18.24 noise/frame=794 | train mean noise/frame=610
+   test CV clusters=0.365 noise=0.619
+   test cal scenes=6/12 cal frames=385/808
+   fold-mean split check:  {1: '634', 2: '586', 3: '794'}
+
+==============================================================================
+E. FALLBACK: held-out-only evaluation with SSPP cal in train only
+==============================================================================
+held-out scenes on 36 = 18; per speed: 50:2, 60:2, 70:2, 80:2, 90:2, 100:2, 110:2, 120:2, 130:2
+  fold 1: test=6 scenes/413 frames train=30 scenes/2174 frames cal-in-test=0
+  fold 2: test=6 scenes/430 frames train=30 scenes/2157 frames cal-in-test=0
+  fold 3: test=6 scenes/423 frames train=30 scenes/2164 frames cal-in-test=0
+  pooled held-out units=18 -> hw95 for clusters at n=18: 0.175
+
+==============================================================================
+F. current test set: interpolation vs extrapolation
+==============================================================================
+  interpolated: 4/12 scenes 332/954 frames
+  extrapolated: 8/12 scenes 622/954 frames
+  train speeds [60.0, 80.0, 100.0, 120.0]
+
+==============================================================================
+G. budget arithmetic (assumed per-run wall times; verify with timed dry run)
+==============================================================================
+  light from-scratch     3 folds x 3 arms x 3 seeds       27 runs x 20 min =   9.0 h (30% of 30 h/week)
+  light from-scratch     3 folds x 3 arms x 2 seeds       18 runs x 20 min =   6.0 h (20% of 30 h/week)
+  BEVFusion fine-tune    3 folds x 2 arms x 3 seeds       18 runs x 50 min =  15.0 h (50% of 30 h/week)
+  BEVFusion fine-tune    3 folds x 2 arms x 2 seeds       12 runs x 50 min =  10.0 h (33% of 30 h/week)
+  BEVFusion fine-tune    current split x 2 arms x 3 seeds  6 runs x 50 min =   5.0 h (17% of 30 h/week)
+  model-0 inference (no training): 2587 frames once, ~5 min; +11 min Kaggle env build per push

@@ -1,0 +1,12 @@
+{
+  "title": "SSPP gate C code + bootstrap + checkpoint",
+  "id": "nguynhuy9669/sspp-gate-c-code",
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ],
+  "subtitle": "Tracked repo tree, proven Kaggle bootstrap, lidar-only checkpoint",
+  "description": "Gate C bundle A: tracked files of the sspp branch (spray/, proxy_eval/, tests/, scripts/sspp_infer.py), kaggle/e2e/main.py from branch main (pinned torch/mmcv/mmdet3d bootstrap), and checkpoints/lidar-only-det.pth (33.362.653 byte, LiDAR-only BEVFusion baseline).",
+  "isPrivate": true
+}

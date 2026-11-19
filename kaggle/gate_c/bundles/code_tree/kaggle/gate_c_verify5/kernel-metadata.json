@@ -1,0 +1,19 @@
+{
+  "id": "nguynhuy9669/bevfusion-gate-c-verify5-channel4-fix",
+  "title": "BEVFusion gate C verify5 - channel4 fix",
+  "code_file": "kernel.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "keywords": [],
+  "dataset_sources": [
+    "nguynhuy9669/sspp-gate-c-code",
+    "nguynhuy9669/sspp-gate-c-data"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

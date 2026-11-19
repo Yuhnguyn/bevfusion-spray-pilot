@@ -93,6 +93,9 @@ CONDA_NO_PLUGINS=true env -u PYTHONPATH /opt/anaconda3/bin/python \
   plume vs detector"; slug phải khớp title, đừng đổi id về `.../bevfusion-gate-c` — Kaggle sẽ
   từ chối đính dataset). Version 4 · trạng thái lúc báo cáo (2026-11-19 14:30): `RUNNING` (đã qua
   mount + clone + dry-run, đang ở bootstrap env). **Kết quả chưa có.**
+  → **Cập nhật 16:22:** kernel đó đã COMPLETE nhưng **INVALID** (§7b); bản chạy lại sau khi sửa
+  kênh 4 là kernel riêng `nguynhuy9669/bevfusion-gate-c-full-ch4fix` **version 1 = COMPLETE**,
+  kết quả hợp lệ ở **§7c**.
 - Hai lần push đầu đỏ **trước khi tốn GPU**, đã sửa:
   · v2 `step=mount` (~10 s): kernel cũ tìm `sspp_test.tar.gz`, nhưng Kaggle **tự giải nén** tar.gz
     thành cây `Crafter_dynamic/...` + `sspp_infos_test.pkl` ở mount root → `find_data_mount()`.
@@ -239,6 +242,9 @@ tại chạy `--config model0`; khi F2 có checkpoint pointpillars thì chạy l
 > nghĩa** — cả ba nhánh đều chạy trên một detector đã bị phá đặc trưng. Muốn dùng
 > cổng C phải **chạy lại 954 frame với bản đã sửa** (ước tính ~10 phút env +
 > ~15 phút inference, xem §4).
+>
+> **→ Đã chạy lại xong 2026-11-19 16:22: kết quả hợp lệ ở §7c** (cùng 954 frame, cùng
+> ba nhánh, cùng τ=0,20).
 
 Kernel `nguynhuy9669/bevfusion-gate-c-plume-vs-detector` **version 4 = COMPLETE** (bắt đầu 14:23:56,
 xong ~15:05; inference 907 s ≈ 15,1 phút; không có `GATE_C_KERNEL_FAILED`). 954 frame × 3 nhánh.
@@ -272,6 +278,141 @@ detector hay không" chứ không phán "tác dụng đúng chiều khi detector
 (Thêm: ở 50 km/h plume vô hình trong khi real có FP 0,061 — khớp A3 ngoài miền; D2-v2
 `following_density_scale` là covariate, xem §6.2.)
 
+## 7c. Kết quả sau khi sửa kênh 4 — kernel full v1, 2026-11-19 (954 frame, τ=0,20)
+
+**Trạng thái: HỢP LỆ (VALID) — thay thế toàn bộ §7b.** Số dưới đây là **[ĐO]** trên
+kernel `nguynhuy9669/bevfusion-gate-c-full-ch4fix` **version 1 = COMPLETE**
+(push 15:58:56, xong **16:22:11**; `elapsed_s=1314` ≈ **21,9 phút** kernel (23,3 phút từ lúc
+push): wheels ~1 phút, build 12 CUDA op 363 s, inference **687,6 s = 11,5 phút**; GPU Tesla T4
+15.360 MiB; `GATE_C_KERNEL_OK frames=954 arms=3 channel4_fix=1`).
+
+### 7c.1 Thiết lập và bằng chứng bản sửa có hiệu lực
+
+- Code dataset `nguynhuy9669/sspp-gate-c-code` **version 4** (upload 15:57:59, `Ready`) =
+  cây hiện tại. Harness trên GPU `sha256=946ec5bc…` (57.332 byte) **trùng** `scripts/sspp_infer.py`
+  local; `GATE_C_HARNESS … channel4_fix=1 legacy_flag=1`.
+- Cờ đúng pre-register: `legacy_channel4=0` (zero hoá cột 4), `z_shift_m=0,000`, `seed=0`,
+  `--score-thresh 0,20`, `--min-score 0,05` (giữ mọi box ≥0,05 trong jsonl), IoU ≥0,5
+  label-agnostic, range 54 m, following, wet-ground BẬT, `wfh_mm=1,0`, `road_z=-0,411`,
+  `epoch=0`. `GATE_C_MODEL_OK config=model0 … chain=7 missing=0 unexpected=0`.
+- **Model 0 không còn mù:** `recall_clean` = **0,821** (v4: 0,000), `tp_total` = **2.068**
+  trên 3 nhánh (v4: 0), `GATE_C_SANITY … jsonl_lines=2862 … recall_clean=0.8208`.
+  Verify5 (5 frame, 5/5 TP) đã dự báo đúng chiều.
+- Ghi nhận provenance: bundle code staged từ **cây làm việc lúc 15:57** (trước commit
+  `c0d7784` 16:15), trong đó `spray/raycast.py` đã có `pdet_range_exponent` — default **0,0**,
+  biến môi trường `PLUME_PDET_RANGE_EXPONENT` **không** được set trong kernel ⇒ đường plume
+  **giống hệt** bản đã đo ở A3-V (bit-for-bit; commit sau đó chỉ sửa docstring, không đổi default).
+  `scripts/measure_pdet_vs_range.py` + `tests/test_raycast.py` không nằm trên đường inference.
+
+### 7c.2 Bảng chính (τ=0,20; FP/frame · recall · % frame có ≥1 FP · dets/frame)
+
+954 frame / 12 scene. "Frame có FP" đếm frame có **≥1 box không khớp GT nào** (BEV IoU ≥0,5).
+
+| nhóm | nhánh | FP/frame | recall | % frame ≥1 FP | dets/frame | precision |
+|---|---|---:|---:|---:|---:|---:|
+| **gộp** | clean | **1,018** | **0,821** | 56,1 % (535/954) | 15,81 | 0,561 |
+| **gộp** | plume | **1,288** | **0,570** | 66,0 % (630/954) | 17,57 | 0,361 |
+| **gộp** | real | **1,243** | **0,777** | 63,1 % (602/954) | 17,71 | 0,491 |
+| 90 km/h | clean | 1,003 | 0,864 | 56,3 % | — | — |
+| 90 km/h | plume | 1,274 | 0,614 | 67,2 % | — | — |
+| 90 km/h | real | 1,250 | 0,804 | 64,2 % | — | — |
+| 130 km/h | clean | 1,250 | 0,794 | 62,1 % | — | — |
+| 130 km/h | plume | 1,794 | 0,520 | 80,6 % | — | — |
+| 130 km/h | real | 1,718 | 0,750 | 77,0 % | — | — |
+| 50 km/h **(ngoài miền)** | clean | 0,877 | 0,799 | 51,9 % | — | — |
+| 50 km/h **(ngoài miền)** | plume | 0,965 | 0,564 | 55,3 % | — | — |
+| 50 km/h **(ngoài miền)** | real | 0,922 | 0,770 | 52,9 % | — | — |
+
+**Cấu trúc plume** (tổng 954 frame): chèn **1.457.602** điểm = **1.528 điểm/frame**
+(min 2 / max 7.512, **không frame nào 0**); occlusion bỏ **45.171/28.256.007 = 0,16 %** điểm thật;
+attenuation đổi intensity **8.022.247 = 28,4 %**. `label==2` bị bỏ ở `clean`/`plume`:
+**486.287** điểm (vẫn còn ở `real`).
+
+**TP theo frame (paired, cùng frame):** `plume` **mất TP ở 255 frame**, chỉ **được thêm 16**
+(528 frame giữ, 155 không có); `real` mất 66 / thêm 24. Tức plume không "thêm nhiễu rồi thôi" —
+nó **xoá detection đúng** ở 27 % số frame, gấp **3,9×** spray thật.
+
+### 7c.3 Paired theo scene (bootstrap 2.000, seed 0)
+
+Đơn vị độc lập = scene. n = 12 (gộp) / 4 (mỗi nhóm tốc độ) ⇒ CI theo nhóm rất rộng; 50 km/h
+ngoài miền, chỉ báo kèm.
+
+| nhóm | so sánh | ΔFP/frame | CI95 ΔFP | Δrecall | CI95 Δrecall | n scene |
+|---|---|---:|---|---:|---|---:|
+| **gộp** | **plume − clean** | **+0,299** | **[+0,123; +0,494]** | **−0,268** | **[−0,372; −0,174]** | 12 |
+| **gộp** | **real − clean** | **+0,268** | **[+0,147; +0,397]** | **−0,049** | **[−0,083; −0,019]** | 12 |
+| gộp | plume − real *(tham khảo)* | +0,031 | [−0,126; +0,183] | −0,219 | [−0,301; −0,146] | 12 |
+| 90 | plume − clean | +0,351 | [+0,024; +0,677] | −0,296 | [−0,497; −0,103] | 4 |
+| 130 | plume − clean | +0,462 | [+0,081; +0,843] | −0,247 | [−0,361; −0,132] | 4 |
+| 50 *(ngoài miền)* | plume − clean | +0,084 | [−0,014; +0,171] | −0,261 | [−0,453; −0,109] | 4 |
+| 90 | real − clean | +0,290 | [+0,101; +0,499] | −0,079 | [−0,158; −0,000] | 4 |
+| 130 | real − clean | +0,469 | [+0,384; +0,568] | −0,036 | [−0,072; 0,000] | 4 |
+| 50 *(ngoài miền)* | real − clean | +0,045 | [−0,008; +0,104] | −0,031 | [−0,057; −0,007] | 4 |
+
+**Độ nhất quán dấu:** plume−clean ΔFP **> 0 ở 11/12 scene**, Δrecall **< 0 ở 12/12 scene**;
+real−clean ΔFP > 0 ở 11/12, Δrecall < 0 ở 8/12; **plume−real ΔFP > 0 chỉ ở 5/12 scene**
+(không hệ thống) nhưng Δrecall < 0 ở **12/12**.
+
+### 7c.4 Độ nhạy τ (gộp, FP/frame · recall)
+
+| τ | clean | plume | real |
+|---:|---|---|---|
+| 0,10 | 5,152 · 0,893 | 5,786 · 0,726 | 5,894 · 0,852 |
+| **0,20 (primary)** | **1,018 · 0,821** | **1,288 · 0,570** | **1,243 · 0,777** |
+| 0,30 | 0,206 · 0,671 | 0,298 · 0,421 | 0,265 · 0,636 |
+| 0,50 | 0,020 · 0,331 | 0,022 · 0,143 | 0,018 · 0,325 |
+
+Chiều **không đổi theo τ**: plume ≈ real ở FP (chênh ≤ 0,11), nhưng recall của plume **thấp hơn
+clean 0,17–0,25** và **thấp hơn real 0,13–0,22** ở **mọi** τ. Không có τ nào "cứu" được recall.
+
+### 7c.5 Verdict theo tiêu chí pre-register (§2) — HƯỚNG TRAIN ĐÃ CHẾT
+
+1. **Tiêu chí 1 — plume phải làm TĂNG FP: ĐẠT.** ΔFP = **+0,299**, CI95 **[+0,123; +0,494]**
+   (không chứa 0, cận dưới > 0), 11/12 scene dương, và đúng ở cả 90 (+0,351) lẫn 130 (+0,462).
+2. **Tiêu chí 2 — recall không được giảm quá 0,02: TRƯỢT NẶNG.** Δrecall = **−0,268**,
+   CI95 **[−0,372; −0,174]**; cận dưới **−0,372 ≪ −0,02**, 12/12 scene âm. Recall tuyệt đối
+   **0,821 → 0,570** (−32,6 % tương đối), tức 239 frame mất detection đúng.
+3. ⇒ Theo đúng luật đã chốt **trước khi nhìn số**, cổng C trả lời **KHÔNG**: plume hiện tại
+   **không dùng được làm augmentation**. Đây là **kiểu thất bại khác** với kịch bản §7b dự phòng
+   ("plume không tăng FP"): plume **có** tăng FP, nhưng cái giá là **mất recall** — lớn gấp
+   **5,5×** mức mất recall của spray thật (−0,049). Không được diễn giải lại thành "còn sống".
+
+### 7c.6 Đọc kết quả: plume vs real + covariate mật độ
+
+- **Trục FP: plume "giống spray thật".** ΔFP(plume−real) = **+0,031, CI95 [−0,126; +0,183]**
+  (không khác 0; chỉ 5/12 scene dương) ⇒ ở τ=0,20 plume tạo **đúng mức FP như spray thật**,
+  không phải "FP nhiều hơn real". Đây là điểm **ủng hộ** generator ở khía cạnh nhiễu.
+- **Trục recall: plume "độc" hơn real.** Δrecall(plume−real) = **−0,219, CI95 [−0,301; −0,146]**,
+  12/12 scene âm. Cơ chế khớp với cấu trúc: plume **attenuate 28,4 %** điểm thật + **occlude
+  0,16 %** + chèn 1.528 điểm/frame, trong khi `real` chỉ có spray thật (không bị stage nào
+  attenuate thêm). Detector mất tín hiệu của chính xe thật, không chỉ bị dụ thêm box.
+- **Caveat mật độ (bắt buộc khi trích dẫn).** Phép đo độc lập
+  `docs/measurements/following-scenario-density.md` cho thấy generator following hiện **đậm hơn
+  dữ liệu thật 8–17× ở 120–130 km/h** (set B: Crafter 16,92 [13,88; 20,88], Golf 8,02
+  [6,07; 11,64]) và **~4,5× trên chính các scene eval** dùng ở cổng C (set A: 4,61 / 4,51);
+  near-field: **~81 % detection sinh ở <10 m, ~48 % ở <4 m** (B, 120–130). Vì vậy phần recall
+  bị mất **có khả năng là do mật độ/near-field** (quá nhiều điểm gần cảm biến ⇒ che tín hiệu
+  thật) **chứ không phải bản chất spray**. Nhưng theo pre-register, cổng C phán trên **generator
+  hiện tại**: kết luận là **chết**. Muốn cứu phải sửa mật độ rồi **chạy lại cổng C với
+  pre-register mới** — không được diễn giải lại run này.
+- **Giới hạn:** n = 12 scene (4 scene/nhóm tốc độ) ⇒ direction check, không phải effect size;
+  50 km/h ngoài miền (ADR-0006 §5.3); detector vẫn zero-shot Model 0 (không fine-tune), nên câu
+  hỏi "sau fine-tune thì sao" vẫn mở, nhưng **augmentation hiện tại không qua được cổng**.
+
+### 7c.7 Tái lập
+
+```bash
+# output kernel (jsonl 12 MB + summary) — kernel id ở trên, version 1
+/Users/huynguyen/.local/bin/kaggle kernels output nguynhuy9669/bevfusion-gate-c-full-ch4fix \
+    -p .scratch/tmp/gate_c_full_out
+# bảng offline (paired theo scene, CI95, theo tốc độ, τ sweep) từ jsonl ≥0,05
+CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. /opt/anaconda3/bin/python \
+    kaggle/gate_c_full/analyze.py \
+    --jsonl .scratch/tmp/gate_c_full_out/gate_c_out/gate_c_detections.jsonl \
+    --infos data/sspp_infos_test.pkl \
+    --out-dir .scratch/tmp/gate_c_full_analysis
+```
+
 ## 8. File liên quan
 
 - `scripts/sspp_infer.py` — harness (dry-run + inference + metric).
@@ -279,4 +420,8 @@ detector hay không" chứ không phán "tác dụng đúng chiều khi detector
 - `kaggle/gate_c/make_bundles.py` — tạo/upload dataset + push kernel.
 - `kaggle/gate_c_verify5/kernel.py`, `kernel-metadata.json` — kernel verify 5 frame ×
   3 chế độ của bản sửa kênh 4 (`--legacy-channel4` / mặc định / `--z-shift-m -1.45`).
+- `kaggle/gate_c_full/kernel.py`, `kernel-metadata.json` — kernel **chạy lại đầy đủ** sau khi
+  sửa kênh 4 (954 frame × 3 nhánh; guard `step=harness` / `step=outputs`), kết quả ở §7c.
+- `kaggle/gate_c_full/analyze.py` — phân tích offline từ `gate_c_detections.jsonl` (paired theo
+  scene + bootstrap 2.000, tách 50/90/130, quét τ 0,10–0,50, kiểm lại tiêu chí §2).
 - Tiêu chí pre-registration: `.scratch/roadspray-cal/plan.md` §"Giai đoạn C"; ADR-0006 §5.3.

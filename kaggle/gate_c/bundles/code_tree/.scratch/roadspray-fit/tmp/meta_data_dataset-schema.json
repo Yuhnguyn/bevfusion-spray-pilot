@@ -1,0 +1,140 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Dataset Objects",
+    "description": "Movable objects appearing in dataset",
+    "type": "object",
+    "properties": {
+        "sensors": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "type": "object",
+                "required": ["type", "manufacturer", "model", "reference_point", "tf_from_reference_point"],
+                "properties": {
+                    "type": {
+                        "description": "Type of sensor according to enum",
+                        "type": "string",
+                        "enum": ["camera", "lidar", "radar", "ultrasonic", "gnss/imu", "other"]
+                    },
+                    "manufacturer": {
+                        "description": "Brand name of sensor manufacturer",
+                        "type": "string"
+                    },
+                    "model": {
+                        "description": "Model name of specific sensor",
+                        "type": "string"
+                    },
+                    "ros_topic": {
+                        "description": "If measurements are stored in ros bags: name of the topic of the sensor data",
+                        "type": "string"
+                    },
+		    "frame": {
+                        "description": "Name of the corresponding frame in ROS URDF",
+                        "type": "string"
+                    },
+                    "file_name": {
+                        "description": "If measurements are stored in separate file: name of the file or file prefix",
+                        "type": "string"
+                    },
+                    "reference_point": {
+                        "description": "Common reference point in a multi-sensor setup, e.g. 'center of rear axle'",
+                        "type": "string"
+                    },
+                    "tf_from_reference_point": {
+                        "description": "Coordinate transformation from reference point to sensor coordinates",
+                        "type": "object",
+                        "required": ["x", "y", "z", "roll", "pitch", "yaw"],
+                        "properties": {
+                            "x": {
+                                "description": "x coordinate in m",
+                                "type": "number"
+                            },
+                            "y": {
+                                "description": "y coordinate in m",
+                                "type": "number"
+                            },
+                            "z": {
+                                "description": "z coordinate in m",
+                                "type": "number"
+                            },
+                            "roll": {
+                                "description": "rotation around x axis in rad",
+                                "type": "number"
+                            },
+                            "pitch": {
+                                "description": "rotation around y axis in rad",
+                                "type": "number"
+                            },
+                            "yaw": {
+                                "description": "rotation around z axis in rad",
+                                "type": "number"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "objects": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "type": "object",
+                "required": ["id", "name", "type"],
+                "properties": {
+                    "id": {
+                        "description": "The unique identifier of the object",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "description": "Descriptive name of the object",
+                        "type": "string"
+                    },
+                    "type": {
+                        "description": "Type of object according to enum",
+                        "type": "string",
+                        "enum": ["vehicle", "pedestrian", "animal", "other"]
+                    },
+                    "vehicle_attributes": {
+                        "brand": {
+                            "description": "Brand of the vehicle (Volkswagen, BMW, Toyota etc.)",
+                            "type": "string"
+                        },
+                        "model": {
+                            "description": "Model of the vehicle (Golf, 5-series, Corola etc.)",
+                            "type": "string"
+                        },
+                        "built": {
+                            "description": "Year the vehicle was built",
+                            "type": "integer"
+                        },
+                        "color": {
+                            "description": "Color of the vehicle",
+                            "type": "string"
+                        },
+                        "vehicle_class": {
+                            "description": "Class of vehicle according to enum",
+                            "type": "string",
+                            "enum": ["small_car", "compact_car", "medium_car", "luxury_car", "delivery_van", "heavy_truck", "semitrailer", "trailer", "motorbike", "bicycle", "bus", "tram", "train", "wheelchair", "other"]
+                        },
+                        "comment": {
+                            "description": "Anything special to mention of the vehicle",
+                            "type": "string"
+                        }
+                    },
+                    "pedestrian_attributes": {
+                        "gender": {
+                            "description": "Gender of the pedestrian",
+                            "type": "string",
+                            "enum": ["male", "female", "diverse"]
+                        },
+                        "age": {
+                            "description": "Rough age of the pedestrian according to enum",
+                            "type": "string",
+                            "enum": ["infant", "child", "adult"]
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
