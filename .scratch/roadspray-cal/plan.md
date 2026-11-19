@@ -179,6 +179,38 @@ Mục tiêu: trả lời *"plume có làm detector báo nhầm không?"* — **�
 | C2 | Ba phép đo tại **cùng τ, cùng frame**: (a) frame sạch, (b) sạch **+ plume tổng hợp**, (c) spray thật | Bảng 3 dòng: FP/frame **và** recall **và** số điểm plume chèn vào (% frame) |
 | C3 | Đọc kết quả | Ghi rõ 3 khả năng: plume vô hình / plume yếu / plume tương đương thật |
 
+**C1 — kế hoạch thi hành (chốt 2026-11-19)**
+
+*Chặn cục bộ đã kiểm `[ĐO]`*: máy này có `torch 2.2.2` nhưng **không** có
+`mmcv` / `mmdet` / `mmdet3d` ⇒ không dựng được model BEVFusion ở đây. Cổng C **phải chạy trên
+Kaggle** (CPU/GPU đều được; đây là inference nên rẻ).
+
+*Tái dùng từ nhánh `main`* (đã từng chạy forward pass thành công trên Kaggle — ticket 04):
+
+| Cần gì | Lấy ở đâu |
+|---|---|
+| venv + wheels pin | `kaggle/smoke_test/cells/03-venv`, `04-pinned-wheels` |
+| clone `mit/bevfusion` đúng pin `da93b27` | `cells/05-clone-pin` |
+| build ops (mmcv/mmdet3d) | `cells/06-cuda-toolchain`, `07-build-ops` |
+| nạp checkpoint lidar-only | `cells/08-checkpoint`, `12-checkpoint-load` |
+| config + model + batch + forward | `cells/10-config`, `11-model`, `13-batch`, `14-forward` |
+| mẫu cell-runner (import torch **trong hàm** để test được không cần torch) | `kaggle/train/ab_eval.py` |
+| chấm điểm | `proxy_eval.evaluate_frame` + `proxy_eval.scene_bootstrap` |
+
+*Viết mới trên nhánh `sspp`*: `scripts/sspp_infer.py` với cấu trúc
+
+1. `iter_frames(roles, condition)` — dùng `spray/semantic_split.build_split` để lấy frame test;
+   dựng input bằng `spray/sspp_adapter.py`;
+2. ba điều kiện **cùng frame, cùng τ**: `clean` (bỏ điểm `label == 2`), `plume` (clean + chèn plume
+   tổng hợp bằng `inject_plume_stateful`), `real` (giữ nguyên frame có spray thật);
+3. `load_model()` — **import torch/mmdet3d bên trong hàm** để phần còn lại test được local;
+4. chấm bằng `proxy_eval.evaluate_frame`; log `FP/frame`, `recall`, `% điểm plume chèn vào`;
+5. cờ `--dry-run` chạy với detector giả (stub) để kiểm luồng dữ liệu trên máy local.
+
+*Xong khi*: bảng 3 dòng (clean / plume / real) tại cùng τ trên ≥ 200 frame, có số frame và thời gian
+mỗi frame. **Chốt chặn:** nếu `plume` **không** tăng FP trong khi `real` tăng mạnh → dừng hướng
+train, quay lại A (đúng lưu ý "chỉ tin chiều CÓ" bên dưới).
+
 **Chốt chặn C (quan trọng nhất):** nếu (b) **không** tăng FP trong khi (c) tăng mạnh → plume **vô hình**
 với detector ⇒ **dừng toàn bộ hướng train**, quay lại A. Đây là cửa duy nhất chặn việc đốt 10–17 h GPU.
 
