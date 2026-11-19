@@ -76,9 +76,35 @@ MAX_AGE_FACTOR = 4.0
 # clusters DBSCAN chains points along scan lines, so the fitted tail is dominated
 # by merged clusters (p99 ~12 m) and the fitted median (0.395 m) does not
 # reproduce the measured median (0.271 m). The paper constants stay.
+# [PAPER] Linnhoff Fig. 5: lognormal cho bán kính cụm, sigma = 0,8, median 0,30 m.
 RADIUS_MU = -1.2
 RADIUS_SIGMA = 0.8
 RADIUS_MAX_M = 1.0
+
+# [ĐO] **Trung vị** bán kính cụm theo tốc độ (Crafter), đo trên SSPP 207 scene gộp
+# theo fold — docs/measurements/sspp-cluster-radius-by-speed.md.
+# `[DO] 2026-11-19`: tăng 4,4x từ 50 -> 80 km/h rồi bão hoà; số paper (0,30 m) khớp
+# đúng vùng >= 80 km/h, tức số paper là số TỐC ĐỘ CAO chứ không phải hằng số.
+# Dùng bảng này thay cho hằng 0,30 m ở mọi tốc độ: hằng số đó làm bán kính bị phóng
+# 3,8x ở 50 km/h, mà số điểm lại tỉ lệ tiết diện (r^2) => thừa ~14x khối lượng.
+_CLUSTER_RADIUS_MEDIAN_BY_SPEED: tuple[tuple[float, float], ...] = (
+    (50.0, 0.079),
+    (60.0, 0.152),
+    (70.0, 0.242),
+    (80.0, 0.350),
+    (90.0, 0.333),
+    (100.0, 0.311),
+    (110.0, 0.337),
+    (120.0, 0.369),
+    (130.0, 0.310),
+)
+
+
+def cluster_radius_median_for_speed(speed_kmh: float) -> float:
+    """Trung vị bán kính cụm (m) tại tốc độ cho trước — nội suy tuyến tính, kẹp biên."""
+    speeds = [row[0] for row in _CLUSTER_RADIUS_MEDIAN_BY_SPEED]
+    medians = [row[1] for row in _CLUSTER_RADIUS_MEDIAN_BY_SPEED]
+    return float(np.interp(speed_kmh, speeds, medians))
 # [ĐO] p95(|y - y_block|) on the real `cal` labels is 2.43 m. Clusters may
 # drift sideways with the wind, so the lateral offset from the block centre is
 # clamped every step; the paper puts clusters uniformly behind the object and
@@ -348,9 +374,11 @@ class PlumeState:
             ) * block_extents
         created: list[SprayCluster] = []
         for _ in range(count):
+            radius_median = cluster_radius_median_for_speed(v_abs_kmh)
             radius = min(
                 cfg.radius_max_m,
-                float(np.exp(rng.normal(cfg.radius_mu, cfg.radius_sigma))),
+                float(np.exp(rng.normal(float(np.log(radius_median)),
+                                        cfg.radius_sigma))),
             )
             ttl = max(
                 0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))
