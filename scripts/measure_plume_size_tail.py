@@ -48,13 +48,20 @@ BACKGROUND_POINTS = 30_000
 
 # docs/measurements/sspp-cluster-size-distribution.md (Crafter, gộp 3 fold) —
 # các số THẬT đều là detections của cảm biến nên so ở tầng raycast mới công bằng.
+# `[ĐO] 2026-11-19` ĐÍCH TỪ **ROADSPRAY `*_static`** (ADR-0006 D2), không từ SSPP.
+# Số liệu: .scratch/roadspray-cal/tmp/a3_targets_static.json, đo bằng
+# scripts/roadspray_static_plume_box.py (Δ = 1,0 / 2,5 / 6,0 m, L = 20 m).
+# Vì phép đo static phải CẮT LÁT để phá chain dọc tia, các đại lượng phụ thuộc
+# bề dày lát; dải dưới đây được lấy là **min..max qua ba bề dày lát** — tức biên
+# độ bất định định nghĩa vùng, đúng như doc đã khai (±30-40 %).
+# Điểm chuẩn để so `det/frame` là điểm/frame ở Δ = 2,5 m.
 REAL = {
-    50.0: {"points": 43, "clusters": 4.8, "p50": 6, "mean": 8.8, "p95": 17,
-           "max": 144, "share_big": 15.0},
-    100.0: {"points": 875, "clusters": 21.6, "p50": 6, "mean": 40.4, "p95": 182,
-            "max": 2241, "share_big": 82.0},
-    130.0: {"points": 592, "clusters": 13.1, "p50": 6, "mean": 45.3, "p95": 158,
-            "max": 2485, "share_big": 83.0},
+    50.0: {"det": (229, 242), "share": (77.9, 92.3), "p95": (172, 329),
+           "p50": (5, 7), "mean": (25.4, 67.1)},
+    100.0: {"det": (476, 523), "share": (39.2, 71.2), "p95": (43, 156),
+            "p50": (6, 8), "mean": (13.3, 30.4)},
+    130.0: {"det": (408, 456), "share": (34.7, 75.1), "p95": (36, 181),
+            "p50": (5, 7), "mean": (12.3, 33.2)},
 }
 
 
@@ -177,20 +184,25 @@ def main() -> None:
         got = {key: float(np.mean([run[key] for run in runs]))
                for key in runs[0]}
         real = REAL[speed_kmh]
+        def inside(value, band):
+            low, high = band
+            return low * 0.85 <= value <= high * 1.15
+
         criteria = [
-            abs(got["share_big"] - real["share_big"]) <= 10.0,
-            0.5 * real["p95"] <= got["p95"] <= 2.0 * real["p95"],
-            0.7 <= got["detections_frame"] / real["points"] <= 1.5,
+            inside(got["share_big"], real["share"]),
+            inside(got["p95"], real["p95"]),
+            inside(got["p50"], real["p50"]),
+            0.7 <= got["detections_frame"] / np.mean(real["det"]) <= 1.5,
         ]
         verdicts.append(all(criteria))
         mark = "PASS" if all(criteria) else "FAIL"
         which = ("đúng" if all(criteria) else "thiếu" if
-                 got["detections_frame"] < real["points"] else "thừa")
+                 got["detections_frame"] < np.mean(real["det"]) else "thừa")
         print(f"{speed_kmh:>5.0f} {got['detections_frame']:>10.0f} "
               f"{got['n_cluster']:>6.1f} {got['p50']:>4.0f} {got['mean']:>6.1f} "
               f"{got['p95']:>5.0f} {got['max']:>5.0f} {got['share_big']:>6.1f}% "
-              f"| {real['points']:>4} đ, {real['clusters']:>5.1f}, {real['p50']}, "
-              f"{real['p95']:>3}, {real['max']:>4}, {real['share_big']:>4.0f}% "
+              f"| static det {np.mean(real['det']):>4.0f}, p50 {real['p50'][0]}-{real['p50'][1]}, "
+              f"p95 {real['p95'][0]}-{real['p95'][1]}, share {real['share'][0]:.0f}-{real['share'][1]:.0f}% "
               f"-> {mark} ({which} det/frame)")
     print()
     print("TIÊU CHÍ A3 (đo ở tầng raycast = tầng detector thật sự thấy): "

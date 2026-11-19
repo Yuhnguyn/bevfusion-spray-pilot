@@ -350,12 +350,26 @@ def main() -> None:
                         for label in range(n_labels):
                             members = members_slice[labels == label]
                             xyz = cloud[members, :3]
+                            centre = xyz.mean(axis=0)
+                            # Bán kính theo ĐỊNH NGHĨA CỦA PAPER (§III-B):
+                            # "the radii r_cl are set to the maximum distance of
+                            # detections to the respective cluster center". Thêm
+                            # 2026-11-19 vì đích A3 phải lấy từ RoadSpray (D2),
+                            # không được lấy từ SSPP.
+                            radius = float(
+                                np.linalg.norm(xyz - centre, axis=1).max()
+                            )
+                            extent = xyz.max(axis=0) - xyz.min(axis=0)
                             found.append({
                                 "depth": round(float(depth_values[members].mean()), 2),
                                 "n": int(members.size),
-                                "range": round(float(np.linalg.norm(xyz.mean(axis=0))), 2),
+                                "range": round(float(np.linalg.norm(centre)), 2),
                                 "h": round(float(height[members].mean()), 2),
                                 "intensity": round(float(cloud[members, 4].mean()), 2),
+                                "radius": round(radius, 3),
+                                "ex": round(float(extent[0]), 2),
+                                "ey": round(float(extent[1]), 2),
+                                "ez": round(float(extent[2]), 2),
                             })
                     return found
 

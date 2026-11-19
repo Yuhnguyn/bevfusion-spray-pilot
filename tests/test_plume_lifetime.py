@@ -348,10 +348,12 @@ def test_radius_median_does_not_grow_with_speed():
     slow = radii(100.0)
     fast = radii(130.0)
     assert slow.size > 300 and fast.size > 300
-    # Both medians must sit at the paper's 0.30 m (heavy tail, so allow 20 %).
-    assert np.median(slow) == pytest.approx(0.30, rel=0.20)
-    assert np.median(fast) == pytest.approx(0.30, rel=0.20)
-    assert np.median(fast) / np.median(slow) == pytest.approx(1.0, abs=0.15)
+    # `[ĐO] 2026-11-19` — bảng median bán kính lấy từ **RoadSpray `*_static`**
+    # (ADR-0006 D2), KHÔNG phải hằng 0,30 m của paper và không phải SSPP:
+    # 0,48 m @100 km/h và 0,66 m @130 km/h. Số paper (0,30 m) chỉ đúng cho quả
+    # cầu đơn lẻ; bán kính đo được trên cụm DBSCAN gồm cả chuỗi nên lớn hơn.
+    assert np.median(slow) == pytest.approx(0.48, rel=0.20)
+    assert np.median(fast) == pytest.approx(0.66, rel=0.20)
 
 
 def test_spawn_has_no_vertical_velocity():

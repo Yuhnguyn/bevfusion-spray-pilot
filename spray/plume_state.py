@@ -78,7 +78,7 @@ MAX_AGE_FACTOR = 4.0
 # reproduce the measured median (0.271 m). The paper constants stay.
 # [PAPER] Linnhoff Fig. 5: lognormal cho bán kính cụm, sigma = 0,8, median 0,30 m.
 RADIUS_MU = -1.2
-RADIUS_SIGMA = 0.8
+RADIUS_SIGMA = 0.97
 RADIUS_MAX_M = 1.0
 
 # [ĐO] **Trung vị** bán kính cụm theo tốc độ (Crafter), đo trên SSPP 207 scene gộp
@@ -88,15 +88,15 @@ RADIUS_MAX_M = 1.0
 # Dùng bảng này thay cho hằng 0,30 m ở mọi tốc độ: hằng số đó làm bán kính bị phóng
 # 3,8x ở 50 km/h, mà số điểm lại tỉ lệ tiết diện (r^2) => thừa ~14x khối lượng.
 _CLUSTER_RADIUS_MEDIAN_BY_SPEED: tuple[tuple[float, float], ...] = (
-    (50.0, 0.079),
-    (60.0, 0.152),
-    (70.0, 0.242),
-    (80.0, 0.350),
-    (90.0, 0.333),
-    (100.0, 0.311),
-    (110.0, 0.337),
-    (120.0, 0.369),
-    (130.0, 0.310),
+    (50.0, 0.70),
+    (60.0, 0.60),
+    (70.0, 0.60),
+    (80.0, 0.45),
+    (90.0, 0.53),
+    (100.0, 0.48),
+    (110.0, 0.49),
+    (120.0, 0.56),
+    (130.0, 0.66),
 )
 
 
