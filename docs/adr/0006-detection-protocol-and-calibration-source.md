@@ -561,27 +561,36 @@ Mọi báo cáo A3-V và cổng C theo mục này phải in, cho **từng ô / t
 
 ### §5.7 KẾT QUẢ A5 (2026-11-19) — đo sau khi wire, doc `docs/measurements/a5-domain-a3v.md`
 
-Tập B (72 scene không box), 30 frame/scene, cấu hình Cách A đầy đủ (α=0, 2,5–50 m, wfh lấy mẫu).
+Tập B (72 scene không box), 30 frame/scene, cấu hình Cách A đầy đủ (α=0, ‖pos‖−r ≥ 2,5 m, ≤ 50 m,
+wfh lấy mẫu).
 
-| ô | production | **Cách A** | giảm | `det<3m` | `x min` |
-|---|---:|---:|---:|---:|---:|
-| Crafter 50–70 | 1,98× | **1,04 [0,86; 1,34]** | 1,9 | 0 | −21,0 |
-| Golf 50–70 | 0,86× | **0,35 [0,20; 0,78]** | 2,5 | 0 | −21,7 |
-| Crafter 80–110 | 2,73× | **0,31 [0,21; 0,42]** | 8,9 | 0 | −49,6 |
-| Golf 80–110 | 4,63× | **0,57 [0,39; 0,78]** | 8,1 | 0 | −49,5 |
-| Crafter 120–130 | **16,92×** | **0,99 [0,55; 1,49]** | **17,1** | 0 | −49,9 |
-| Golf 120–130 | 8,02× | **0,72 [0,34; 1,14]** | 11,1 | 0 | −49,8 |
+**ĐÍNH CHÍNH (bản v2, commit `a35edd6`):** bản v1 báo `det<3m = 0` ở cả 6 ô — **SAI**, do hai lỗi
+thước đo của người đo: (a) `select_alive` lọc theo **tâm** cụm thay vì **mặt cầu** (`‖pos‖ − radius`),
+để 7,3 % cụm có mặt cầu dưới 2,5 m lọt qua và 3 cụm có mặt cầu xuyên cảm biến; (b) in **median** của
+`det<3m` thay vì mean/max, che mất các frame có det gần (median 0 nhưng max 127). Số dưới là bản đã sửa.
 
-**Ba điều kiện cứng của §5.7 ĐẠT:** `det < 3 m` = 0 cả 6 ô; `x min` ≈ −50 m (không còn −137/−294);
-tỉ lệ giảm 1,9–17,1 lần, ca tệ nhất về 0,99×.
+| ô | production | **Cách A v2** | giảm | `det<3m` mean / max | frame có `<3m` | `x min` |
+|---|---:|---:|---:|---|---:|---:|
+| Crafter 50–70 | 1,98× | **1,02 [0,85; 1,26]** | 1,9 | 0,1 / 18 | 6/360 | −21,0 |
+| Golf 50–70 | 0,86× | **0,34 [0,20; 0,78]** | 2,5 | 0,1 / 12 | 6/360 | −21,7 |
+| Crafter 80–110 | 2,73× | **0,25 [0,20; 0,36]** | 10,9 | 3,1 / **127** | 97/480 | −49,2 |
+| Golf 80–110 | 4,63× | **0,50 [0,36; 0,71]** | 9,3 | 2,0 / 113 | 60/480 | −49,6 |
+| Crafter 120–130 | **16,92×** | **0,85 [0,45; 1,31]** | **19,9** | 3,2 / 115 | 39/240 | −49,9 |
+| Golf 120–130 | 8,02× | **0,65 [0,30; 0,98]** | 12,3 | 2,4 / 74 | 37/240 | −49,8 |
 
-**Ngưỡng A3-V `[0,5; 2,0]`: 2/6 ô PASS** (Crafter 50–70 = 1,04; Crafter 120–130 = 0,99); Golf
-80–110 = 0,57 sát biên dưới. **4/6 ô THƯA hơn thật (0,31–0,72×)** — lệch **đổi dấu** so với
-production (trước: đậm quá; giờ: thưa quá). Nguyên nhân: nguồn hiệu chuẩn `*_static` có tổng lượng
-spray cao hơn following (`trail90` 44 m vs ~20 m) — limitation của **nguồn hiệu chuẩn**, không phải
-của tham số. **Không bù bằng `spawn_scale`** (mục 5 của §5.7).
+**ĐẠT:** tỉ lệ giảm 1,9–19,9 lần (ca tệ nhất 0,85×); `x min` = −49,2…−49,9 m (không còn −137/−294);
+`R p05` ở 80–130 = 4,5–5,3 m (production 1,42–1,58).
 
-**Hệ quả cho A7:** mọi so sánh cổng C phải nói rõ plume giờ **thưa hơn** spray thật ở 4/6 ô. Nếu
-`Δrecall(plume−clean)` về ngang `Δrecall(real−clean) = −0,049` **thì** kết luận là cơ chế near-field
-mới là nguyên nhân, và độ thưa không phá được kết luận đó. Nếu vẫn `< −0,15` thì §5.7 mục 3 buộc
-**DỪNG**.
+**KHÔNG ĐẠT so với mục tiêu §5.7:** `det < 3 m` **không** về 0 — mean 0,1–3,2, max 127. Nguyên nhân:
+`raycast_frame` sinh detection dọc **tia**, không theo mặt cầu, nên tia qua rìa quả cầu vẫn cho điểm
+rất gần gốc. Muốn về 0 phải cắt ở tầng **detection** (sau raycast) — **chưa làm**, phải pre-register
+riêng nếu muốn.
+
+**Ngưỡng A3-V `[0,5; 2,0]`: 2/6 ô PASS** (Crafter 50–70 = 1,02; Golf 80–110 = 0,50 sát biên).
+**4/6 ô THƯA hơn thật (0,25–0,65×)** — lệch **đổi dấu** so với production. Nguyên nhân: nguồn hiệu
+chuẩn `*_static` có tổng lượng spray cao hơn following (`trail90` 44 m vs ~20 m) — limitation của
+**nguồn hiệu chuẩn**. **Không bù bằng `spawn_scale`** (mục 5 của §5.7).
+
+**Hệ quả cho A7:** plume giờ **thưa hơn** spray thật ở 4/6 ô (0,25–0,65×), nhưng `R p05` đã về thang
+thật. Nếu `Δrecall(plume−clean)` về ngang `Δrecall(real−clean) = −0,049` **thì** kết luận là cơ chế
+near-field mới là nguyên nhân. Nếu vẫn `< −0,15` thì mục 3 buộc **DỪNG**.
