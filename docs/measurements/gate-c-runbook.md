@@ -186,6 +186,24 @@ PY
 7. Không NMS trong head (nms_type null) ⇒ nhiều box/frame; FP đếm ở τ nên vẫn nhất quán giữa arms,
    nhưng không phải protocol chuẩn nuScenes.
 
+### 6.1 Phát hiện ngoài scope, chưa xử lý (ghi nhận, **không** chặn cổng C)
+
+- **Wet-ground bị bỏ trong production path** (mục 6.4): `spray/` — Lead sẽ mở task riêng, không sửa ở đây.
+- **`vehicle_class` cứng `"crafter"`** (mục 6.3): `spray/` — limitation đã khai.
+
+### 6.2 Covariate D2-v2 — phải nhớ khi đọc kết quả
+
+User đã duyệt **D2-v2**: cho phép hiệu chỉnh **một** hệ số `following_density_scale` trên **171 scene
+train-only** (fit 2/3, verify 1/3, assert `fit ∩ eval = ∅`), vì `label == 2` ở kịch bản following có
+thể lệch. **Cổng C không làm việc này** — nó chạy generator hiện tại với Model 0 zero-shot. Hệ quả khi
+đọc kết quả: plume hiện tại có thể **đậm/thưa hơn spray thật ở following**, tức **mật độ là covariate**,
+không phải kết luận "generator đúng/sai". Nếu plume **không** tăng FP, phải loại trừ khả năng "plume
+quá thưa do density scale" trước khi kết luận là vô hình.
+
+**Quy mô kết luận:** n = **12 scene** (pooled 954 frame) ⇒ cổng C chỉ là **direction check**, KHÔNG
+phải claim định lượng. Báo riêng **90** và **130 km/h** (in-domain); **50 km/h ghi "ngoài miền"**,
+không dùng để kết luận (ADR-0006 §5.3). Mọi so sánh dùng paired delta theo scene + CI95 bootstrap.
+
 ## 7. Ba bug đã biết của `pointpillars.yaml` — xử lý ở đâu
 
 | # | Bug | Xử lý trong `scripts/sspp_infer.py` |
@@ -198,6 +216,40 @@ Bug 4 (pointpillars **chưa từng được chạy**): script từ chối mọi 
 architecture (`check_checkpoint_vs_config`), nên không thể vô tình đo model random. Gate C hiện
 tại chạy `--config model0`; khi F2 có checkpoint pointpillars thì chạy lại với
 `--config pointpillars --checkpoint <ckpt F2>`.
+
+## 7b. Kết quả chạy thật — kernel v4, 2026-11-19 (Model 0 zero-shot, τ=0,20)
+
+Kernel `nguynhuy9669/bevfusion-gate-c-plume-vs-detector` **version 4 = COMPLETE** (bắt đầu 14:23:56,
+xong ~15:05; inference 907 s ≈ 15,1 phút; không có `GATE_C_KERNEL_FAILED`). 954 frame × 3 nhánh.
+
+**Bảng chính (τ=0,20; FP/frame; recall; % frame có ≥1 FP):**
+
+| Nhánh | FP/frame | recall | % frame có FP | dets/frame |
+|---|---:|---:|---:|---:|
+| clean | **0,004** | **0,000** | 0,4 % | 1,78 |
+| plume | **0,080** | **0,000** | 7,1 % | 3,22 |
+| real | **0,088** | **0,000** | 8,4 % | 2,01 |
+
+**Paired theo scene (n=12, bootstrap 2.000):** FP delta `plume − clean` = **+0,079**, CI95
+**[+0,030; +0,134]** (không chứa 0); recall delta = **0,000 [0,000; 0,000]**.
+**Theo tốc độ:** 90 km/h clean 0,003 → plume 0,133 → real 0,117; 130 km/h clean 0,012 →
+plume 0,129 → real 0,089; **50 km/h (ngoài miền)** clean 0,000 → plume **0,000** → real 0,061.
+**Độ nhạy τ:** 0,10: 0,189 / 0,688 / 0,693 · 0,30: 0,000 / 0,020 / 0,015 · 0,50: 0,000 / 0,001 / 0,000.
+**Cấu trúc plume:** 1.528 điểm chèn/frame (không frame nào 0); real points bị occlusion
+45.171/28.256.007 = **0,16 %**; bị attenuation intensity 8.022.247 = **28,4 %**.
+
+**CẢNH BÁO ĐỌC KẾT QUẢ — Model 0 mù trên domain SSPP:** TP = 0 **toàn bộ** 954 frame/3 nhánh
+⇒ recall tuyệt đối bằng 0, không thể kiểm "recall không tụt". Chẩn đoán: best BEV IoU của mọi
+detection với GT: p95 = 0,000–0,001, max 0,055 (clean/real) và 0,301 (plume, đúng 1 frame); tâm
+detection gần tâm GT nhất p50 = 21–24 m, detection mẫu ở x≈1,5 m trong khi GT ở x≈23 m. Nghĩa là
+Model 0 không định vị được xe SSPP (domain gap zero-shot), detection sinh ra nằm quanh ego.
+Vì vậy: **kết luận "plume tăng FP" có** (và plume ≈ real ở τ=0,1: 0,688 vs 0,693; 90 km/h: 0,133
+vs 0,117; 130: 0,129 vs 0,089), nhưng đây là **direction check trên một detector gần như mù**, chưa
+phải bằng chứng rằng plume sẽ ảnh hưởng detector sau fine-tune. Muốn cổng C đủ lực cần detector có
+recall ≠ 0 (Model 0 fine-tuned / Arm A) — hoặc chấp nhận cổng C chỉ phán "plume có tác dụng lên
+detector hay không" chứ không phán "tác dụng đúng chiều khi detector đã nhìn thấy xe".
+(Thêm: ở 50 km/h plume vô hình trong khi real có FP 0,061 — khớp A3 ngoài miền; D2-v2
+`following_density_scale` là covariate, xem §6.2.)
 
 ## 8. File liên quan
 
