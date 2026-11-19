@@ -260,3 +260,30 @@ phải chỉnh tiêu chí cho dễ. Vẫn phải khai vì nó thay đổi văn b
 điều kiện dừng. Quyết định của user ngày 2026-11-19: **tiếp tục với miền giới hạn 100–130 km/h**,
 50–60 km/h loại khỏi miền claim. Quyết định này phải được trích dẫn mỗi khi báo kết quả từ cổng B
 trở đi.
+
+#### 5.5 Kiểm chứng độc lập (R3, 2026-11-19) — các chỗ phải khai thêm
+
+R3 chấm lại bằng **harness riêng** (tự inject/raycast/mask/bin, không đọc output của R1), 8 seed:
+det 13,03 / 144,0 / 283,4 · trail90 2,0 / 40,0 / 50,0 m · CI95 ±11,1 / ±5,8 / ±9,0 % — **lệch < 0,5 %**
+so với bảng nghiệm thu ⇒ hai harness độc lập ra cùng kết quả. Determinism: cùng seed chạy 2 lần
+giống tuyệt đối.
+
+**Bắt buộc khai khi trích dẫn:**
+
+1. **100/130 KHÔNG phải PASS.** Chúng chỉ "pass" dưới tiêu chí (b')(i) **rỗng**; dưới định nghĩa
+   hiệu lực (mọi bin trong vùng chứa 90 % mass thật) profile lệch **268 % / 995 %** ⇒ **FAIL**.
+   A3 **KHÔNG ĐẠT ở cả ba tốc độ**, không phải "đạt một phần".
+2. **(a) @100 chỉ hơn ngưỡng 1,1 %** (0,711 vs 0,70). Số seed đạt/8: **0 / 5 / 6** (50/100/130)
+   ⇒ ngay cả tiêu chí dễ nhất cũng không bền ở 130.
+3. **"8 seed × 120 frame" là sai nguyên văn** — 120 chỉ là **cap**; frame thực **120 / 66 / 51**
+   (100/130 bị giới hạn bởi đường chạy 200 m).
+4. **`range < 15 m` @50 = 0,0264 %** (không tuyệt đối 0); `range ≤ 4 m` = 0 ở cả 3 tốc độ.
+5. **@50 generator chạy tới ~200 m** trong khi dữ liệu thật `car_range` max chỉ **97 m** ⇒ hình học
+   @50 xa hơn thật; không đổi verdict nhưng phải khai.
+6. **α = 0,06 là [CHỌN]**, không phải "hiệu chỉnh thuần từ trail90" (xem §5.2).
+7. `p_det_scale = 1,0` đã kiểm **cả trong production**: `PlumeTransform` gọi `raycast_frame()`
+   không truyền config ⇒ không có scale ẩn.
+
+**Còn nợ dọn doc** (R3 phát hiện, chưa sửa): `plume-a3-diagnosis.md` §6.6 vẫn nêu tiêu chí cụm cũ
+(r50/rsig) mà không đánh dấu *superseded*; §7.9 còn ghi α default = 0,0 trong khi đã bake 0,06;
+§7.4 nói đã bỏ `tail_block_height_frac` nhưng field còn và còn 1 test + 1 script đọc.
