@@ -97,9 +97,17 @@ Ba điều làm quyết định này khác hẳn bảng T1/T2/T3 cũ:
 1. **Phân bố hai đỉnh.** `điểm/cụm p50 = 5–7` ở **mọi** tốc độ (gần hằng số), nhưng `mean` tăng
    8,8 → 47,7 vì tỉ lệ điểm trong cụm ≥50 điểm tăng 15 % → 85 %. Plume thật = **nhiều cụm nhỏ + một
    ít chuỗi khổng lồ**, không phải một họng lognormal.
-2. **Generator đang đúng ở phần nhỏ.** Sau A1: `điểm/cụm` median 5–6 **khớp chính xác p50 thật**,
-   nhưng cụm lớn nhất ~91 điểm vs thật p95 182 / max 2 241, và share trong cụm ≥50 đ là **0 %** vs
-   **82 %**. ⇒ Thiếu **cơ chế chuỗi**, không phải "mọi cụm nhỏ đi".
+2. **Generator đang đúng ở phần nhỏ, thiếu phần chuỗi.** Đo lại 2026-11-19 bằng **cùng toán tử**
+   (`scripts/measure_plume_size_tail.py`, DBSCAN góc trên điểm spray sinh ra): `điểm/cụm` p50 = 7–8
+   vs thật 6 (khớp); nhưng share điểm trong cụm ≥50 đ = **29,6 / 50,0 / 23,8 %** ở 50/100/130 km/h
+   so với thật **15 / 82 / 83 %**, p95 = 55/84/48 vs thật 17/182/158, max = 160/190/109 vs thật
+   144/2241/2485.
+   *(Sửa lại ghi chú cũ "share 0 %": con số 0 % là đo trên cụm *sinh ra* trước ray-cast, không phải
+   trên điểm sinh ra — không cùng đại lượng với dữ liệu thật.)*
+
+   **Lỗi lớn nhất không phải hình dạng đuôi mà là khối lượng không scale theo tốc độ:** thật
+   43 → 875 điểm/frame (20×) khi 50 → 100 km/h; generator 134 → 323 (2,4×). Ở 50 km/h generator
+   **thừa 3×**, ở 100–130 km/h **thiếu 2,7–4,2×**.
 3. **T1 và T2 chỉ lệch nhau hệ số 2**, không phải mâu thuẫn: T1 (~200–500 detection/frame) và T2
    (600–900 điểm/frame) **cùng đòi thêm chuỗi**. Chọn T2 vì đó là khối lượng detector gặp lúc eval,
    và `điểm/cụm` có **CI95 ±5–10 %** (bảng cụm chỉ ±30–40 %).
@@ -110,8 +118,10 @@ mật độ cao; nếu port đang rải trên vùng **dài hơn** thì mật đ�
 chuỗi. Kiểm: so mật độ cụm/thể tích giữa sinh và thật trước khi thêm cơ chế mới.
 
 **Tiêu chí xong của A3 (thay tiêu chí cũ "cụm lớn nhất ≥ 500 điểm"):**
-`% điểm trong cụm ≥50 đ` lệch **≤ 10 điểm %** so với bảng trên, `p95 điểm/cụm` nằm trong khoảng thật,
-và `cụm/frame` không đổi (đang khớp). Không cần đổi `_CLUSTER_VISIBLE_BY_SPEED`.
+`% điểm trong cụm ≥50 đ` lệch **≤ 10 điểm %** so với bảng trên, `p95 điểm/cụm` trong **[0,5×; 2×]**
+thật, **`điểm/frame` trong [0,7×; 1,5×] thật ở cả 3 tốc độ**, và `cụm/frame` không đổi (đang khớp).
+Đo bằng `scripts/measure_plume_size_tail.py` (`python scripts/measure_plume_size_tail.py` → PASS/FAIL).
+Không cần đổi `_CLUSTER_VISIBLE_BY_SPEED`.
 
 **Chốt chặn A:** `pytest -q tests/` xanh **và** A1 + A2 có test mới. Không đạt thì **không** sang B.
 
