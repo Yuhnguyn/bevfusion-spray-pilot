@@ -81,6 +81,7 @@ def measure_speed(speed_kmh: float, seed: int) -> dict:
     background[:, 2] = -1.6
     frames: list[dict] = []
     capped = 0
+    alive_samples: list[int] = []
     sink = io.StringIO()
     with contextlib.redirect_stdout(sink):
         for index in range(WARMUP_FRAMES + MEASURE_FRAMES):
@@ -94,6 +95,8 @@ def measure_speed(speed_kmh: float, seed: int) -> dict:
                 config=config,
             )
             capped += result.stats.capped
+            if index >= WARMUP_FRAMES:
+                alive_samples.append(int(result.stats.clusters))
             if index < WARMUP_FRAMES:
                 continue
             spray = result.injected[:, :3].astype(np.float64)
@@ -112,13 +115,14 @@ def measure_speed(speed_kmh: float, seed: int) -> dict:
                     dtype=np.int64)
     totals = np.array([frame["points"] for frame in frames], dtype=np.int64)
     if flat.size == 0:
-        return {"capped": float(capped), "points": float(totals.mean()), "n_cluster": 0.0,
+        return {"alive": 0.0, "capped": float(capped), "points": float(totals.mean()), "n_cluster": 0.0,
                 "p50": 0.0, "mean": 0.0, "p95": 0.0, "max": 0,
                 "share_big": 0.0, "clusters_per_frame": 0.0,
                 "unclustered_share": 100.0}
     big = flat[flat >= BIG_CLUSTER_POINTS]
     unclustered = float(np.mean([frame["unclustered"] for frame in frames]))
     return {
+        "alive": float(np.mean(alive_samples)) if alive_samples else 0.0,
         "capped": float(capped),
         "points": float(totals.mean()),
         "n_cluster": float(flat.size) / len(frames),
@@ -141,7 +145,7 @@ def main() -> None:
         merged = {key: float(np.mean([run[key] for run in runs]))
                   for key in ("points", "p50", "mean", "p95", "max",
                               "share_big", "clusters_per_frame", "capped",
-                              "unclustered_share")}
+                              "unclustered_share", "alive")}
         real = REAL[speed_kmh]
         share_gap = merged["share_big"] - real["share_big"]
         criteria = [

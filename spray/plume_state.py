@@ -128,6 +128,13 @@ class PlumeStateConfig:
     drag_std: float = DRAG_STD
     wind_speed_mps: float = WIND_SPEED_MPS
     wind_from_deg: float = WIND_FROM_DEG
+    # Overdispersion (A3): 0 = đặt đều trong hộp như paper ("uniform
+    # distribution ... chosen as a first estimate", §III-B); >0 = đặt quanh
+    # `placement_knots` tâm knot với sigma `placement_knot_sigma_m`, tạo các
+    # đám dày để cụm chồng nhau thành chuỗi. Không có trong paper — đây là
+    # [CHỌN] dựa trên đo: plume thật có 1-2 chuỗi ~1000 điểm mỗi frame.
+    placement_knots: int = 0
+    placement_knot_sigma_m: float = 0.25
 
 
 @dataclass
@@ -334,6 +341,11 @@ class PlumeState:
         lateral_center = (
             float(block_center[1]) if center is not None else float(origin[1])
         )
+        knots = None
+        if center is not None and cfg.placement_knots > 0 and count > 0:
+            knots = block_center + rng.uniform(
+                -1.0, 1.0, size=(cfg.placement_knots, 3)
+            ) * block_extents
         created: list[SprayCluster] = []
         for _ in range(count):
             radius = min(
@@ -349,6 +361,13 @@ class PlumeState:
                 pos = origin + rng.uniform(
                     -_SPAWN_JITTER_HALF_M, _SPAWN_JITTER_HALF_M, size=3
                 )
+            elif knots is not None:
+                knot = knots[rng.integers(0, knots.shape[0])]
+                pos = knot + rng.normal(
+                    0.0, cfg.placement_knot_sigma_m, size=3
+                )
+                pos = np.clip(pos, block_center - block_extents,
+                              block_center + block_extents)
             else:
                 pos = block_center + rng.uniform(-1.0, 1.0, size=3) * block_extents
             vel = base_vel.copy()
