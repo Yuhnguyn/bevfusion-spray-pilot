@@ -7,6 +7,7 @@ from typing import ClassVar
 
 import numpy as np
 
+from spray.plume_context import sample_wfh_mm
 from spray.wet_ground import WetGroundConfig, apply_wet_ground
 
 # Số điểm/cụm median theo cự ly 3D của tâm cụm trong LiDAR frame [ĐO, ticket 16].
@@ -507,6 +508,11 @@ def inject_plume(
     )
 
 
+def replace_context_wfh(context, wfh_mm: float):
+    """``PlumeContext`` với ``wfh_mm`` khác — frozen nên phải dựng lại."""
+    return replace(context, wfh_mm=float(wfh_mm))
+
+
 def inject_plume_stateful(
     points: np.ndarray,
     boxes: np.ndarray,
@@ -576,6 +582,10 @@ def inject_plume_stateful(
             min_range_m=2.5,
             max_range_m=50.0,
         )
+        # [PAPER §V] mức ẩm lấy mẫu theo SCENE (không theo frame) — xem sample_wfh_mm.
+        context = replace_context_wfh(context, sample_wfh_mm(
+            context.scene_token, context.epoch, seed
+        ))
 
     spawned = 0
     assumed = False

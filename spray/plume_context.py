@@ -215,6 +215,34 @@ def seed_for(
     return int.from_bytes(digest, "little")
 
 
+# [PAPER] arXiv 2212.08558 §V: "the water level is sampled from an exponential
+# distribution from the interval 0.1 - 1.2 mm during training."
+WFH_MIN_MM = 0.1
+WFH_MAX_MM = 1.2
+
+
+def sample_wfh_mm(scene_token: str, epoch: int = 0, base_seed: int = 0) -> float:
+    """Mức ẩm cho MỘT SCENE, rút từ phân bố mũ trên ``[0.1, 1.2]`` mm [PAPER §V].
+
+    Rút theo ``scene_token`` (không theo frame índice) để paired A/B của cổng C
+    dùng **cùng** một mức ướt trên cùng frame — nếu rút theo frame thì hai nhánh
+    sẽ khác ``wfh`` và ``Δrecall`` trộn hai biến.
+
+    Phân bố: ``wfh = 0.1 + Exp(mean=1.0)``, clip vào ``[0.1, 1.2]``. Chọn mean 1,0
+    vì khoảng khả dĩ rộng 1,1 mm và paper không cho tham số ⇒ mức "fully covered"
+    1,0 mm vẫn là mode-ish; **đây là [CHỌN]**, phải ghi khi báo cáo: paper cho
+    *khoảng* + *dạng phân bố*, không cho ``lambda``.
+
+    Deterministic theo ``(scene_token, epoch, base_seed)`` — dùng ``hashlib`` như
+    :func:`seed_for`, không dùng ``hash()``.
+    """
+    payload = f"wfh:{scene_token}:{int(epoch)}:{int(base_seed)}"
+    digest = hashlib.blake2b(payload.encode("utf-8"), digest_size=8).digest()
+    rng = np.random.default_rng(int.from_bytes(digest, "little"))
+    value = WFH_MIN_MM + float(rng.exponential(1.0))
+    return float(np.clip(value, WFH_MIN_MM, WFH_MAX_MM))
+
+
 def compute_elevation_deg(points: np.ndarray) -> np.ndarray:
     """Elevation angle in degrees for every point, from its coordinates.
 
