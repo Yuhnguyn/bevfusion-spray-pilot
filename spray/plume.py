@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass, replace
 from typing import ClassVar
 
@@ -566,6 +567,16 @@ def inject_plume_stateful(
     )
     expired = state.prune(dt=dt, rng=rng)
 
+    # [MIỀN — ADR-0006 §5.7] Cách A: giữ nguyên mọi số paper, chỉ chặn phát ngôn ngoài
+    # miền đã kiểm chứng. Bật bằng PLUME_PAPER_DOMAIN=1; tắt (mặc định) = hành vi cũ.
+    if os.environ.get("PLUME_PAPER_DOMAIN", "").strip() not in ("", "0"):
+        state._config = replace(
+            state._config,
+            diffusion_alpha=0.0,
+            min_range_m=2.5,
+            max_range_m=50.0,
+        )
+
     spawned = 0
     assumed = False
     for index, box in enumerate(box_arr):
@@ -634,7 +645,7 @@ def inject_plume_stateful(
             )
 
     chunks: list[np.ndarray] = []
-    for cluster in state.all_alive():
+    for cluster in state.select_alive():
         distance = float(np.linalg.norm(cluster.pos))
         count = _count_for_distance(rng, distance, cfg, cluster.radius)
         offsets = _ball(rng, count, cluster.radius)

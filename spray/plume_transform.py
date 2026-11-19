@@ -129,7 +129,7 @@ class PlumeTransform:
         clean = result.points_clean
         raycast = raycast_frame(
             clean,
-            state.all_alive(),
+            state.select_alive(),
             table=load_beam_table(),
             road_z_m=context.road_z_m,
             rng=np.random.default_rng(seed),

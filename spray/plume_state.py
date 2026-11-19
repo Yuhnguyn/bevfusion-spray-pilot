@@ -166,6 +166,13 @@ class PlumeStateConfig:
     # [QĐ13 2026-11-19] Hệ số tán xạ r(t) = r₀ + α·d_rel(t), d_rel = độ sâu cụm
     # sau mặt đuôi. 0,0 = tắt. Một α dùng chung cho mọi tốc độ (Lead chốt).
     diffusion_alpha: float = DIFFUSION_ALPHA
+    # [MIỀN — ADR-0006 §5.7] Giới hạn miền mô hình phát ngôn. Tất cả tắt = hành vi cũ,
+    # bit-for-bit. Bật bằng PLUME_PAPER_DOMAIN=1 (xem spray/plume.py).
+    #   min/max_range_m: paper §V-D đánh giá 0–50 m; §V cảnh báo mô hình cầu vỡ ở gần
+    #     cảm biến. Dữ liệu thật: r p01 = 2,75 m, chỉ 0,02 % điểm có r > 50 m.
+    #   diffusion_alpha: Fig. 5 cho r_cl là MỘT lognormal, không nở theo tuổi.
+    min_range_m: float = 0.0
+    max_range_m: float = float("inf")
     initial_vz_max_mps: float = INITIAL_VZ_MAX_MPS
     drag_mean: float = DRAG_MEAN
     drag_std: float = DRAG_STD
@@ -689,6 +696,37 @@ class PlumeState:
             for clusters in self._clusters.values()
             for cluster in clusters
         ]
+
+    def select_alive(self) -> list[SprayCluster]:
+        """Cụm còn sống VÀ nằm trong miền hợp lệ của mô hình (ADR-0006 §5.7).
+
+        Mặc định (``min_range_m = 0``, ``max_range_m = inf``) trả về đúng
+        ``all_alive()`` — đường nhanh, bit-for-bit hành vi cũ.
+
+        Hai biên đều có paper làm căn cứ:
+        - ``min_range_m``: paper §V cảnh báo *"with higher resolutions, a problem
+          with the spherical cluster representation might appear. The problem can
+          become especially pronounced in close proximity to the sensor"*; dữ liệu
+          thật không có ``label == 2`` dưới 2,5 m.
+        - ``max_range_m``: §V-D chỉ đánh giá 0–50 m, và ``P_det`` (Fig. 7) đo ở 25 m.
+
+        Khoảng cách là ``‖pos‖`` (3D, từ cảm biến). Vì ``‖pos‖ ≥ |x|``, biên này
+        bao hàm luôn "không trôi quá xa về phía sau": đo được chỉ cắt ``r ≤ 50``
+        đã cho ``x min = −49,4 m``, không cần biên sau riêng.
+        """
+        clusters = self.all_alive()
+        cfg = self._config
+        if cfg.min_range_m <= 0.0 and not np.isfinite(cfg.max_range_m):
+            return clusters
+        kept: list[SprayCluster] = []
+        for cluster in clusters:
+            distance = float(np.linalg.norm(cluster.pos))
+            if distance < cfg.min_range_m:
+                continue
+            if distance > cfg.max_range_m:
+                continue
+            kept.append(cluster)
+        return kept
 
     def _total_alive(self) -> int:
         return sum(len(clusters) for clusters in self._clusters.values())
