@@ -242,6 +242,10 @@ def run_gate_c(checkpoint):
         "--arms", "clean", "plume", "real",
         "--seed", "0",
         "--score-thresh", "0.2",
+        # [ADR-0006 §5.7] Cách A: nhánh plume chỉ phát trong miền paper đã kiểm chứng
+        # (diffusion_alpha=0, 2.5 <= |pos| <= 50 m, wfh lấy mẫu theo scene). Hai nhánh
+        # clean/real không đi qua generator nên không bị ảnh hưởng.
+        "--paper-domain",
         "--log-every", "50",
         "--out", str(OUT / "gate_c_detections.jsonl"),
     ]

@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import pickle
 import sys
 import time
@@ -547,6 +548,11 @@ def frame_indices(frames: list[dict]) -> list[int]:
 # Plume: call the production transform directly (not declared in any config).
 # --------------------------------------------------------------------------
 def make_plume_transform(args) -> PlumeTransform:
+    # [ADR-0006 §5.7] Cách A: chặn phát ngôn ngoài miền paper đã kiểm chứng.
+    # Đặt qua env vì `inject_plume_stateful` đọc env ở tầng dưới; cờ CLI chỉ là
+    # đường vào tiện dụng cho kernel (kernel không truyền env biến lạ).
+    if bool(getattr(args, "paper_domain", False)):
+        os.environ["PLUME_PAPER_DOMAIN"] = "1"
     wet_ground = WetGroundConfig(enabled=bool(args.wet_ground))
     return PlumeTransform(
         config=None,
@@ -993,7 +999,13 @@ def dry_run(args) -> int:
         "GATE_C_PLUME "
         f"transform=spray.plume_transform.PlumeTransform seed={args.seed} "
         f"epoch={args.epoch} wfh_mm={args.wfh_mm} road_z_m={args.road_z_m} "
-        f"wet_ground={int(args.wet_ground)} scenario=following"
+        f"wet_ground={int(args.wet_ground)} scenario=following "
+        f"paper_domain={int(bool(getattr(args, 'paper_domain', False)))}"
+        + (
+            " (Cách A: diffusion_alpha=0, 2.5<=|pos|<=50 m, wfh~Exp[0.1;1.2] per scene)"
+            if bool(getattr(args, "paper_domain", False))
+            else " (production: KHONG co mien, khong lay mau wfh)"
+        )
     )
 
     speeds: dict[int, int] = {}
@@ -1346,6 +1358,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="run the Hahner wet-ground stage (arm B uses it)")
     parser.add_argument("--no-wet-ground", dest="wet_ground", action="store_false",
                         help="disable the wet-ground stage (sensitivity only)")
+    parser.add_argument("--paper-domain", dest="paper_domain", action="store_true",
+                        default=False,
+                        help="[ADR-0006 §5.7 Cách A] chặn phát ngôn ngoài miền paper đã "
+                             "kiểm chứng: diffusion_alpha=0, 2.5 <= |pos| <= 50 m, "
+                             "wfh lấy mẫu theo scene")
     parser.add_argument("--legacy-channel4", dest="legacy_channel4",
                         action="store_true",
                         help="tái hiện lỗi cũ: nạp thẳng cột 4 của file .bin "

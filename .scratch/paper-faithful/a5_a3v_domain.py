@@ -193,7 +193,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=str(REPO / "data" / "SemanticSprayDataset"))
     ap.add_argument("--frames-per-scene", type=int, default=30)
-    ap.add_argument("--wfh-sampling", action="store_true",
+    ap.add_argument("--no-wfh-sampling", dest="wfh_sampling", action="store_false", default=True,
                     help="lấy mẫu wfh theo scene (§V); mặc định giữ 1,0 mm")
     ap.add_argument("--out", default=str(REPO / ".scratch/tmp/a5_domain.json"))
     args = ap.parse_args()
@@ -210,9 +210,10 @@ def main():
                                  args.wfh_sampling))
         print(f"  [{k}/{len(members)}] {scene['rel']} {scene['speed']} km/h", flush=True)
 
-    print(f"\n{'lớp':>8} {'band':>8} {'scene':>5} {'frame':>6} {'thật/f':>8} "
-          f"{'sinh/f':>8} {'median [CI95]':>22} {'R p05/p50/p95 (m)':>20} "
-          f"{'<3m':>5} {'x p01':>7} {'x min':>7}", flush=True)
+    print(f"\n{'class':>8} {'band':>8} {'scene':>5} {'frame':>6} {'real/f':>8} "
+          f"{'gen/f':>8} {'median [CI95]':>22} {'R p05/p50/p95 (m)':>20} "
+          f"{'<3 med':>6} {'<3 mean':>7} {'<3 max':>6} {'frames w/ <3m':>13} "
+          f"{'x p01':>7} {'x min':>7}", flush=True)
     summary = []
     for band, speeds in SPEED_BANDS:
         for cls in ("crafter", "golf"):
@@ -232,19 +233,27 @@ def main():
             r50 = np.nanmedian([f["r_p50"] for f in allf])
             r95 = np.nanmedian([f["r_p95"] for f in allf])
             lt3 = int(np.median([f["lt3"] for f in allf]))
+            lt3_max = int(max(f["lt3"] for f in allf))
+            lt3_mean = float(np.mean([f["lt3"] for f in allf]))
+            lt3_frames = int(sum(1 for f in allf if f["lt3"] > 0))
             xp = np.nanmedian([f["x_p01"] for f in allf])
             xm = np.nanmin([f["x_min"] for f in allf])
             print(f"{cls:>8} {band:>8} {len(sel):>5} {len(allf):>6} {real:8.1f} "
                   f"{gen:8.1f} {med:7.2f} [{lo:6.2f}; {hi:6.2f}] "
-                  f"{r05:6.1f}/{r50:5.1f}/{r95:5.1f} {lt3:5d} {xp:7.1f} {xm:7.1f}",
+                  f"{r05:6.1f}/{r50:5.1f}/{r95:5.1f} "
+                  f"{lt3:5d} {lt3_mean:5.1f} {lt3_max:4d} {lt3_frames:4d}/{len(allf):<4d} "
+                  f"{xp:7.1f} {xm:7.1f}",
                   flush=True)
             summary.append({"class": cls, "band": band, "n_scene": len(sel),
                             "n_frame": len(allf), "real_per_frame": real,
                             "gen_per_frame": gen, "median_ratio": med,
                             "ci95": [lo, hi], "r_p05": float(r05),
                             "r_p50": float(r50), "r_p95": float(r95),
-                            "det_lt3m": lt3, "x_p01": float(xp),
-                            "x_min": float(xm)})
+                            "det_lt3m_median": lt3,
+                            "det_lt3m_mean": lt3_mean,
+                            "det_lt3m_max": lt3_max,
+                            "frames_with_lt3m": lt3_frames,
+                            "x_p01": float(xp), "x_min": float(xm)})
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

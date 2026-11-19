@@ -710,7 +710,13 @@ class PlumeState:
           thật không có ``label == 2`` dưới 2,5 m.
         - ``max_range_m``: §V-D chỉ đánh giá 0–50 m, và ``P_det`` (Fig. 7) đo ở 25 m.
 
-        Khoảng cách là ``‖pos‖`` (3D, từ cảm biến). Vì ``‖pos‖ ≥ |x|``, biên này
+        ``min_range_m`` so với **mặt cầu** (``‖pos‖ − radius``), không phải tâm:
+        tâm cụm ở 3 m nhưng bán kính 2 m thì mặt cầu đã ở 1 m. Đo trên 40 frame
+        α = 0: lọc theo tâm để **7,3 %** cụm có mặt cầu dưới 2,5 m lọt qua, và 3
+        cụm có mặt cầu **xuyên qua** cảm biến. ``max_range_m`` so với tâm (đó là
+        đại lượng paper đánh giá ở Fig. 11/12).
+
+        Khoảng cách dùng ``‖pos‖`` (3D, từ cảm biến). Vì ``‖pos‖ ≥ |x|``, biên này
         bao hàm luôn "không trôi quá xa về phía sau": đo được chỉ cắt ``r ≤ 50``
         đã cho ``x min = −49,4 m``, không cần biên sau riêng.
         """
@@ -721,7 +727,7 @@ class PlumeState:
         kept: list[SprayCluster] = []
         for cluster in clusters:
             distance = float(np.linalg.norm(cluster.pos))
-            if distance < cfg.min_range_m:
+            if distance - float(cluster.radius) < cfg.min_range_m:
                 continue
             if distance > cfg.max_range_m:
                 continue
