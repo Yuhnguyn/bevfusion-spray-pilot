@@ -241,7 +241,7 @@ phải chỉnh tiêu chí cho dễ. Vẫn phải khai vì nó thay đổi văn b
 | # | Mở rộng | Tham số | Căn cứ |
 |---|---|---|---|
 | 1 | Bỏ `streak` (vệt kéo dài) | — | Cơ chế tự thêm, không có trong paper |
-| 2 | Tán xạ: `r(t) = r₀ + α·d_rel(t)` | α = 0,06 | `r_cl` của paper là *khoảng cách xa nhất từ tâm tới detection* — đại lượng đo ở nhiều tuổi plume ⇒ mô hình hoá tường minh sự nở theo tuổi là nhất quán. α hiệu chỉnh **chỉ từ** trail90 của RoadSpray static (6 / 44 / 52 m). User-approved 2026-11-19 |
+| 2 | Tán xạ: `r(t) = r₀ + α·d_rel(t)` | α = 0,06 **[CHỌN]** | `r_cl` của paper là *khoảng cách xa nhất từ tâm tới detection* — đại lượng đo ở nhiều tuổi plume ⇒ mô hình hoá tường minh sự nở theo tuổi là nhất quán. **α KHÔNG hiệu chỉnh thuần từ trail90**: kiểm chứng độc lập cho thấy trail90 **không phân biệt** được α ∈ [0,03; 0,08] (cả ba đều cho trail 41/49 m ở 100/130 km/h). α = 0,06 được chọn **[CHỌN]** đồng thời theo trail90 **và** điểm/frame (α = 0,03 làm det@100 = 0,42× trượt). User-approved 2026-11-19 |
 
 #### 5.3 Miền tin cậy và hệ quả downstream
 

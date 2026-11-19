@@ -1,6 +1,42 @@
 # HANDOFF — nhánh `sspp` (BEVFusion trên SemanticSpray++)
 
-Cập nhật: **2026-11-18 17:00** · nhánh `sspp` @ `2652f26` · tách từ `main` @ `f3fb7d2`.
+Cập nhật: **2026-11-19 14:15** · nhánh `sspp` @ `899f09d` · tách từ `main` @ `f3fb7d2`.
+
+## ⚠️ ĐỌC KHỐI NÀY TRƯỚC — trạng thái sau khi đóng A3 (2026-11-19)
+
+**A3 (generator phải khớp thống kê spray thật) đã nghiệm thu: KHÔNG ĐẠT.** Không đọc nhầm thành pass.
+
+| km/h | (a) điểm/frame | trail90 | (b') profile | (c) CI95 | verdict |
+|---|---:|---:|---:|---:|---|
+| 50 | 0,15× | 0,38× | 98 % | 11,3 % | **FAIL — ngoài miền** |
+| 100 | 0,71× ✓ | 0,91× ✓ | **268 %** | 5,8 % ✓ | FAIL |
+| 130 | 1,36× ✓ | 0,96× ✓ | **995 %** | 9,1 % ✓ | FAIL |
+
+- **Miền tin cậy: 100–130 km/h. ≤ 60 km/h NGOÀI MIỀN.** Nguyên nhân: `T = 0,02·wfh·(v−50)+0,2`
+  là `[CODE] dee.cpp:530` (tại v ≤ 50 ⇒ T = 0,2 s bất kể màng nước; dữ liệu đòi T ≈ 1,0 s;
+  paper chỉ cho T qua Fig. 6) ⇒ limitation của reference impl, **không sửa công thức**.
+- **Hai mở rộng ngoài paper đang dùng** (phải khai trong luận văn): (1) bỏ `streak`;
+  (2) tán xạ `r(t) = r₀ + α·d_rel`, **α = 0,06 [CHỌN]**, clip 4,0 m. User-approved 2026-11-19.
+- **Bảy lần "lệch toán tử"** đã tìm ra và ghi lại — chúng là tài sản lớn nhất của pha này:
+  điểm materialised → `RaycastResult.detections`; lưới tia 32×1800 → `load_beam_table()` 30×1825;
+  DBSCAN cả frame → trong lát Δ=1,0 m; detections cả frame → theo vùng đo; hình học cụm
+  sphere vs chuỗi (bỏ tiêu chí cụm); vùng bao cả thân xe → loại hộp 3D; **bối cảnh mô phỏng**
+  (ego chạy theo vs ego đứng yên) → kịch bản static.
+- **Bốn lỗi của Lead do worker bắt**: 2-seed là nhiễu (R3); chỉ thị sai dải 18–38 m (R1);
+  giả thuyết "68 % thân xe" sai (R2); tiêu chí (b') rỗng/vacuous (R1) — bản sửa làm kết quả
+  **xấu đi**, không phải goalpost-moving.
+- **Điều kiện dừng của `plan.md` §7 đã bị vượt** (lệch 6,7× ở 50 km/h) — quyết định đi tiếp có
+  trích dẫn user, ghi ở ADR §5.4. Mọi báo cáo từ cổng B trở đi phải kèm caveat này.
+- Tài liệu chuẩn: `docs/adr/0006-...md` **§5** (verdict + mở rộng + miền tin cậy),
+  `docs/measurements/plume-a3-diagnosis.md` **§7–§8**,
+  `docs/measurements/roadspray-static-depth-profile.md` (trail thật 6/44/52 m — target T4),
+  `docs/measurements/a3-parameter-provenance.md` (49 tham số, 9 PHẢI BỎ).
+- **Đang làm**: cổng C — `scripts/sspp_infer.py` (2 nhánh paired clean/plume, `--dry-run` chạy
+  local không cần mmcv) + `kaggle/gate_c/` + `docs/measurements/gate-c-runbook.md`.
+- **Cấm**: thêm bậc tự do thứ ba cho generator; đổi tiêu chí sau khi đã thấy số; dùng SSPP để
+  **chọn** tham số (SSPP chỉ để kiểm chứng — D2-chặt).
+- Trạng thái test: `pytest -q` → **208 passed**. Ba commit: `6cb75dc` · `23cb5bd` · `899f09d`.
+
 
 ## Đọc gì khi mở session mới (theo thứ tự, đừng đọc thêm)
 
