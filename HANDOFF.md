@@ -1,187 +1,245 @@
-# HANDOFF — nhánh `sspp` (BEVFusion trên SemanticSpray++)
+# HANDOFF — nhánh `sspp` (BEVFusion trên SemanticSpray++ + plume spray)
 
-Cập nhật: **2026-11-19 14:15** · nhánh `sspp` @ `899f09d` · tách từ `main` @ `f3fb7d2`.
+Cập nhật: **2026-11-19 18:20** · nhánh `sspp` · test: **213 passed** (không cần GPU).
+Kế hoạch thi công 6 giai đoạn: **`.scratch/roadspray-cal/plan.md`**. ADR chuẩn: **`docs/adr/0006-*.md`**.
 
-## ⚠️ ĐỌC KHỐI NÀY TRƯỚC — trạng thái sau khi đóng A3 (2026-11-19)
+---
 
-**A3 (generator phải khớp thống kê spray thật) đã nghiệm thu: KHÔNG ĐẠT.** Không đọc nhầm thành pass.
+## 0. ĐỌC KHỐI NÀY TRƯỚC (15 dòng)
 
-| km/h | (a) điểm/frame | trail90 | (b') profile | (c) CI95 | verdict |
-|---|---:|---:|---:|---:|---|
-| 50 | 0,15× | 0,38× | 98 % | 11,3 % | **FAIL — ngoài miền** |
-| 100 | 0,71× ✓ | 0,91× ✓ | **268 %** | 5,8 % ✓ | FAIL |
-| 130 | 1,36× ✓ | 0,96× ✓ | **995 %** | 9,1 % ✓ | FAIL |
+Câu hỏi dự án: **augmentation plume spray tổng hợp có làm detector 3DOD (BEVFusion LiDAR-only) tốt hơn trên
+SSPP không?** Generator sinh cụm spray lấy tham số từ paper Linnhoff 2022 (arXiv 2212.08558) + dữ liệu
+calibration RoadSpray `*_static`.
 
-- **Miền tin cậy: 100–130 km/h. ≤ 60 km/h NGOÀI MIỀN.** Nguyên nhân: `T = 0,02·wfh·(v−50)+0,2`
-  là `[CODE] dee.cpp:530` (tại v ≤ 50 ⇒ T = 0,2 s bất kể màng nước; dữ liệu đòi T ≈ 1,0 s;
-  paper chỉ cho T qua Fig. 6) ⇒ limitation của reference impl, **không sửa công thức**.
-- **Hai mở rộng ngoài paper đang dùng** (phải khai trong luận văn): (1) bỏ `streak`;
-  (2) tán xạ `r(t) = r₀ + α·d_rel`, **α = 0,06 [CHỌN]**, clip 4,0 m. User-approved 2026-11-19.
-- **Bảy lần "lệch toán tử"** đã tìm ra và ghi lại — chúng là tài sản lớn nhất của pha này:
-  điểm materialised → `RaycastResult.detections`; lưới tia 32×1800 → `load_beam_table()` 30×1825;
-  DBSCAN cả frame → trong lát Δ=1,0 m; detections cả frame → theo vùng đo; hình học cụm
-  sphere vs chuỗi (bỏ tiêu chí cụm); vùng bao cả thân xe → loại hộp 3D; **bối cảnh mô phỏng**
-  (ego chạy theo vs ego đứng yên) → kịch bản static.
-- **Bốn lỗi của Lead do worker bắt**: 2-seed là nhiễu (R3); chỉ thị sai dải 18–38 m (R1);
-  giả thuyết "68 % thân xe" sai (R2); tiêu chí (b') rỗng/vacuous (R1) — bản sửa làm kết quả
-  **xấu đi**, không phải goalpost-moving.
-- **Điều kiện dừng của `plan.md` §7 đã bị vượt** (lệch 6,7× ở 50 km/h) — quyết định đi tiếp có
-  trích dẫn user, ghi ở ADR §5.4. Mọi báo cáo từ cổng B trở đi phải kèm caveat này.
-- Tài liệu chuẩn: `docs/adr/0006-...md` **§5** (verdict + mở rộng + miền tin cậy),
-  `docs/measurements/plume-a3-diagnosis.md` **§7–§8**,
-  `docs/measurements/roadspray-static-depth-profile.md` (trail thật 6/44/52 m — target T4),
-  `docs/measurements/a3-parameter-provenance.md` (49 tham số, 9 PHẢI BỎ).
-- **Đang làm**: cổng C — `scripts/sspp_infer.py` (2 nhánh paired clean/plume, `--dry-run` chạy
-  local không cần mmcv) + `kaggle/gate_c/` + `docs/measurements/gate-c-runbook.md`.
-- **Cấm**: thêm bậc tự do thứ ba cho generator; đổi tiêu chí sau khi đã thấy số; dùng SSPP để
-  **chọn** tham số (SSPP chỉ để kiểm chứng — D2-chặt).
-- Trạng thái test: `pytest -q` → **208 passed**. Ba commit: `6cb75dc` · `23cb5bd` · `899f09d`.
+**Ba phán quyết hiện tại (đã pre-register trước khi đo, KHÔNG diễn giải lại):**
 
+| Cổng | Kết quả | Ghi chú |
+|---|---|---|
+| **A3** (generator khớp thống kê spray thật — kịch bản static) | **KHÔNG ĐẠT** | (a) det + trail đạt ở 100/130; (b') profile trượt; ≤60 km/h ngoài miền |
+| **A3-V** (kiểm chứng kịch bản following, 72 scene non-eval) | **FAIL 5/6 ô** | đậm hơn thật 2,7–4,6× @80–110, **8–17× @120–130** |
+| **Cổng C** (plume bơm vào frame sạch có hại detector không) | **HƯỚNG TRAIN CHẾT** | plume ↑FP **+0,299** nhưng **recall −0,268**; spray thật chỉ −0,049 |
 
-## Đọc gì khi mở session mới (theo thứ tự, đừng đọc thêm)
+**Nguyên nhân gốc đã chẩn đoán (quan trọng nhất):** near-field. Ở kịch bản following, cụm bị drag làm rơi lùi
+rồi **trôi ngược xuyên qua cảm biến**; mô hình ray-cast quả cầu cho số detection ∝ `(r/R)²` ⇒ **bùng nổ** khi
+`R→0` (48 % detection sinh ở range <4 m, trong khi dữ liệu thật **không có** spray nào dưới 2,5 m). Plume tạo
+**"tấm màn" trước cảm biến**, che chiếc xe ở 22–25 m ⇒ recall sụp.
 
-1. `README.md` — 2 phút, biết dự án hỏi gì.
-2. `docs/PROJECT.md` — câu hỏi, phạm vi, số đo, sổ quyết định, chốt chặn.
-3. `.hermes/plans/2026-11-13_171500-sspp-plan-ngan.md` — 5 bước thi công.
-4. Chỉ file đang làm, không đọc lại toàn repo.
+**Câu hỏi mở duy nhất còn lại:** nếu **cull cụm ở <25 m** (biên paper dùng để hiệu chỉnh) rồi chạy lại cổng C,
+plume có hại **ngang spray thật** không? Nếu có ⇒ augmentation hợp lệ, câu hỏi train mới có nghĩa. Nếu không ⇒
+kết luận trung thực: mô hình paper không dùng được cho bộ dữ liệu này.
 
-## Nhánh này là gì
+**Phát hiện quan trọng cho motivation:** spray **thật** chỉ làm mất **4,9 điểm recall** ⇒ **trần lợi ích** của mọi
+augmentation spray trên benchmark này là rất nhỏ. Phải nêu ngay ở phần motivation, không để ở phần kết quả âm.
 
-`main` = hướng cũ: detection trên **nuScenes** + plume tổng hợp, kết quả **null**, đóng lại làm
-bản đối chứng. `sspp` = hướng mới: detection trên **SemanticSpray++** (spray thật, box thật),
-chỉ LiDAR-only.
+---
 
-Lý do đảo ngược: `docs/adr/0005-sspp-as-detection-domain.md`. Bản ADR cũ nói ngược lại
-(`0003`) đã xoá khỏi nhánh này nhưng còn trong lịch sử: `git show main:docs/adr/0003-*`.
+## 1. Ba kết quả chi tiết
 
-## Trạng thái
+### 1.1 A3 — kịch bản static (ego đứng yên, xe chạy ra xa), 8 seed
+Đo bằng `scripts/measure_plume_size_tail.py`. Vùng 0–60 m sau đuôi, mask `|y|≤5 m`, `0≤z−road_z≤3 m`.
 
-- Test: **207 passed** (không cần GPU).
-- **Chưa có kết quả detector nào.** Mọi số trong `docs/measurements/*.md` là đo trên dataset.
-- Đổi protocol xong (`docs/adr/0006-…`): eval = **3-fold leave-speed-out trên 36 scene** (pooled n=36);
-  calibration từ **RoadSpray `*_static`**; criterion = effect size + CI95 thay vì pass/fail.
-  Kế hoạch thi công hiện hành: **`.scratch/roadspray-cal/plan.md`** (6 giai đoạn A–F).
-- **Giai đoạn A:** A1 ✅ (`8cc9207`) · A2 ✅ (`f9c8b44`) · **A3 = 2/3 tốc độ đạt, hạn chế đã khai**
-  (xem dưới) · **A4 ✅** (`95aa118`, `tests/test_sspp_plume_integration.py`, đã chứng minh test bắt
-  được bug "box[2] = tâm": cài bug thì đỏ, phục hồi thì xanh).
-- **A3 — RÚT LẠI (2026-11-19 tối): dụng cụ cũ đo sai tầng, mọi phán quyết trước vô hiệu.**
-  User bắt được trong clip: generator vẽ "cụm tròn" = tầng vật chất hoá `ring=-1` mà
-  `spray/raycast.py:117` loại khỏi giao tia ⇒ vô hiệu với detector. Đo lại ở tầng
-  `RaycastResult.detections`: **det/frame 4 / 274 / 74** ở 50/100/130 vs thật
-  **43 / 875 / 592** ⇒ **FAIL cả 3 tốc độ** (thiếu 10× / 3,2× / 8×). Cơ chế: cụm nhỏ → ít tia →
-  `P_det` (median ≈ 0,1) hạ gần hết; và "cầu sống" ≠ "detection-cluster" (bảng `visible` đang bị
-  dùng làm số cầu). Việc A3 đích thực: **đóng vòng hiệu chỉnh ở tầng detector**
-  (simulate-and-match trên det/frame + cụm/frame với núm = số cầu sống,
-  bán kính cầu, P_det) — tầng vật chất hoá không còn là núm.
-  Doc: `docs/measurements/{plume-a3-diagnosis,sspp-cluster-radius-by-speed}.md` (lưu ý: hai doc này đo ở tầng vô hiệu — đã chú thích trong plan §A3).
-- **V2 (calibration leak) — XONG cả đo lẫn code:**
-  - `_CLUSTER_VISIBLE_BY_SPEED` đã thay bằng bảng **RoadSpray static** cho cả Crafter và Golf
-    (9 bag/lớp/tốc độ; đối chứng âm phía trước xe = 0,0 cụm/frame):
-    Crafter 6,0 / 13,2 / 19,0 / 26,7 / 24,8 / 25,7 / 27,4 / 20,6 / 22,2 (50→130 km/h);
-    Golf 4,7 / 8,8 / 13,2 / 17,8 / 20,9 / 22,6 / 22,0 / 25,8 / 25,2.
-  - Kiểm chứng chéo: Crafter tỉ lệ **1,15×**, **r = 0,94** so với bảng SSPP cũ; bảng per-fold không
-    leak khớp r = 0,77 → `docs/measurements/{roadspray-static-clusters-by-speed,sspp-cluster-table-folds}.md`.
-  - Dải bất định **±30–40 %** (do định nghĩa vùng, không do mẫu) — cổng B phải đọc cùng dải này.
+| km/h | điểm/frame ± CI95 | tỉ lệ (a) | trail90 | tỉ lệ | profile (b') lệch max | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| 50 | 13,0 ±11,3 % | **0,15×** | 2,2 m | **0,38×** | 98 % | FAIL — ngoài miền |
+| 100 | 144,0 ±5,8 % | 0,71× ✅ | 40,2 m | 0,91× ✅ | **268 %** | FAIL |
+| 130 | 283,4 ±9,1 % | 1,36× ✅ | 49,8 m | 0,96× ✅ | **995 %** | FAIL |
 
-## Đang dừng ở đâu (cập nhật 2026-11-19 10:15)
+Nguyên nhân ≤60 km/h: công thức lifetime `T = 0,02·wfh·(v−50)+0,2` là `[CODE] dee.cpp:530`; tại `v ≤ 50` cho
+`T = 0,2 s` **bất kể màng nước**, trong khi dữ liệu đòi `T ≈ 1,0 s`. Paper chỉ định nghĩa T qua **Fig. 6**,
+không cho công thức ⇒ **limitation của reference impl, không sửa**.
 
-Dữ liệu RoadSpray đã đủ (Crafter + Golf static). A3/A4 xong phần làm được. **Việc tiếp theo là
-cổng C — và nó phải chạy trên Kaggle**, vì `[ĐO]` máy này có `torch 2.2.2` nhưng **không** có
-`mmcv` / `mmdet` / `mmdet3d` nên không dựng được BEVFusion. Kế hoạch thi hành chi tiết (tái dùng
-cell bootstrap nào của nhánh `main`, viết gì mới, tiêu chí xong) ở `.scratch/roadspray-cal/plan.md`
-§"Giai đoạn C → C1 — kế hoạch thi hành".
+### 1.2 A3-V — kịch bản following (production), tập B = 72 scene **không bao giờ nằm trong eval**
+Đo bằng `scripts/measure_following_scenario.py --frames-per-scene 30`. Metric pre-registered:
+`median_frame(det_sinh / det_thật)` trong 0–60 m sau box xe dẫn; PASS khi median ∈ [0,5; 2,0] **và** CI95 nằm trọn.
 
-Việc tiếp theo:
+| lớp | 50–70 | 80–110 | 120–130 |
+|---|---:|---:|---:|
+| Crafter | 1,98 [1,58; 2,60] | 2,73 [2,30; 3,14] | **16,92 [13,88; 20,88]** |
+| Golf | 0,86 [0,51; 1,68] | 4,63 [3,97; 5,73] | 8,02 [6,07; 11,64] |
 
-1. **A3 — đã chốt đích, chưa sửa code.** Đích = **T2 theo cấu trúc** (xem plan §2 A3 +
-   `docs/measurements/sspp-cluster-size-distribution.md`): phân bố thật **hai đỉnh** — điểm/cụm p50 =
-   5–7 ở mọi tốc độ (generator đã khớp) nhưng tỉ lệ điểm trong cụm ≥50 điểm tăng 15 % → 85 % khi tốc
-   độ 50 → 130 (generator: **0 %**). Thiếu **cơ chế chuỗi**, không phải thiếu cụm to. Tiêu chí xong:
-   `% điểm trong cụm ≥50 đ` lệch ≤10 điểm %, `p95` trong khoảng thật, `cụm/frame` không đổi.
-2. **A4** (test tích hợp box convention) → cổng B (`sinh/thật ∈ [0,7; 1,5]`) → **cổng C (quan trọng
-   nhất: plume phải làm tăng FP của detector; 0 GPU, có thể giết cả hướng train)** → D/E/F.
+Near-field: `%det <10 m` = 39,6–81,5 %; `<4 m` = 15,9–49,2 %. Doc: `docs/measurements/following-scenario-density.md`.
 
-## Việc kế tiếp (đã rút gọn — chi tiết ở §"Đang dừng ở đâu")
+### 1.3 Cổng C — detector thật, 954 frame × 3 nhánh paired, τ=0,20 (chốt trước)
+Kernel `nguynhuy9669/bevfusion-gate-c-full-ch4fix` (**VALID**, 22 phút). Doc: `gate-c-runbook.md` §7c.
 
-Đọc `.scratch/roadspray-cal/plan.md` §2. Thứ tự: **đưa bảng calibration vào code** → **A3** (đuôi
-phân bố) → **A4** (test tích hợp box convention) → chốt chặn A → B (sinh vs thật) →
-**C (plume phải làm tăng FP của detector — cửa chặn quan trọng nhất, 0 GPU)** → D → E → F (chỉ F cần GPU).
+| nhánh | FP/frame | recall | % frame có FP |
+|---|---:|---:|---:|
+| clean (bỏ `label==2`) | 1,018 | **0,821** | 56,1 % |
+| **plume** (bơm tổng hợp) | 1,288 | **0,570** | 66,0 % |
+| **real** (giữ spray thật) | 1,243 | **0,777** | 63,1 % |
 
-Chốt chặn A: `pytest -q tests/` xanh **và** A1/A2/A4 có test mới. Không sang B khi chưa đạt.
+| so sánh | ΔFP [CI95] | Δrecall [CI95] |
+|---|---|---|
+| plume − clean | +0,299 [+0,123; +0,494] | **−0,268 [−0,372; −0,174]** |
+| real − clean | +0,268 [+0,147; +0,397] | **−0,049 [−0,083; −0,019]** |
+| plume − real | +0,031 [−0,126; +0,183] | **−0,219 [−0,301; −0,146]** |
 
-Ba thứ dễ sai khi làm adapter/split, đã đo sẵn:
+⇒ TC1 (plume ↑FP) ĐẠT; TC2 (recall ≥ −0,02) TRƯỢT NẶNG ⇒ **theo pre-register: DỪNG hướng train**.
+Nhưng **plume ≈ real về FP** và **tệ hơn real về recall** ⇒ lỗi là **mô hình** (mật độ/near-field), không phải
+bản chất spray.
 
-1. `z' = center3D.z − size3D.z/2` — đáy hộp, không phải tâm. Kiểm: box đầu `Crafter_dynamic/0000`
-   cho `−0,4113`, đúng mặt đường.
-2. `box_dim` phải là **9** (7 hình học + 2 vận tốc), không phải 7.
-3. `poses.txt` **không có tịnh tiến** → tốc độ ego đọc từ `metadata.txt` cột `ego_velocity`.
+### 1.4 CDF theo cự ly — đúng thước Paper A Fig. 12
+`scripts/measure_cdf_over_range.py`; doc `docs/measurements/cdf-over-range-vs-paper.md`.
 
-Dữ liệu RoadSpray đã có trong `data/roadspray/` (gitignored):
+- **Following:** KS **0,24–0,43**, lệch ghim ở **0–15 m**; ≥80 km/h sinh **gần hơn** thật 3,1–4,7 m; 50–70 km/h
+  sinh **xa hơn** 1,6–6,5 m (ngược dấu với lệch mà paper tự chấp nhận ở 80–110).
+- **Static:** KS 0,69–0,90 **nhưng do lỗi dựng kịch bản** (box đứng yên trong warm_start ⇒ 45 % detection frame 0
+  nằm **trước** mặt đuôi) ⇒ **không dùng làm bằng chứng**.
 
-| File | Byte | Trạng thái |
-|---|---:|---|
-| `Crafter_static.zip` | 7 924 255 130 | ✅ khớp release, 163 bag |
-| `Crafter_dynamic.zip` | 6 127 018 713 | ✅ khớp release, 108 bag |
-| `meta_data_measurement.xlsx` | 26 774 | ✅ 549 dòng — **có tốc độ + mức nước từng bag, không cần decode ADMA** |
-| `meta_data_dataset.json` | 2 517 | ✅ transform tĩnh của 5 cảm biến |
-| `Experiment_Setup.zip` | 8 223 416 | ✅ |
-| `Golf_static.zip.part` | 85 102 592 / 5 460 144 118 | ⏸ **dở** — xem §"Đang dừng ở đâu" |
-| `Golf_dynamic.zip` | 6 009 340 245 | 📦 còn ở `~/Downloads/`, chưa copy vào `data/` |
+---
 
-`Golf_dynamic` là **kịch bản following** (ego bám sau 20/30 m) — **không** dùng để calibrate (paper
-calibrate ở kịch bản passing = `*_static`). Nó chỉ cần cho việc dựng lại SSPP và kiểm tra chéo.
+## 2. Cơ chế gốc — đọc kỹ trước khi sửa bất cứ gì
 
-## Lệnh chạy test
+1. **Định luật tỉ lệ theo cự ly của mô hình sai.** Ray-cast quả cầu cho detections ∝ `(r/R)²` ⇒ bùng nổ ở gần,
+   vô hình ở xa. Vật lý của đám hạt quang học mỏng cho detections ∝ `r³`, **không phụ thuộc R**.
+   Đo được: `n(R)` gần phẳng (`b_n = −0,112`), `r` đo được lại tăng `∝ R^0,415` (vì gom cụm bằng ngưỡng góc 0,7°).
+2. **Bảng tia production chỉ phủ FOV 9,94°** (`ELEVATION_MIN=-4.06`, `MAX=+5.88`, 30 ring) — đúng "central
+   elevation FOV" mà paper nói (`L368–372`) và đúng cho frame train (97,2 % điểm SSPP nằm trong FOV), **nhưng**
+   khiến **40,8 % cụm thật** (toàn bộ ở R<6 m) có `n_max = 0` ⇒ near-field **không có tia nào**.
+3. **`P_det = n/n_max` (paper Eq. 7) chỉ được đo ở 25 m.** Dùng như hằng số ở cự ly khác là **giả định của ta**,
+   paper không nói. Đo lại: `b = +0,222 [−0,135; +0,547]` (không phân biệt được với 0) ⇒ **`P_det(R)` không cứu được
+   near-field**; đã cài thành **opt-in, default 0,0** (`pdet_range_exponent`, tái lập bit-for-bit số cũ).
+4. **D2-v2 (hiệu chỉnh trên train-only) đã FAIL 4/6 ô** — vì lệch **không phải hằng số tỉ lệ** (dải 0,76→13,4×).
+   `spawn_scale` **giữ 1,0** trong production.
+
+---
+
+## 3. Việc tiếp theo, theo thứ tự (chưa làm)
+
+1. **Cull near-field**: thêm `near_field_cull_m = 25.0` vào `spray/plume_state.py` prune (default 25; `∞`/`0` = tắt
+   để tái lập số cũ; assert bit-for-bit khi tắt). **25 m = khoảng cách paper dùng để hiệu chỉnh** (`P_det` Fig. 7),
+   không phải số tự chọn; **phải pre-register vào ADR trước khi đo**.
+2. **Pre-register mới cho cổng C** (ghi vào ADR trước khi chạy): plume ↑FP với CI95 không chứa 0 **VÀ**
+   `Δrecall(plume−clean)` không khác `Δrecall(real−clean)` quá 0,05 (vì `real−clean = −0,049` là mức spray thật tự gây).
+3. Chạy lại **A3-V** (CDF 0–15 m phải hết "tấm màn") rồi **cổng C đầy đủ** (~22 phút kernel) theo pre-register mới.
+4. Nếu plume ≈ real ⇒ augmentation hợp lệ ⇒ có thể sang **F** (train). Nếu không ⇒ dừng, viết kết luận âm tính.
+5. Hai nhánh phụ chẩn đoán cơ chế (nếu cần tách bạch): `plume_no_atten` (tắt attenuation) và `plume_far`
+   (chỉ bơm cụm ≥10 m) — mỗi nhánh ~22 phút.
+
+---
+
+## 4. Bản đồ tài liệu
+
+| File | Nội dung |
+|---|---|
+| `docs/adr/0006-detection-protocol-and-calibration-source.md` | **ADR chuẩn**: §1–4 protocol; §5.1–5.6 A3 (verdict, 2 mở rộng, miền tin cậy, vượt điều kiện dừng, kiểm chứng độc lập, khoảng trống nghiệm thu↔production); **A3-V** (pre-registered + verdict); **D2-v2** |
+| `docs/measurements/plume-a3-diagnosis.md` | §6–8: 4 lần lệch toán tử, QĐ7–QĐ14, verdict A3, lỗi định nghĩa (b') |
+| `docs/measurements/roadspray-static-depth-profile.md` | **T4**: trail thật 0–60 m = 6,0/44,0/52,0 m; %mass≤20 m; body-box |
+| `docs/measurements/following-scenario-density.md` | **A3-V**: đo following + D2-v2 fit/verify (§7) |
+| `docs/measurements/pdet-vs-range.md` | **P_det(R)**: b=+0,222, 40,8 % cụm `n_max=0`, phụ lục §11 |
+| `docs/measurements/cdf-over-range-vs-paper.md` | **CDF Fig. 12**: KS 0,24–0,43 (following) |
+| `docs/measurements/gate-c-runbook.md` | **Cổng C**: 3 bug pointpillars, model0≠pointpillars, **§7b INVALID**, **§7c kết quả VALID** |
+| `docs/measurements/model0-blindness-diagnosis.md` | **Lỗi kênh 4** + verify 5 frame (trước/sau) |
+| `docs/measurements/a3-parameter-provenance.md` | Audit 49 tham số: 9 PHẢI BỎ |
+| `docs/reference/paper-validation-protocol.md` | 17 trích dẫn: paper **không có** validation plume cho ego chạy |
+
+Scripts đo: `measure_plume_size_tail.py` (A3) · `measure_following_scenario.py` (A3-V) · `measure_pdet_vs_range.py` ·
+`measure_cdf_over_range.py` · `roadspray_static_depth_profile.py` (T4) · `sspp_infer.py` (cổng C) ·
+`visualize_plume_vs_real.py` (clip so sánh).
+
+---
+
+## 5. Lệnh tái lập
 
 ```bash
-cd /Users/huynguyen/projects/bevfusion-spray-pilot
-CONDA_NO_PLUGINS=true env -u PYTHONPATH /opt/anaconda3/bin/python -m pytest -q tests/
-# 203 passed
+cd <repo>
+export PY="CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=."
+eval $PY /opt/anaconda3/bin/python -m pytest -q tests          # 213 passed
+
+eval $PY /opt/anaconda3/bin/python scripts/measure_plume_size_tail.py        # A3, 8 seed × 120 frame
+eval $PY /opt/anaconda3/bin/python scripts/measure_following_scenario.py --frames-per-scene 30   # A3-V
+eval $PY /opt/anaconda3/bin/python scripts/measure_pdet_vs_range.py          # P_det(R)
+eval $PY /opt/anaconda3/bin/python scripts/measure_cdf_over_range.py --help  # CDF (nhiều mode)
+eval $PY /opt/anaconda3/bin/python scripts/sspp_infer.py --dry-run           # cổng C plumbing (không cần mmcv)
 ```
 
-Thiếu `env -u PYTHONPATH` thì numpy của venv Python 3.14 bị nạp vào Python 3.11 và toàn bộ test
-lỗi import.
+Cổng C trên Kaggle (local **không có** mmcv/mmdet/mmdet3d):
 
-## Dựng lại máy khác
+| Kernel | Trạng thái |
+|---|---|
+| `nguynhuy9669/bevfusion-gate-c-plume-vs-detector` | v4 **INVALID** (lỗi kênh 4) |
+| `nguynhuy9669/bevfusion-gate-c-verify5-channel4-fix` | PASS verify 5 frame |
+| `nguynhuy9669/bevfusion-gate-c-full-ch4fix` | **VALID** — kết quả §1.3 |
+
+Dataset private: `sspp-gate-c-code` (re-version khi code đổi), `sspp-gate-c-data`.
+Lấy output: `kaggle kernels output <id> -p /tmp/out`.
+
+---
+
+## 6. Dựng lại trên máy khác
 
 ```bash
 git clone https://github.com/Yuhnguyn/bevfusion-spray-pilot.git && cd bevfusion-spray-pilot
 git checkout sspp
-git clone https://github.com/mit-han-lab/bevfusion.git mit/bevfusion   # gitignored, pin bắt buộc
-git -C mit/bevfusion checkout da93b27                                   # mit/PIN.md
+git clone https://github.com/mit-han-lab/bevfusion.git mit/bevfusion   # gitignored
+git -C mit/bevfusion checkout da93b27                                  # pin bắt buộc (mit/PIN.md)
 ```
 
-Dataset SemanticSpray++ (31 GB) tải bằng `scripts/fetch_semantic_spray.py`, đặt vào
-`data/SemanticSprayDataset`. Checkpoint `lidar-only-det.pth` (33.362.653 byte) tải theo
-`docs/PROJECT.md` §7.
+| Cần gì | Ở đâu |
+|---|---|
+| SSPP (31 GB) | `scripts/fetch_semantic_spray.py` → `data/SemanticSprayDataset` |
+| RoadSpray static (zip) | `data/roadspray/*.zip` (**gitignored**, phải tải lại: Crafter_static 7 924 255 130 B, Golf_static 5 460 144 118 B, `meta_data_measurement.xlsx`) |
+| `lidar-only-det.pth` (33 362 653 B) | `data/lidar-only-det.pth` — tải theo `docs/PROJECT.md` §7 |
+| `mmcv`/`mmdet`/`mmdet3d` | **không cài local** — chỉ cần cho Kaggle |
+| Python | `/opt/anaconda3/bin/python` (torch 2.2.2 CPU, numpy 1.26) |
 
-## Cấu trúc còn lại
+⚠️ **Không có** `kaggle/gate_c/bundles/` trong repo (đã gitignore, là build artifact): tạo lại bằng
+`python kaggle/gate_c/make_bundles.py`. Bundle chứa bản copy repo + checkpoint (68 MB).
 
-```
-spray/        10 module sinh plume + 3 module đo spray thật
-proxy_eval/   matcher (BEV IoU) + bootstrap (theo scene)
-scripts/      3 script: fetch / split / stats
-docs/         PROJECT.md + ADR 0001, 0005 + 3 measurement + 1 reference
-tests/        23 file, 203 test, không cần GPU
-mit/          working copy pin da93b27 (gitignored, PIN.md tracked)
-data/         SemanticSprayDataset 31 GB (gitignored)
-```
+---
 
-## Bẫy đã trả giá (giữ từ nhánh cũ, còn đúng)
+## 7. CẤM — những việc đã gây hại và đã ghi vào ADR
 
-1. **Đọc tên file config rồi suy ra nội dung** — sai 2 lần ở nhánh cũ. Luôn mở file.
-2. **Tin marker xanh một mình** — `E2E_OK` từng xanh giả vì 4 test bị skip. Phải thấy đúng số test.
-3. **`timeout` không tồn tại** trên shell macOS mặc định.
-4. **Bootstrap theo scene, không theo frame** — thêm frame trong cùng scene không thu hẹp CI.
-5. **Median ≠ mean** khi đặt tiêu chí. Trên spray thật: p50 = 6 điểm/cụm nhưng mean = 43,3.
-   Dùng p50 làm ngưỡng, đừng dùng mean.
-6. **`z` đáy box không phải tâm** — nhầm một lần là hộp lơ lửng trên nóc xe.
+1. **Không thêm bậc tự do thứ ba** cho generator. Hai mở rộng ngoài paper đã khai là **đủ**: (a) bỏ `streak`;
+   (b) tán xạ `r(t) = r₀ + α·d_rel`, **α = 0,06**.
+2. **Không đổi tiêu chí/ngưỡng sau khi đã thấy số.** Mọi ngưỡng phải ghi vào ADR **trước** khi đo.
+3. **Không dùng SSPP để CHỌN tham số** (D2-chặt): SSPP chỉ để **kiểm chứng**. Ngoại lệ duy nhất đã được duyệt
+   là D2-v2 (1 hệ số, fit 2/3 – verify 1/3, `assert fit ∩ eval = ∅`) — và nó **đã FAIL**, nên giữ `spawn_scale = 1,0`.
+4. **Không "sửa cho khớp số"**: nếu kết quả xấu, ghi limitation và dừng.
+5. **Không tin số cổng C trước commit `f4c6669`** — model bị nạp sai kênh 4, mọi số FP/recall trước đó vô hiệu.
+6. **Không đọc chênh lệch < 25 %** trong các phép đo plume: sai số cửa sổ đã là 12–22 %.
 
-## Lấy lại thứ đã xoá
+---
 
-```bash
-git checkout main -- <path>                        # một file
-git checkout main -- .scratch/spray-augmentation/  # board 48 ticket cũ
-git show main:docs/adr/0003-semantic-spray-eval-only.md
-git show main:kaggle/train/ab_eval.py              # eval A/B cũ
-```
+## 8. Bẫy đã trả giá — 11 lần "lệch toán tử" (mỗi lần đều làm kết luận cũ vô hiệu)
+
+1. Đo trên tầng điểm materialised (`ring=−1`) thay vì `RaycastResult.detections`.
+2. Lưới tia tự dựng 32×1800 thay vì `load_beam_table()` production.
+3. DBSCAN cả frame vs DBSCAN trong lát Δ=1,0 m.
+4. Detections cả frame vs trong hộp đo.
+5. Hình học cụm: sphere model vs chuỗi điểm dày (⇒ bỏ tiêu chí cụm).
+6. Vùng bao cả thân xe (giả thuyết "68 % thân xe" **sai** — kiểm hình học chỉ 14 %).
+7. **Bối cảnh mô phỏng**: ego chạy theo vs ego đứng yên (⇒ near-field bùng nổ).
+8. **`P_det` dùng như hằng số ở cự ly khác 25 m**.
+9. **Kênh 4**: nuScenes cột 4 = time-lag; `.bin` SSPP cột 4 = ring ⇒ model **mù** (TP=0/954). *Lỗi tốn kém nhất.*
+10. **Bảng tia 9,94°** ⇒ 40,8 % cụm thật vô hình.
+11. **Warm_start dựng lịch sử với box đứng yên** ⇒ detection nằm trước mặt đuôi.
+
+**Bài học chung:** mỗi khi kết quả "quá xấu và quá hợp lý", **nghi dụng cụ trước khi nghi khoa học**.
+Và: mỗi tiêu chí phải ghi rõ **đo bằng toán tử nào**, hai vế phải dùng **cùng một toán tử**.
+
+---
+
+## 9. Trạng thái dữ liệu (gitignored)
+
+| File | Byte | Trạng thái |
+|---|---:|---|
+| `data/SemanticSprayDataset` | 31 GB | ✅ 207 scene (36 có box / 2.587 frame) |
+| `data/roadspray/Crafter_static.zip` | 7 924 255 130 | ✅ 163 bag |
+| `data/roadspray/Golf_static.zip` | 5 460 144 118 | ✅ 171 bag |
+| `data/roadspray/Crafter_dynamic.zip` | 6 127 018 713 | ✅ 108 bag |
+| `data/roadspray/meta_data_measurement.xlsx` | 26 774 | ✅ 549 dòng |
+| `data/lidar-only-det.pth` | 33 362 653 | ✅ checkpoint Model 0 (`voxelnet_0p075`, 10 class nuScenes) |
+| `mit/bevfusion` | — | ✅ clone, pin `da93b27` |
+
+---
+
+## 10. Bẫy môi trường (giữ từ nhánh cũ)
+
+1. Phải có `env -u PYTHONPATH`, không thì numpy của venv Python 3.14 bị nạp vào Python 3.11.
+2. `timeout` **không tồn tại** trên shell macOS mặc định.
+3. `ps` bị sandbox chặn; dùng `job_list` để xem tiến trình.
+4. Matplotlib cần `MPLCONFIGDIR=/tmp/mplc` (home không ghi được).
+5. Không giải nén cả zip RoadSpray ra đĩa (7,9 GB) — stream 1 bag tại một thời điểm vào `.scratch/tmp/`.
+6. `box[2]` là **đáy** hộp (không phải tâm); `box_dim` = **9** (7 hình học + 2 vận tốc).
+7. Ảnh: agent phải dùng model **có đầu vào hình ảnh** mới `read_image` được; model text-only sẽ báo lỗi.

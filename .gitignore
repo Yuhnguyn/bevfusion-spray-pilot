@@ -36,3 +36,6 @@ graphify-out/
 .scratch/*/tmp/**/*.bag
 .scratch/*/tmp/**/*.xlsx
 .scratch/roadspray-fit/tmp/full_*.json
+
+# Build artifact cua Kaggle bundle (tao lai bang kaggle/gate_c/make_bundles.py)
+kaggle/*/bundles/
