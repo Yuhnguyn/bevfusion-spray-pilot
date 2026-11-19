@@ -1,9 +1,12 @@
 # Model 0 mù trên SSPP — lỗi harness hay domain gap?
 
-2026-11-19 · subagent chẩn đoán · nhánh `sspp` · chỉ đọc, không sửa code.
+2026-11-19 · subagent chẩn đoán · nhánh `sspp` · §0–§6 chỉ đọc, không sửa code.
 Nguồn số: `gate_c_detections.jsonl` + `_summary.json` của kernel v4
 (`/tmp/gate_c_out/gate_c_out/`), 954 frame × 3 nhánh, τ = 0,20.
 Script đo tạm: `.scratch/tmp/diag_{a2,geom,det,stats,near}.py`.
+**Cập nhật 2026-11-19 (subagent verify):** đã sửa `detect()` và **verify trên Kaggle**
+— kết quả ở §7 (TP 0/5 → 5/5). Các số §1–§6 là *trước khi sửa*, giữ nguyên làm
+bằng chứng chẩn đoán.
 
 ---
 
@@ -24,6 +27,10 @@ của file `.bin` (`x, y, z, intensity, ring`) vào model. Config dùng
 model** — cột ring thay chỗ time-lag.
 
 Đây là lỗi "rẻ tiền" đúng loại Lead nghi ngờ, và nó đủ mạnh để giải thích TP=0.
+
+**(ii) Đã verify trên Kaggle sau khi sửa: đúng là nguyên nhân.** 5 frame
+`Crafter_dynamic` 90/130 km/h, cùng seed, cùng kernel: trước sửa TP 0/5, max
+score 0,146; sau sửa **TP 5/5, recall@τ=0,20 = 1,00, max score 0,563** (§7).
 
 ---
 
@@ -123,7 +130,7 @@ không đo tác dụng của plume.
 
 ---
 
-## 5. Kế hoạch test trên Kaggle (~15–20 phút GPU, CHƯA chạy — chờ Lead duyệt)
+## 5. Kế hoạch test trên Kaggle (đã chạy 2026-11-19 — kết quả ở §7)
 
 1. Patch tạm trong `.scratch/tmp/` (không sửa `scripts/`): bản `detect()` đặt
    `array[:,4]=0`, in thêm `ring mean/max` và `max score` mỗi frame.
@@ -156,3 +163,73 @@ không đo tác dụng của plume.
 | Tâm detection gần GT nhất | p50 23,7 m · p95 33,6 m |
 | `conv_input` RMS theo kênh | 0,096 / 0,097 / 0,146 / 0,135 / **0,874** |
 | BN1d `running_var` mean (lớp đầu) | 121,7 (σ ≈ 10,1) |
+
+---
+
+## 7. Verify trên Kaggle (2026-11-19) — đã chạy, PASS
+
+Kernel `nguynhuy9669/bevfusion-gate-c-verify5-channel4-fix` **version 1 = COMPLETE**
+(push 15:35, xong 15:48; `elapsed_s = 584` ≈ 9,7 phút GPU, nhanh hơn ước tính
+26 phút — cùng recipe nhưng máy này tải wheel nhanh; `OPS_OK`, `mmdet3d` import
+được, `chain=7`, `missing=0`, `unexpected=0`).
+Nguồn số của §7: **[ĐO]** — log + `verify5_table.json` của kernel đó
+(`.scratch/tmp/verify5_out/verify5_out/`).
+Cùng một kernel chạy **3 chế độ × 5 frame × 1 nhánh (`clean`)** bằng chính CLI
+`scripts/sspp_infer.py`, cùng seed, cùng frame:
+
+| chế độ | cờ | nghĩa |
+|---|---|---|
+| `legacy_channel4` | `--legacy-channel4` | tái hiện lỗi cũ (cột 4 = ring) |
+| `fixed` | (mặc định) | cột 4 = 0 — bản đã sửa |
+| `fixed_z_m1p45` | `--z-shift-m -1.45` | biến thể covariate độ cao (§4.1), chốt trước |
+
+Frame chốt trước khi xem số (vị trí đều trong scene, không chọn theo nội dung):
+`Crafter_dynamic/0048_…` (90 km/h, 65 frame) ở vị trí 6/32/58 và
+`Crafter_dynamic/0096_…` (130 km/h, 79 frame) ở vị trí 12/59. Mỗi frame có đúng
+1 box GT (`Van`), 385–546 điểm GT trong box, tâm cách ego 21–26 m.
+
+`n_det` = số detection ghi ra ở ngưỡng của cổng C (score ≥ 0,05);
+`n_in3m` = số detection **score ≥ 0,20** trong 3 m tâm GT (ngưỡng chốt trước,
+cùng τ với cổng C — ở score thấp hơn, box rải khắp 54 m nên "trúng 3 m" chỉ là ngẫu nhiên).
+
+### 7.1 Từng frame
+
+| frame | km/h | n_det | max_score | best BEV IoU | nearest (m) | n_in3m |
+|---|---:|---:|---:|---:|---:|---:|
+| 0048/000006 — trước | 90 | 2 | 0,0994 | 0,236 | 0,20 | 0 |
+| 0048/000006 — **sau** | 90 | 9 | **0,3494** | **0,738** | 0,16 | **1** |
+| 0048/000032 — trước | 90 | 2 | 0,1460 | 0,000 | 12,28 | 0 |
+| 0048/000032 — **sau** | 90 | 28 | **0,3002** | **0,761** | 0,32 | **1** |
+| 0048/000058 — trước | 90 | 3 | 0,0775 | 0,060 | 3,79 | 0 |
+| 0048/000058 — **sau** | 90 | 25 | **0,2491** | **0,598** | 0,83 | **1** |
+| 0096/000012 — trước | 130 | 1 | 0,0608 | 0,217 | 1,96 | 0 |
+| 0096/000012 — **sau** | 130 | 15 | **0,5629** | **0,503** | 1,91 | **1** |
+| 0096/000059 — trước | 130 | 2 | 0,0598 | 0,301 | 0,96 | 0 |
+| 0096/000059 — **sau** | 130 | 19 | **0,5066** | **0,722** | 0,15 | **1** |
+
+### 7.2 Gộp 5 frame
+
+| chế độ | n_det (≥0,05) | dets (≥0,001) | max_score | frame có ≥1 det trong 3 m | TP/5 @τ=0,20 | recall @τ=0,20 | FP/frame @τ=0,20 | det trong 5 m ego |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| trước (`legacy_channel4`) | 10 | 585 | 0,1460 | 0/5 | 0 | 0,00 | 0,00 | **100 %** (10/10) |
+| **sau (`fixed`)** | 96 | 748 | **0,5629** | **5/5** | **5** | **1,00** | 1,20 | **7,3 %** (7/96) |
+| sau + `--z-shift-m -1.45` | 54 | 725 | 0,6941 | 5/5 | 4 | 0,80 | 1,20 | 11,1 % (6/54) |
+
+Độ nhạy τ của bản đã sửa (5 frame): τ=0,10 → recall 1,00, FP/frame 6,2;
+τ=0,20 → 1,00 / 1,20; τ=0,30 → 0,80 / 0,00; τ=0,50 → 0,40 / 0,00.
+Ở τ=0,20, detection/frame = 0 (trước) → 2,2 (sau), và chỉ **1/11** detection nằm
+trong 5 m ego (trước: 98,5 % của 1.694 box trên 954 frame).
+
+**Tiêu chí PASS chốt trước (§5, mục 3): max_score > 0,20 và ≥1 detection trong 3 m
+tâm GT ở ≥3/5 frame.** Sau sửa: 0,563 > 0,20 ✓ và 5/5 ≥ 3 ✓ ⇒ **PASS**.
+Trước sửa: 0,146 và 0/5 ⇒ FAIL đúng như dự đoán. Kernel in `VERIFY_VERDICT
+fixed_pass=1 z_pass=1 legacy_frames_in3m=0 legacy_max_score=0.1460`.
+
+**Biến thể z:** cũng "pass" kỹ thuật (max 0,694, 5/5 trong 3 m) nhưng TP 4/5 và
+recall 0,80 — **không tốt hơn bản chỉ sửa kênh 4** (5/5, 1,00). Vì BEV backbone nén
+chiều cao bằng max-pool và mọi điểm dịch cùng nhau, phép dịch z gần như bất biến
+(score đổi ±0,1, mất 1 TP) ⇒ covariate độ cao không phải nút thắt.
+**Không cần biến thể thứ ba.**
+
+Kết luận: lỗi kênh 4 là **nguyên nhân đủ** của TP=0. Toàn bộ kết luận FP/recall
+của cổng C v4 (runbook §7b) đo trên model bị phá đặc trưng và **phải bỏ**.

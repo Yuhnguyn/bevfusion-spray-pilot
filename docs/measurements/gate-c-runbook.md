@@ -219,6 +219,27 @@ tại chạy `--config model0`; khi F2 có checkpoint pointpillars thì chạy l
 
 ## 7b. Kết quả chạy thật — kernel v4, 2026-11-19 (Model 0 zero-shot, τ=0,20)
 
+> ### ⛔ INVALID — 2026-11-19: model nạp sai kênh 4 (ring thay time-lag); **toàn bộ số FP/recall ở mục này phải bỏ.**
+>
+> `sspp_infer.py` đưa thẳng 5 cột của file `.bin` (`x, y, z, intensity, **ring**`) vào
+> model, trong khi nuScenes/BEVFusion dùng cột 4 = **time-lag** ∈ [−0,5; 0]
+> (`mmdet3d/.../loading.py:182`). Trọng số kênh 4 của checkpoint (RMS 0,874 /
+> max|w| 15,15 — gấp 7,4× / 16,6× các kênh hình học) bị ring 0..31 đẩy 5–17 σ
+> ⇒ model mù, bắn box quanh ego, **TP = 0/954 frame**. Chẩn đoán đầy đủ:
+> `docs/measurements/model0-blindness-diagnosis.md` (§0–§6).
+>
+> **Verify sau khi sửa** (kernel `nguynhuy9669/bevfusion-gate-c-verify5-channel4-fix`,
+> version 1 = COMPLETE 15:48, 5 frame `Crafter_dynamic` 90/130 km/h × 3 chế độ,
+> cùng seed; số **[ĐO]**, nguồn `verify5_table.json` trong output kernel): trước sửa
+> max score **0,146**, TP **0/5**, 100 % detection trong 5 m ego; sau sửa max score
+> **0,563**, TP **5/5**, recall@τ=0,20 **1,00**, 7,3 % detection trong 5 m ego.
+> Bảng đầy đủ: `model0-blindness-diagnosis.md` §7.
+>
+> Hệ quả: mọi diễn giải "plume tăng FP nhưng recall không tụt" ở §7b là **vô
+> nghĩa** — cả ba nhánh đều chạy trên một detector đã bị phá đặc trưng. Muốn dùng
+> cổng C phải **chạy lại 954 frame với bản đã sửa** (ước tính ~10 phút env +
+> ~15 phút inference, xem §4).
+
 Kernel `nguynhuy9669/bevfusion-gate-c-plume-vs-detector` **version 4 = COMPLETE** (bắt đầu 14:23:56,
 xong ~15:05; inference 907 s ≈ 15,1 phút; không có `GATE_C_KERNEL_FAILED`). 954 frame × 3 nhánh.
 
@@ -256,4 +277,6 @@ detector hay không" chứ không phán "tác dụng đúng chiều khi detector
 - `scripts/sspp_infer.py` — harness (dry-run + inference + metric).
 - `kaggle/gate_c/kernel.py`, `kernel-metadata.json` — bundle đẩy Kaggle.
 - `kaggle/gate_c/make_bundles.py` — tạo/upload dataset + push kernel.
+- `kaggle/gate_c_verify5/kernel.py`, `kernel-metadata.json` — kernel verify 5 frame ×
+  3 chế độ của bản sửa kênh 4 (`--legacy-channel4` / mặc định / `--z-shift-m -1.45`).
 - Tiêu chí pre-registration: `.scratch/roadspray-cal/plan.md` §"Giai đoạn C"; ADR-0006 §5.3.
