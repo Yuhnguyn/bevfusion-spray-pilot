@@ -594,6 +594,7 @@ def inject_plume_stateful(
             center=center,
             extents=extents,
             vehicle_class=vehicle_class,
+            direction=np.array([np.cos(yaw), np.sin(yaw), 0.0]),
         )
         if created:
             stats.eligible_boxes += 1

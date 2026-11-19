@@ -151,6 +151,47 @@ Không cần đổi `_CLUSTER_VISIBLE_BY_SPEED`.
 > **Un-ảnh hưởng:** cổng C dùng `PlumeTransform` (đường đầy đủ inject→raycast) nên không bị lỗi
 > dụng cụ này chạm tới.
 >
+> **A3 việc 1 (nguồn phát cố định) — KẾT QUẢ 2026-11-19 chiều: làm xong nhưng KHÔNG đủ, và đo được
+> chính xác vì sao.**
+>
+> Đã làm: `PlumeStateConfig.source_count=2` / `source_lateral_m=(-0.85,0.85)` / `source_sigma_m`
+> (nguồn ở hai bánh sau thay vì rải đều khối), `spawn_scale` (núm hiệu chỉnh), và truyền
+> `direction` từ yaw hộp. Đường z đặt theo **mặt đường** 0,35–1,10 m (thân plume, trong dải quan sát).
+>
+> **Sửa thêm 3 lỗi dụng cụ phát hiện trên đường** `[ĐO]`:
+> 1. `measure_plume_size_tail.py` hard-code hộp **4,5 × 1,9 × 1,5 m**, trong khi VW Crafter thật là
+>    **6,8 × 2,4 × 2,6 m** ⇒ khối plume thấp hơn thực 1,1 m, phần lớn rơi dưới mép FOV;
+> 2. đặt cụm giữa khối ⇒ elevation 6,6–8,8° ngoài bảng tia ±5° ⇒ 0 tia cắt (2 test raycast đỏ);
+> 3. test chạy **cùng seed mỗi frame** ⇒ mọi cụm trùng một điểm (phải đặt trong dải quan sát được).
+>
+> **Kết quả quét `spawn_scale`** (det/frame so với thật 875 @100 km/h, 592 @130):
+>
+> | scale | det @100 | cụm @100 | det @130 | cụm @130 |
+> |---:|---:|---:|---:|---:|
+> | 1 | 103 | 8,1 | 46 | 3,4 |
+> | 3 | 699 | 49,0 | 308 | 16,9 |
+> | 4 | 965 | 58,0 | 469 | 21,1 |
+>
+> `[SUY LUẬN]` **Có thể khớp det/frame bằng cách sinh 3–4× số cầu, nhưng khi đó cụm/frame vượt
+> 2,3–2,7× mục tiêu.** Không tồn tại cặp (spawn_scale, radius_sigma) nào khớp đồng thời hai đại lượng
+> trong mô hình hiện tại — vì **các quả cầu không gộp được**.
+>
+> **Nguyên nhân định lượng:** trôi 22 m/s × 0,1 s = **2,2 m** giữa hai chu kỳ, trong khi bán kính
+> trung vị chỉ **0,31 m** ⇒ cầu cách nhau 7× bán kính, không bao giờ chồng ⇒ mỗi cầu là một cụm riêng
+> (~10–14 điểm) thay vì chuỗi 40 điểm như thật. Muốn cầu chồng phải có bán kính ≥ **1,1 m** (nửa
+> khoảng cách) hoặc hình học **ellipsoid kéo dài theo phương trôi**.
+>
+> **Ba lựa chọn (chưa chốt):**
+> | | Cách | Chi phí | Đánh đổi |
+> |---|---|---|---|
+> | A3-a | Ellipsoid/kéo dài theo phương chuyển động (ray-ellipsoid) | ~1 ngày | Đúng vật lý "băng nước"; phải sửa cả materialise và raycast |
+> | A3-b | Chỉ khớp `det/frame`, chấp nhận cụm/frame 2–3× quá nhiều | 0 | Nhanh; plume "bị chặt vụn" — cổng C sẽ phán |
+> | A3-c | Giảm tham vọng: khớp det/frame + vị trí/sải, khai rõ không khớp thống kê cụm | 0 | Trung thực; nhưng generator không tái tạo được "băng liền" |
+>
+> `[CHỌN] 2026-11-19`: đi **A3-b/A3-c trước, dùng cổng C làm trọng tài** — vì cổng C chỉ cần plume
+> có tác dụng lên detector, còn thống kê cụm là mục tiêu trung gian. Nếu cổng C "KHÔNG" thì mới đầu tư
+> A3-a (vì lúc đó không phân biệt được "vô hình do thiếu khối lượng" với "vô hình do sai cấu trúc").
+>
 > **Trạng thái 2026-11-18:** A1 ✅ (`8cc9207`, cụm sống/frame 11,9/29,5/17,5 vs bảng
 > 11,3/29,2/17,6; test `tests/test_plume_cluster_budget.py`) · A2 ✅ (`f9c8b44`, wet ground
 > chỉ giảm cường độ; `mean_ratio` 0,597/0,194/0,033 ở wfh 0,5/1,0/1,2 mm; test

@@ -80,17 +80,24 @@ def _context(speed_kmh: float, frame_index: int) -> PlumeContext:
     )
 
 
-def measure_speed(speed_kmh: float, seed: int, table: BeamTable) -> dict:
+def measure_speed(speed_kmh: float, seed: int, table: BeamTable,
+                  spawn_scale: float = 1.0,
+                  radius_sigma: float = 0.8) -> dict:
     """Chạy tới trạng thái dừng; đo **tầng raycast** trên các frame đo.
 
     Chỉ raycast ở cửa sổ đo (state không phụ thuộc raycast) — 54 750 tia/frame
     nên đỡ được phần lớn thời gian ở 260 frame warming.
     """
     config = PlumeConfig()
-    state = PlumeState()
+    from spray.plume_state import PlumeStateConfig
+    state = PlumeState(PlumeStateConfig(spawn_scale=spawn_scale,
+                                        radius_sigma=radius_sigma))
     speed_mps = speed_kmh / 3.6
-    # Box theo quy ước adapter: box[2] = ĐÁY hộp, box[3] = dài, box[4] = rộng.
-    box = np.array([[20.0, 0.0, -1.6, 4.5, 1.9, 1.5, 0.0, speed_mps, 0.0]],
+    # Box theo quy ước adapter: box[2] = ĐÁY hộp, box[3] = dài, box[4] = rộng,
+    # box[5] = cao. Kích thước ĐÚNG của VW Crafter (6.8 × 2.4 × 2.6 m) như dữ
+    # liệu thật — bản trước hard-code 4.5 × 1.9 × 1.5, làm khối plume thấp hơn
+    # thực tế 1.1 m nên phần lớn rơi dưới mép dưới FOV `[DO] 2026-11-19`.
+    box = np.array([[20.0, 0.0, -1.6, 6.8, 2.4, 2.6, 0.0, speed_mps, 0.0]],
                    dtype=np.float64)
     rng_background = np.random.default_rng(seed)
     background = np.zeros((BACKGROUND_POINTS, 5), dtype=np.float32)
@@ -148,6 +155,11 @@ def measure_speed(speed_kmh: float, seed: int, table: BeamTable) -> dict:
 
 
 def main() -> None:
+    import argparse as _argparse
+    _ap = _argparse.ArgumentParser()
+    _ap.add_argument("--spawn-scale", type=float, default=1.0)
+    _ap.add_argument("--radius-sigma", type=float, default=0.8)
+    _args = _ap.parse_args()
     table = vlp32c_table()
     header = (f"{'km/h':>5} {'det/frame':>10} {'cụm':>6} {'p50':>4} {'mean':>6} "
               f"{'p95':>5} {'max':>5} {'%≥50đ':>7} | thật (det, cụm, p50, p95, "
@@ -155,7 +167,9 @@ def main() -> None:
     print(header)
     verdicts = []
     for speed_kmh in sorted(REAL):
-        runs = [measure_speed(speed_kmh, seed, table) for seed in range(SEEDS)]
+        runs = [measure_speed(speed_kmh, seed, table, _args.spawn_scale,
+                              _args.radius_sigma)
+                for seed in range(SEEDS)]
         got = {key: float(np.mean([run[key] for run in runs]))
                for key in runs[0]}
         real = REAL[speed_kmh]

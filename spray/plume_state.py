@@ -161,6 +161,24 @@ class PlumeStateConfig:
     # [CHỌN] dựa trên đo: plume thật có 1-2 chuỗi ~1000 điểm mỗi frame.
     placement_knots: int = 0
     placement_knot_sigma_m: float = 0.25
+    # [CHỌN] Nguồn phát spray CỐ ĐỊNH theo vật thể (A3 việc 1).
+    # Vật lý: nước bắn từ LỐP SAU, không phải rải đều trên cả mặt cắt 3,4 m.
+    # Hai nguồn hẹp ⇒ cụm của các chu kỳ liên tiếp chồng lên nhau quanh cùng
+    # một đường ⇒ nối thành chuỗi ("băng nước") như dữ liệu thật, thay vì mỗi
+    # cụm đứng rời. `source_count=0` = tắt, quay lại rải đều trong hộp.
+    # [CHỌN] Hệ số nhân số cụm sinh — núm hiệu chỉnh của A3 việc 2.
+    # Lý do cần: bảng `visible` là số **detection-cluster** đo trên dữ liệu thật,
+    # nhưng code đang dùng nó làm số **quả cầu sống**; nhiều quả cầu gộp thành một
+    # detection-cluster nên cần nhiều cầu hơn bảng để khớp ở tầng detector.
+    spawn_scale: float = 1.0
+    source_count: int = 2
+    source_lateral_m: tuple[float, ...] = (-0.85, 0.85)
+    source_sigma_m: float = 0.18
+    # [CHỌN] Độ cao nguồn tính từ **mặt đường** (m), không phải theo chiều cao
+    # hộp: lớp nước bắn lên có cùng độ dày bất kể xe cao hay thấp. Dùng chiều
+    # cao hộp làm mâu thuẫn giữa các cự ly (cùng một khối cho elevation khác
+    # nhau ở 10 m và 17 m) — xem plan A3.
+    source_height_m: tuple[float, float] = (0.05, 0.90)
 
 
 @dataclass
@@ -304,6 +322,7 @@ class PlumeState:
         extents: np.ndarray | None = None,
         config: PlumeStateConfig | None = None,
         vehicle_class: str = "crafter",
+        direction: np.ndarray | None = None,
     ) -> list[SprayCluster]:
         """Spawn this cycle's clusters for one object.
 
@@ -335,6 +354,7 @@ class PlumeState:
 
         v_abs_kmh = context.object_speed_mps * 3.6
         rate = cluster_spawn_rate_for_speed_abs(v_abs_kmh, vehicle_class)
+        rate *= float(cfg.spawn_scale)
         credit_key = (context.scene_token, object_id)
         credit = self._spawn_credit.get(credit_key, 0.0) + rate
         count = int(np.floor(credit + 1e-9))
@@ -367,6 +387,24 @@ class PlumeState:
         lateral_center = (
             float(block_center[1]) if center is not None else float(origin[1])
         )
+        # Nguồn phát: đặt mỗi cụm quanh mép TRƯỚC của khối (mép này trùng mặt
+        # sau thùng xe) tại vị trí hai bánh, thay vì rải đều cả khối.
+        sources = None
+        if center is not None and cfg.source_count > 0 and count > 0:
+            forward = (np.asarray(direction, dtype=np.float64).ravel()
+                       if direction is not None
+                       else np.array([1.0, 0.0, 0.0], dtype=np.float64))
+            norm = float(np.linalg.norm(forward[:2]))
+            if norm > 1e-9:
+                forward = np.array([forward[0] / norm, forward[1] / norm, 0.0])
+            else:
+                forward = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+            lateral_axis = np.array([-forward[1], forward[0], 0.0])
+            rear_face = block_center + forward * block_extents[0]
+            offsets = list(cfg.source_lateral_m) or [0.0]
+            sources = np.array([
+                rear_face + lateral_axis * float(offset) for offset in offsets
+            ])
         knots = None
         if center is not None and cfg.placement_knots > 0 and count > 0:
             knots = block_center + rng.uniform(
@@ -389,6 +427,27 @@ class PlumeState:
                 pos = origin + rng.uniform(
                     -_SPAWN_JITTER_HALF_M, _SPAWN_JITTER_HALF_M, size=3
                 )
+            elif sources is not None:
+                # Nguồn xác định x (mép sau thùng) và y (hai bánh); nhưng độ cao
+                # phải TRẢI ĐỀU cả dải khối: nước bắn theo nhiều độ cao, và nếu
+                # dồn giữa khối thì cụm non nằm quá gần sensor (elevation ngoài
+                # dải tia) nên không tia nào cắt -> 0 detection
+                # `[DO] 2026-11-19`: lỗi này làm 2 test raycast đỏ.
+                source = sources[rng.integers(0, sources.shape[0])]
+                jitter = rng.normal(0.0, cfg.source_sigma_m, size=3)
+                # Độ cao: nước bắn từ LỐP nên ở DẢI THẤP của khối (0–40 % chiều
+                # cao), không phải giữa khối. `[DO] 2026-11-19`: đặt giữa khối làm
+                # cụm ở elevation 6,6–8,8° — ngoài vùng nhìn của sensor hẹp
+                # (±5° trong test) nên 0 tia cắt, 2 test raycast đỏ.
+                # Độ cao: đặt trong **thân plume**, tính từ MẶT ĐƯỜNG chứ không
+                # theo chiều cao hộp — lớp nước bắn lên dày như nhau bất kể xe cao
+                # thấp, và đây là dải mà cảm biến quan sát được ở cự ly following
+                # `[CHỌN] 2026-11-19`, xem plan §A3.
+                jitter[2] = (float(context.road_z_m)
+                             + rng.uniform(*cfg.source_height_m)) - source[2]
+                pos = source + jitter
+                pos = np.clip(pos, block_center - block_extents,
+                              block_center + block_extents)
             elif knots is not None:
                 knot = knots[rng.integers(0, knots.shape[0])]
                 pos = knot + rng.normal(
