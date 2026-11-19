@@ -372,6 +372,43 @@ hợp lệ — không được lấy chính số đo A3-V ra làm nguồn.
   không được viết thành "paper quy định".
 - A3-V chỉ kiểm mức *phân bố plume*. Kiểm mức end-task (AP) là việc của cổng C.
 
+### KẾT QUẢ A3-V (2026-11-19) — **FAIL**
+
+Đo trên **72 scene tập B** (171 scene không box), 30 frame/scene, seed cố định. Số thô:
+`.scratch/tmp/following_scenario.json`; doc: `docs/measurements/following-scenario-density.md`.
+
+| lớp | nhóm tốc độ | median (sinh/thật) | CI95 | verdict |
+|---|---|---:|---|---|
+| Crafter | 50–70 | 1,98 | [1,58; 2,60] | FAIL (CI vắt biên 2,0) |
+| **Golf** | 50–70 | **0,86** | [0,51; 1,68] | **PASS** |
+| Crafter | 80–110 | 2,73 | [2,30; 3,14] | FAIL |
+| Golf | 80–110 | 4,63 | [3,97; 5,73] | FAIL |
+| Crafter | 120–130 | **16,92** | [13,88; 20,88] | FAIL |
+| Golf | 120–130 | 8,02 | [6,07; 11,64] | FAIL |
+
+⇒ **A3-V KHÔNG ĐẠT** (5/6 ô FAIL). Ở kịch bản following, generator **đậm hơn dữ liệu thật
+8–17×** ở 120–130 km/h, 2,7–4,6× ở 80–110, và ~1–2× ở 50–70.
+
+**Nguyên nhân đã đo được — near-field:** % detection sinh ở `range < 10 m` = **39,6–81,5 %**;
+`range < 4 m` = **15,9–49,2 %**. Ở tốc độ cao, ~80 % detection sinh nằm sát cảm biến.
+
+**Cơ chế:** mô hình "quả cầu + tia" là **quang học dày (optically thick)** ở cự ly gần — một quả cầu
+bán kính 0,31 m ở 1 m chiếm ~35° góc, hàng nghìn tia × `P_det` ⇒ hàng trăm điểm/cụm. Dữ liệu thật thì
+**quang học mỏng**: số return bị giới hạn bởi số hạt trong đường tia, không bởi góc khối. Ở kịch bản
+static cảm biến cách plume ≥ 16 m nên sai lệch này không lộ ra; ở following ego **chạy xuyên qua**
+plume nên nó chi phối toàn bộ.
+
+**Hệ quả bắt buộc cho cổng C:** mọi so sánh FP giữa nhánh `plume` và `real` phải đọc kèm hệ số
+8–17× (120–130 km/h) / 2,7–4,6× (80–110) / 1–2× (50–70). FP tăng ở tốc độ cao **có thể chỉ vì
+generator đậm hơn**, không phải vì spray "mạnh ngang thật". Ba nhánh của cổng C chính là công cụ
+tách hai nguyên nhân này: `real` = spray thật cùng frame, nên so `plume` với `real` cho biết bao
+nhiêu là do **mật độ** và bao nhiêu là do **bản chất**.
+
+**Không tune để pass.** Số đo này là kiểm chứng; muốn hiệu chỉnh phải theo D2-v2 (một hệ số, fit
+2/3 – verify 1/3) và phải chấp nhận rằng **một hệ số vô hướng không thể phủ dải 0,86 → 16,92×**
+(dải 19×) ⇒ dự đoán trước: fit sẽ FAIL ở phần verify. Ghi lại dự đoán này để không ai nói fit là
+thành công.
+
 ---
 
 ## D2-v2 — Hiệu chỉnh kịch bản trên dữ liệu TRAIN-ONLY (pre-registered 2026-11-19)
