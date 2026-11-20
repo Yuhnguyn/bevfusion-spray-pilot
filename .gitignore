@@ -59,3 +59,13 @@ kaggle/*/bundles/
 # nhưng cũng không cần trong git). Giữ .gitkeep để thư mục tồn tại.
 .scratch/diag/*
 !.scratch/diag/.gitkeep
+
+# Probe một lần trong .scratch/roadspray-cal/tmp — đã đóng góp vào doc/số đo, không
+# còn nằm trên đường chạy. Giữ .py analysis/measure nếu còn tái dùng.
+.scratch/roadspray-cal/tmp/probe_*.py
+.scratch/roadspray-cal/tmp/*.log
+.scratch/tmp/*.sh
+
+# .scratch/tmp/ = sân nháp một lần (script đo + output JSON/TXT của các phiên A3/A3-V/D2/
+# cổng C). Không nằm trên đường chạy, mọi kết luận đã chép vào docs/measurements/.
+.scratch/tmp/
