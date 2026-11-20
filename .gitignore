@@ -69,3 +69,7 @@ kaggle/*/bundles/
 # .scratch/tmp/ = sân nháp một lần (script đo + output JSON/TXT của các phiên A3/A3-V/D2/
 # cổng C). Không nằm trên đường chạy, mọi kết luận đã chép vào docs/measurements/.
 .scratch/tmp/
+
+# Log ngắn hạn ở gốc .scratch/ (viz*.log) và output probe rời
+.scratch/*.log
+.scratch/roadspray-cal/tmp/*.out
