@@ -1,50 +1,44 @@
 """Time-varying state of spray clusters: spawn, advect and expire.
 
-The v1 generator rebuilds the plume from scratch every frame, so no cluster has
-an age and there is no trail behind the lead vehicle. This module keeps the
-clusters alive across frames.
+Đây là module giữ cụm sống qua nhiều frame. Không có nó thì mỗi frame phải dựng lại plume
+từ đầu: cụm không có tuổi, không có vệt sau xe dẫn.
 
-Frames of reference (corrected in ticket 28c):
+Ba hệ quy chiếu, đừng lẫn:
 
-- clusters carry their velocity in the **ground frame**, not relative to the
-  ego. The paper sets the object velocity as the initial cluster velocity and
-  the reference implementation advects in world coordinates, rendering into
-  the sensor frame only afterwards (``dee.cpp:396-426``, ``:250``).
-- drag acts in the ground frame: ``v_air = v_ground - wind``.
-- positions live in the **ego frame**: ``pos += (vel - ego_velocity) * dt``.
-  The ego is what the LiDAR sees, so this is the render frame.
+- **vận tốc** của cụm ở hệ **mặt đất** (``vel``) — drag và gió là hiện tượng vật lý so với
+  không khí, không so với cảm biến.
+- **vị trí** ở hệ **ego** (``pos``) — đây là hệ mà LiDAR nhìn.
+- mỗi bước cập nhật vị trí phải trừ ``ego_velocity`` đúng **một lần**:
+  ``pos += (vel - ego_velocity) * dt``.
 
-What makes the trail long is the drag, not the relative speed: ``|v_air|^2``
-for a cluster moving at road speed is of order 1300 m^2/s^2, so ``-0.15 * |air|^2``
-removes tens of m/s within the first cycles. A cluster spawned while ego and
-lead vehicle move at the same speed ends up ~0 relative velocity at birth and
-then falls far behind in the ego frame.
+Hai tốc độ, hai vai trò:
 
-Two speeds, two roles:
+- ``v_abs`` = ``context.object_speed_mps``, tốc độ xe dẫn so với mặt đường. Nó quyết định
+  **số cụm sinh mỗi chu kỳ** và **lifetime** ``T``: lượng nước bắn lên tỉ lệ với mặt đường ướt
+  mà lốp đi qua mỗi giây.
+- **vận tốc mặt đất** = ``object_velocity_ego_mps + [ego_speed, 0, 0]`` — vận tốc riêng của xe
+  dẫn, cộng vận tốc ego để đưa về hệ mặt đất.
 
-- ``v_abs`` = ``context.object_speed_mps``, the lead vehicle's speed over the
-  road. It drives the number of clusters spawned per cycle and the lifetime
-  ``T``: the amount of water thrown up scales with the wet road the tyres cross
-  every second.
-- the ground velocity is ``object_velocity_ego_mps + [ego_speed, 0, 0]``: the
-  object's own velocity carried into the ground frame by the ego's motion.
+Hệ quả của drag (đây là điều làm vệt dài): ``|v_air|^2`` ở tốc độ đường là bậc 1300 m²/s², nên
+``C·|air|^2`` với ``C = -0,15`` lấy đi hàng chục m/s trong vài chu kỳ đầu. Một cụm sinh ra khi
+ego và xe dẫn **cùng tốc độ** có vận tốc tương đối lúc sinh ≈ 0, rồi tụt lại rất xa trong hệ ego.
 
-``wfh_mm`` is in millimetres for both the cluster count and ``T``. Passing
-metres by mistake gives a different count on purpose (pinned by a test).
+Quy ước dấu theo reference implementation ``openMSL/sl-1-2`` (MPL-2.0):
 
-Sign conventions follow the reference implementation
-``DetectionEnvironmentalEffects.cpp`` (openMSL/sl-1-2, MPL-2.0):
+- cụm sinh với ``age = -dt`` nên **không** hoạt động ngay frame đầu;
+- ``T ~ N(0,02·wfh_mm·(v_abs_kmh − 50) + 0,2, 0,2)``, chặn dưới ở 0;
+- drag dùng hằng số của paper ``C = -0,15 1/m`` [PAPER] arXiv 2212.08558, tác động
+  ``v += C·v_air_hat·|v_air|²·dt`` với ``v_air = v_cluster − wind``. Reference code
+  (``dee.cpp:542``) bốc ``N(−0,12; 0,04)`` cho từng cụm; module này **cố ý** theo paper và để
+  các núm lấy mẫu ở hằng số;
+- cụm tan theo **xác suất** ``P = exp(−Δt/T)`` mỗi chu kỳ [PAPER] Eq. 1, cộng trần số học
+  ``12·T`` để chặn đuôi;
+- xác suất sống hiển thị là ``P_t = exp(−age/T)``.
 
-- clusters spawn with ``age = -dt`` so they are not active on their birth frame;
-- ``T ~ N(wfh_mm*0.02*(v_abs_kmh - 50) + 0.2, 0.2)``, clamped at zero;
-- drag uses the paper's constant coefficient ``C = -0.15 1/m`` [PAPER] arXiv
-  2212.08558, acting as ``v += C * v_air_hat * |v_air|^2 * dt`` with
-  ``v_air = v_cluster - wind``. The reference code (``dee.cpp:542``) draws
-  ``N(-0.12; 0.04)`` per cluster instead; we deliberately follow the paper and
-  default the sampling knobs to a constant.
-- a cluster is removed once ``age > 4*T``;
-- the displayed survival probability is ``P_t = exp(-age/T)``.
+Lịch sử các lần đổi cơ chế (cắt cứng ``4T``, ``vz`` ban đầu, trần chiều cao, nguồn hai bánh):
+``docs/adr/decision-log.md``.
 """
+
 
 from __future__ import annotations
 
@@ -67,50 +61,27 @@ ACTIVATION_SPEED_KMH = 40.0
 # [CODE] dee.cpp:530 and hpp:47.
 LIFETIME_WFH_COEFF = 0.02
 LIFETIME_BASE_S = 0.2
-# [QĐ12 2026-11-19] Paper Eq. 1 cho T là hàm TẤT ĐỊNH của tốc độ + màng nước,
-# không có nhiễu Gaussian. sigma = 0,2 s là `[CODE]` `std_time_constant` của
-# reference impl (dee.cpp) — bỏ. Hệ quả cũ: ttl tail ~N(0,2;0,2) × cắt cứng 4T
-# giữ cụm tới 1,6–2,4 s, làm trail @50 km/h dài 16 m thay vì ~5 m.
+# Paper Eq. 1 cho `T` là hàm TẤT ĐỊNH của tốc độ + màng nước, không có nhiễu
+# Gaussian ⇒ sigma = 0. (Nhiễu `N(0; 0,2)` là `[CODE]` reference impl.)
 LIFETIME_SIGMA_S = 0.0
-# [QĐ12 2026-11-19] Trần **SỐ HỌC** 12·T — KHÔNG phải mô hình. Paper Eq. 1 cho
-# tan theo xác suất P = exp(−age/T); exp(−12) = 6e-6 nên ảnh hưởng < 1 cụm/10^5.
-# Trước đây 4,0 là cắt cứng `[CODE] dee.cpp:446` — đã bỏ theo QĐ12.
+# Trần **SỐ HỌC** 12·T, không phải mô hình. Cụm tan theo xác suất
+# `P = exp(−Δt/T)` [PAPER] Eq. 1; `exp(−12) = 6e-6` nên trần này cắt < 1 cụm/10⁵.
 MAX_AGE_FACTOR = 12.0
-# [PAPER] Linnhoff Fig. 5: ``r_cl`` là **một** phân bố lognormal duy nhất,
-# median 0,30 m (mu = -1,2), sigma ~0,8 — paper KHÔNG cho bán kính phụ thuộc tốc độ.
-#
-# `[ĐO] 2026-11-19` — đo lại trên **RoadSpray `*_static`**, cột bề dày lát **Δ=1,0 m**
-# (cột chuẩn thức; xem docs/measurements/roadspray-static-clusters-by-speed.md §6):
-#
-#     v=50  km/h -> r50 = 0,349 m, sigma = 0,754
-#     v=100 km/h -> r50 = 0,292 m, sigma = 0,727
-#     v=130 km/h -> r50 = 0,311 m, sigma = 0,711
-# (9 tốc độ: r50 0,288–0,349; rsig median 0,720, dải 0,701–0,771 — xem
-#  .scratch/roadspray-cal/tmp/plume_crafter_v5.jsonl, lọc 18–38 m.)
-#
-# Ba mốc gần như KHÔNG phụ thuộc tốc độ (0,29–0,35 m) và trùng paper (0,30 m)
-# ⇒ dùng MỘT hằng số, đúng như paper.
-#
-# Vì sao bảng theo tốc độ trước đây (0,45–0,70 m) bị bỏ: nó lấy từ cột **Δ=2,5 m**,
-# cột đó bị chain-merging dọc tia làm phình 1,6–2,1×. Số điểm tỉ lệ tiết diện (r²)
-# nên phần phình này từng làm khối lượng plume sai ~5×.
+# [PAPER] Fig. 5: `r_cl` là **một** lognormal duy nhất, median 0,30 m, sigma ≈ 0,8.
+# Paper KHÔNG cho bán kính phụ thuộc tốc độ, và phép đo trên RoadSpray `*_static`
+# (Δ=1,0 m) xác nhận: r50 = 0,288–0,349 m ở cả 9 tốc độ, rsig median 0,720.
+# ⇒ dùng hằng số, không dùng bảng theo tốc độ.
 RADIUS_MU = -1.2
 RADIUS_SIGMA = 0.72
-# [BỎ CLIP 1,0 m 2026-11-19 — paper-faithful] Paper định nghĩa r_cl = khoảng cách
-# xa nhất từ tâm cụm tới detection ⇒ đuôi lognormal là THẬT, không bị cắt.
-# Với mu = -1,2, sigma = 0,72: p99 = exp(-1,2 + 2,326*0,72) = 1,94 m.
-# [QĐ13 2026-11-19] Nâng trần lên **4,0 m**: đây là **clip SỐ HỌC theo max quan
-# sát** của cơ chế tán xạ (r(t) = r₀ + α·d_rel, xem `diffusion_alpha`), KHÔNG
-# phải ràng buộc của paper (paper không đặt trần). 4,0 m ứng với r ở depth ~60 m
-# với α ≈ 0,06. Trần cũ 2,0 m (từ p99 paper) chặn mất phần tán xạ ở xa.
+# Clip **số học** theo max quan sát của cơ chế tán xạ (`diffusion_alpha`), không
+# phải ràng buộc của paper — paper không đặt trần cho lognormal
+# (p99 = exp(−1,2 + 2,326·0,72) = 1,94 m). 4,0 m ứng với r ở độ sâu ~60 m.
 RADIUS_MAX_M = 4.0
-# [QĐ13 2026-11-19] Hệ số tán xạ r(t) = r₀ + α·d_rel(t), d_rel = độ sâu cụm
-# đã rơi sau mặt đuôi. **Mở rộng NGOÀI paper** (ADR-0006 Sửa đổi A3), user duyệt
-# 2026-11-19. α = 0,06 hiệu chỉnh từ trail90 của RoadSpray `*_static`
-# (6 / 44 / 52 m @50/100/130; xem docs/measurements/plume-a3-diagnosis.md §7.11).
+# Hệ số tán xạ `r(t) = r₀ + α·d_rel(t)`, `d_rel` = độ sâu cụm sau mặt đuôi.
+# **Mở rộng NGOÀI paper** (có khai báo); α = 0,06 hiệu chỉnh từ `trail90` của
+# RoadSpray `*_static` (6 / 44 / 52 m @ 50/100/130 km/h).
 DIFFUSION_ALPHA = 0.06
-# [ĐO] trung vị 3 mốc static Δ=1,0 = 0,311 m; paper = 0,301 m — lấy 0,31.
-# (D5 — bảng 9 tốc độ Δ=1,0 — sẽ áp ở Mốc 4 sau khi đo lại survival.)
+# [ĐO] trung vị 3 mốc static Δ=1,0 = 0,311 m; paper = 0,301 m ⇒ lấy 0,31.
 RADIUS_MEDIAN_M = 0.31
 
 
@@ -124,15 +95,14 @@ def cluster_radius_median_for_speed(speed_kmh: float) -> float:
     return RADIUS_MEDIAN_M
 
 
-# [PAPER] arXiv 2212.08558 Sec. III-C: no vertical initial velocity; v0 = object
-# velocity, purely horizontal. The paper has no gravity and no z equation, so a
-# cluster never rises on its own (ticket 29h). ``dee.cpp:540`` does draw a
-# ``vz``, but that is the reference code, not the paper. The spawn line
-# ``vz = rng.uniform(0, cfg.initial_vz_max_mps)`` is kept: to re-enable it,
-# change this constant only.
+# [PAPER] §III-C: không có vận tốc thẳng đứng ban đầu, `v0` = vận tốc vật thể,
+# thuần nằm ngang. Paper không có gravity và không có phương trình `z`, nên cụm
+# không tự bay lên; chiều cao plume đến từ vị trí khối sinh. Dòng
+# `vz = rng.uniform(0, initial_vz_max_mps)` trong `spawn` vẫn còn — muốn bật lại
+# thì chỉ đổi hằng số này.
 INITIAL_VZ_MAX_MPS = 0.0
-# [PAPER] arXiv 2212.08558, Sec. III-C: drag coefficient C = -0.15 1/m,
-# constant. See the module docstring for how this differs from dee.cpp:542.
+# [PAPER] §III-C: hệ số drag `C = −0,15 1/m`, hằng số. Reference code bốc
+# `N(−0,12; 0,04)` cho từng cụm; module này theo paper nên `DRAG_STD = 0`.
 DRAG_MEAN = -0.15
 DRAG_STD = 0.0
 # [CODE] dee.cpp wind: 2 m/s from 208 deg in meteorological convention.
@@ -141,8 +111,9 @@ WIND_FROM_DEG = 208.0
 # [CODE] profile VLP-32 update_cycle_time.
 DEFAULT_DT_S = 0.1
 
-# Placeholder spawn jitter around the sensor origin; 28b replaces it with the
-# real block behind the vehicle tail. Only seed determinism matters here.
+# Jitter quanh gốc cảm biến, chỉ dùng khi caller gọi `spawn` KHÔNG truyền
+# `center` (test, probe). Đường production luôn truyền khối sau đuôi xe nên
+# hằng số này không ảnh hưởng plume thật.
 _SPAWN_JITTER_HALF_M = 0.5
 
 
@@ -163,14 +134,15 @@ class PlumeStateConfig:
     radius_mu: float = RADIUS_MU
     radius_sigma: float = RADIUS_SIGMA
     radius_max_m: float = RADIUS_MAX_M
-    # [QĐ13 2026-11-19] Hệ số tán xạ r(t) = r₀ + α·d_rel(t), d_rel = độ sâu cụm
-    # sau mặt đuôi. 0,0 = tắt. Một α dùng chung cho mọi tốc độ (Lead chốt).
+    # Hệ số tán xạ `r(t) = r₀ + α·d_rel(t)`, `d_rel` = độ sâu cụm sau mặt đuôi.
+    # 0,0 = tắt. Một α dùng chung cho mọi tốc độ. Mở rộng NGOÀI paper.
     diffusion_alpha: float = DIFFUSION_ALPHA
-    # [MIỀN — ADR-0006 §5.7] Giới hạn miền mô hình phát ngôn. Tất cả tắt = hành vi cũ,
-    # bit-for-bit. Bật bằng PLUME_PAPER_DOMAIN=1 (xem spray/plume.py).
-    #   min/max_range_m: paper §V-D đánh giá 0–50 m; §V cảnh báo mô hình cầu vỡ ở gần
-    #     cảm biến. Dữ liệu thật: r p01 = 2,75 m, chỉ 0,02 % điểm có r > 50 m.
-    #   diffusion_alpha: Fig. 5 cho r_cl là MỘT lognormal, không nở theo tuổi.
+    # [MIỀN — ADR-0006 §5.7] Giới hạn miền mô hình phát ngôn. Bật bằng
+    # PLUME_PAPER_DOMAIN=1 (xem spray/plume.py).
+    #   min/max_range_m: paper §V-D đánh giá 0–50 m; §V cảnh báo biểu diễn cầu vỡ
+    #     ở gần cảm biến. Dữ liệu thật: r p01 = 2,75 m, chỉ 0,02 % điểm có r > 50 m.
+    #   Cách A của ADR-0006 còn đặt diffusion_alpha = 0 (Fig. 5 cho r_cl là MỘT
+    #     lognormal, không nở theo tuổi).
     min_range_m: float = 0.0
     max_range_m: float = float("inf")
     initial_vz_max_mps: float = INITIAL_VZ_MAX_MPS
@@ -185,51 +157,32 @@ class PlumeStateConfig:
     # [CHỌN] dựa trên đo: plume thật có 1-2 chuỗi ~1000 điểm mỗi frame.
     placement_knots: int = 0
     placement_knot_sigma_m: float = 0.25
-    # [CHỌN] Nguồn phát spray CỐ ĐỊNH theo vật thể (A3 việc 1).
-    # Vật lý: nước bắn từ LỐP SAU, không phải rải đều trên cả mặt cắt 3,4 m.
-    # Hai nguồn hẹp ⇒ cụm của các chu kỳ liên tiếp chồng lên nhau quanh cùng
-    # một đường ⇒ nối thành chuỗi ("băng nước") như dữ liệu thật, thay vì mỗi
-    # cụm đứng rời. `source_count=0` = tắt, quay lại rải đều trong hộp.
-    # [CHỌN] Hệ số nhân số cụm sinh — núm hiệu chỉnh của A3 việc 2.
-    # Lý do cần: bảng `visible` là số **detection-cluster** đo trên dữ liệu thật,
-    # nhưng code đang dùng nó làm số **quả cầu sống**; nhiều quả cầu gộp thành một
-    # detection-cluster nên cần nhiều cầu hơn bảng để khớp ở tầng detector.
-    # `[ĐO] 2026-11-19`: hệ số 3,0 làm `det/frame` và cụm/frame khớp bảng ở
-    # 100 km/h (det 777 vs 875; share ≥50đ 88,9 % vs 82 %; p95 355 vs 182). Bảng
-    # `visible` là số **detection-cluster** nên phải sinh nhiều cầu hơn mới đạt.
-    spawn_scale: float = 1.0
-    # `[CHỌN] — ĐÃ TẮT 2026-11-19 sau khi đối chiếu paper.` Ý tưởng "nguồn phát ở
-    # hai bánh sau" là của tôi, KHÔNG có trong paper: Paper A L393-395 nói
-    # *"spheres are positioned with a uniform distribution in the region behind
-    # every moving object"*, và code tác giả dùng hộp RỘNG 3,4 m (cả mặt cắt đuôi
-    # xe). Bật 2 nguồn ±0,85 m làm điểm dồn thành hai vệt bánh — thấy rõ trong
-    # clip; người dùng đã chỉ ra đúng. Mặc định 0 = rải đều như paper.
+    # Nguồn phát rời rạc (hai bánh sau): KHÔNG có trong paper — paper nói rải đều
+    # "in the region behind every moving object". Mặc định 0 = tắt (rải đều).
     source_count: int = 0
-    # [KHÔNG DÙNG TỪ QĐ7 2026-11-19] nguồn rời rạc (hai bánh) — nguồn SSPP, R2
-    # audit đánh PHẢI BỎ. Giữ field để không phá chữ ký `PlumeStateConfig`.
+    # Field giữ cho API; không dùng khi `source_count = 0`.
     source_lateral_m: tuple[float, ...] = (-0.85, 0.85)
     source_sigma_m: float = 0.18
-    # [BỎ THEO AUDIT R2 2026-11-19] `streak` KHÔNG có trong paper Linnhoff 2022
-    # (R2 audit 49 tham số: 9 tham số phải bỏ, trong đó có `streak_scale`).
-    # Cơ chế kéo dài cụm theo phương trôi để nối các đám thành băng; ở 130 km/h
-    # nó từng làm `max` điểm/cụm ~3.500 trong khi static chỉ có p95 36–181.
-    # Đặt 0.0 = tắt; chỉ bật lại nếu có bằng chứng static chứng minh cần.
+    # Độ dài vệt theo phương trôi. `streak` KHÔNG có trong paper ⇒ mặc định 0
+    # (tắt); chỉ bật lại nếu có bằng chứng từ dữ liệu static.
     streak_scale: float = 0.0
-    # [CHỌN] Độ cao nguồn tính từ **mặt đường** (m), không phải theo chiều cao
-    # hộp: lớp nước bắn lên có cùng độ dày bất kể xe cao hay thấp. Dùng chiều
-    # cao hộp làm mâu thuẫn giữa các cự ly (cùng một khối cho elevation khác
-    # nhau ở 10 m và 17 m) — xem plan A3.
-    # [KHÔNG DÙNG TỪ QĐ7 2026-11-19] (nguồn SSPP) — giữ field vì API.
+    # Độ cao nguồn tính từ **mặt đường** (m), không theo chiều cao hộp: lớp nước
+    # bắn lên có cùng độ dày bất kể xe cao hay thấp. Field giữ cho API.
     source_height_m: tuple[float, float] = (0.05, 0.90)
+    # Hệ số nhân số cụm sinh. Bảng `visible` là số **detection-cluster** đo trên
+    # dữ liệu thật, còn code dùng nó làm số **quả cầu sống**; nhiều cầu gộp thành
+    # một detection-cluster nên đôi khi cần nhiều cầu hơn. Production giữ 1,0
+    # (D2-v2 đã FAIL — xem ADR-0006).
+    spawn_scale: float = 1.0
 
 
 @dataclass
 class SprayCluster:
-    """One cluster with its own position, velocity and age.
+    """Một cụm: vị trí, vận tốc, tuổi.
 
-    ``pos`` is in the ego (sensor) frame, the frame the LiDAR renders in.
-    ``vel`` is in the **ground frame** (m/s): drag and wind live there, and
-    the ego velocity is subtracted only when integrating ``pos``.
+    ``pos`` ở hệ **ego** (hệ cảm biến, hệ LiDAR render).
+    ``vel`` ở hệ **mặt đất** (m/s): drag và gió sống ở đó, và ``ego_velocity``
+    chỉ bị trừ đúng một lần khi tích phân ``pos``.
     """
 
     pos: np.ndarray
@@ -241,29 +194,23 @@ class SprayCluster:
     object_id: int
     cluster_id: int
     velocity_assumed: bool = False
-    # ``y`` of the spray block centre in the ego frame; the lateral clamp in
-    # :meth:`PlumeState.advance` keeps ``|pos[1] - lateral_center_y|`` inside
-    # clamp ngang 2,43 m cũ). ``None`` = không clamp (hand-built clusters
-    # in tests).
+    # ``y`` của tâm khối sinh trong hệ ego. Không còn clamp ngang; field giữ
+    # lại để cụm dựng tay trong test vẫn khai được. ``None`` = không dùng.
     lateral_center_y: float | None = None
-    # ``[CHỌN]`` Độ dài vệt (m) dọc phương trôi: cụm được cảm biến nhìn như một
-    # **vệt** quét qua trong một chu kỳ, không phải quả cầu đứng yên. Đây là bản
-    # sửa cho lỗ hổng định lượng của A3: cầu cách nhau 2,2 m (trôi 22 m/s × 0,1 s)
-    # mà bán kính chỉ 0,31 m nên không bao giờ chồng nhau ⇒ plume bị "chặt vụn".
-    # Với vệt dài ≈ quãng trôi một chu kỳ, vệt của chu kỳ trước chạm chu kỳ sau
-    # ⇒ tạo băng liên tục như dữ liệu thật.
+    # ``[CHỌN]`` Độ dài vệt (m) dọc phương trôi — biểu diễn cụm như một **vệt**
+    # quét qua trong một chu kỳ thay vì quả cầu đứng yên. Mặc định 0 (tắt):
+    # ``streak_scale = 0``; cơ chế này KHÔNG có trong paper.
     streak_m: float = 0.0
-    # [QĐ13 2026-11-19] Tham số phục vụ tán xạ: bán kính gốc (lognormal paper,
-    # không clip) + mặt đuôi/ hướng chạy tại thời điểm sinh. ``radius`` mỗi bước
-    # = min(radius_max, radius0 + diffusion_alpha * d_rel) với d_rel = độ sâu
-    # của cụm sau mặt đuôi (paper §III-B: r_cl là đại lượng ĐO ĐƯỢC ở nhiều tuổi
-    # plume; mô hình hoá tường minh sự nở theo tuổi là mở rộng CÓ KHAI BÁO).
+    # Tham số phục vụ tán xạ: bán kính gốc (lognormal paper, không clip) + mặt
+    # đuôi/hướng chạy tại thời điểm sinh. Mỗi bước:
+    # ``radius = min(radius_max, radius0 + diffusion_alpha · d_rel)`` với ``d_rel``
+    # = độ sâu cụm sau mặt đuôi. Mở rộng NGOÀI paper, có khai báo.
     radius0: float | None = None
     rear_point: np.ndarray | None = None
     forward: np.ndarray | None = None
-    # Tốc độ **tương đối** của xe so với ego dọc phương chạy (m/s): kịch bản
+    # Tốc độ **tương đối** của xe dẫn so với ego dọc phương chạy (m/s): kịch bản
     # static = v (xe chạy ra xa), follow = 0 (xe giữ khoảng cách). Dùng để dời
-    # mặt đuôi theo thời gian khi tính độ sâu d_rel cho tán xạ QĐ13.
+    # mặt đuôi theo thời gian khi tính độ sâu `d_rel` cho tán xạ.
     car_speed_mps: float = 0.0
 
     def probability(self) -> float:
@@ -289,18 +236,18 @@ class PlumeCounters:
 def cluster_spawn_rate_for_speed_abs(
     v_abs_kmh: float, vehicle_class: str = "crafter"
 ) -> float:
-    """Clusters **spawned per 0.1 s cycle**, from the ``cal`` table (29e).
+    """Số cụm **sinh mỗi chu kỳ** 0,1 s, lấy từ bảng cụm/frame.
 
-    ``rate(v) = visible_ref(v) / K(T_ref(v))`` is independent of ``wfh``; the
-    humidity only changes how long a cluster lives (through ``T``). Keeping the
-    rate fractional matters at low speed: rounding 1.44 to 1 would undershoot
-    Golf at 50 km/h by 30 %. :class:`PlumeState` accumulates the fraction over
-    frames, so the long-run spawn rate stays exact while each frame still
-    spawns an integer number of clusters.
+    ``rate(v) = visible_ref(v) / K(T_ref(v))`` — **không** phụ thuộc ``wfh``;
+    độ ẩm chỉ đổi tuổi thọ cụm (qua ``T``). Vì sao phải neo tại ``T_ref``:
+    `docs/adr/decision-log.md` (29e-c).
 
-    ``vehicle_class`` only selects the visible-cluster table; the cluster
-    radius and ``P_det`` are the paper's lognormals for every class
-    (ticket 29e-d-iii).
+    Giữ ``rate`` ở dạng **phân số**: làm tròn sẽ lệch 30–44 % ở tốc độ thấp.
+    :class:`PlumeState` cộng dồn phần lẻ qua ``_spawn_credit``, nên trung bình
+    dài hạn đúng trong khi mỗi frame vẫn sinh số nguyên cụm.
+
+    ``vehicle_class`` chỉ chọn BẢNG số cụm; bán kính cụm và ``P_det`` là
+    lognormal của paper cho mọi lớp.
     """
     if v_abs_kmh <= ACTIVATION_SPEED_KMH:
         return 0.0
@@ -310,18 +257,16 @@ def cluster_spawn_rate_for_speed_abs(
 def cluster_count_for_speed_abs(
     v_abs_kmh: float, wfh_mm: float, vehicle_class: str = "crafter"
 ) -> int:
-    """Clusters **alive in one frame** at steady state.
+    """Số cụm **còn sống trong một frame** ở trạng thái dừng.
 
-    ``visible = round(rate * K)``, ``K = 1/(1−exp(−Δt/T))`` (paper Eq. 1,
-    QĐ12) — the same table as
-    :func:`spray.plume.visible_cluster_count_for_speed`, so the stateful path
-    and the per-frame generator report the same number. The lifetime ``T`` is
-    unchanged (``[CODE] dee.cpp:530``). ``wfh_mm`` is in millimetres.
+    ``visible = round(rate × K)`` với ``K = 1/(1−exp(−Δt/T))`` [PAPER] Eq. 1 —
+    cùng bảng với :func:`spray.plume.visible_cluster_count_for_speed`, nên
+    đường stateful và generator theo frame báo cùng một số.
+    ``T = 0,02·wfh_mm·(v−50) + 0,2`` `[CODE]`. ``wfh_mm`` tính bằng milimét.
 
-    The multiplier is :func:`spray.plume.steady_state_alive_factor`, which after
-    QĐ12 is exactly ``K``: :meth:`PlumeState.prune` fades clusters with
-    probability ``1 − exp(−Δt/T)`` per step (paper Eq. 1). Trước QĐ12 code cắt
-    cứng ở ``4T`` nên hệ số là ``4T/Δt + 1``.
+    Hệ số nhân là :func:`spray.plume.steady_state_alive_factor` = ``K``:
+    :meth:`PlumeState.prune` cho cụm tan với xác suất ``1 − exp(−Δt/T)`` mỗi
+    bước.
     """
     if v_abs_kmh <= ACTIVATION_SPEED_KMH or wfh_mm <= 0.0:
         return 0
@@ -435,22 +380,23 @@ class PlumeState:
         vehicle_class: str = "crafter",
         direction: np.ndarray | None = None,
     ) -> list[SprayCluster]:
-        """Spawn this cycle's clusters for one object.
+        """Sinh cụm của chu kỳ này cho một vật thể.
 
-        ``n`` follows the measured ``cal`` table (ticket 29e): the per-cycle
-        rate is fractional and carried over through ``_spawn_credit`` so the
-        long-run number of live clusters matches the table. ``T`` still uses
-        ``v_abs`` (``object_speed_mps``). The initial velocity is the
-        **ground** velocity: ``object_velocity_ego_mps`` plus the ego velocity
-        ``[ego_speed_mps, 0, 0]``. When the caller did not supply the object
-        velocity, it falls back to the object moving along ``+x`` in the ego
-        frame at spawn time, so ``v_ground = [object_speed_mps, 0, 0]``, and
-        the cluster is flagged ``velocity_assumed``. ``age`` starts one cycle
-        behind so the cluster is inactive on its birth frame.
+        ``count`` theo bảng cụm/frame đo được; phần lẻ cộng dồn qua
+        ``_spawn_credit`` nên số cụm sống dài hạn khớp bảng. ``T`` dùng
+        ``v_abs`` (``object_speed_mps``).
 
-        ``center`` and ``extents`` describe the spray block (centre and half
-        sizes in metres); positions are uniform inside it. Passing ``None``
-        keeps the 28a placeholder jitter around the sensor origin.
+        Vận tốc ban đầu là vận tốc **mặt đất**: ``object_velocity_ego_mps``
+        cộng vận tốc ego ``[ego_speed_mps, 0, 0]``. Nếu caller không truyền
+        vận tốc vật thể, hàm rơi về giả định vật chạy theo ``+x`` trong hệ ego
+        ⇒ ``v_ground = [object_speed_mps, 0, 0]``, và cụm bị đánh cờ
+        ``velocity_assumed``.
+
+        ``age`` bắt đầu ở ``−dt`` nên cụm **không** hoạt động ngay frame sinh.
+
+        ``center`` / ``extents``: tâm và nửa kích thước khối sinh (mét); vị trí
+        rải đều trong khối. Truyền ``None`` thì rơi về jitter quanh gốc cảm
+        biến — chỉ dùng cho test/probe, không phải đường production.
         """
         cfg = config or self._config
         if config is not None:
@@ -498,7 +444,7 @@ class PlumeState:
         lateral_center = (
             float(block_center[1]) if center is not None else float(origin[1])
         )
-        # QĐ7: trục dọc của khối (để rải cụm đều trong hộp calibration static).
+        # Trục dọc của khối sinh (dọc theo yaw của box).
         forward = np.array([1.0, 0.0, 0.0], dtype=np.float64)
         if center is not None and direction is not None:
             candidate = np.asarray(direction, dtype=np.float64).ravel()
@@ -532,13 +478,9 @@ class PlumeState:
                     -_SPAWN_JITTER_HALF_M, _SPAWN_JITTER_HALF_M, size=3
                 )
             else:
-                # QĐ7 2026-11-19: vùng sinh = ĐÚNG hộp đo calibration static D2
-                # (W=3,4 m · H=1,5 m từ mặt đường · sâu 20 m sau đuôi xe), phân
-                # bố ĐỀU. Bỏ nguồn rời rạc (`source_lateral_m`), knots và clamp
-                # ngang 2,43 m (nguồn SSPP) — R2 audit đánh PHẢI BỎ. Paper chỉ
-                # nói "uniform distribution in the region behind every moving
-                # object", không cho kích thước ⇒ dùng vùng do phép đo
-                # calibration định nghĩa là lựa chọn D2-hợp lệ.
+                # Rải ĐỀU trong khối sinh [PAPER] §III-B "uniform distribution in
+                # the region behind every moving object". Không có nguồn rời rạc,
+                # không có knot, không clamp ngang.
                 offset = rng.uniform(-1.0, 1.0, size=3) * block_extents
                 pos = (
                     block_center
@@ -559,8 +501,8 @@ class PlumeState:
                 cluster_id=self._next_cluster_id,
                 velocity_assumed=velocity_assumed,
                 lateral_center_y=lateral_center,
-                # Quãng ego đi trong một chu kỳ = khoảng cách giữa hai lớp cụm,
-                # cũng là độ dài vệt cần biểu diễn để hai lớp chạm nhau.
+                # `streak_scale` mặc định 0 ⇒ streak_m = 0. Cơ chế kéo dài cụm
+                # thành vệt KHÔNG có trong paper; knob giữ lại cho thí nghiệm.
                 streak_m=float(np.linalg.norm(ego_velocity)) * dt
                 * float(cfg.streak_scale),
                 radius0=radius0,
@@ -580,20 +522,18 @@ class PlumeState:
     def advance(
         self, dt: float, ego_velocity: np.ndarray | None = None
     ) -> None:
-        """Advect every cluster with drag and wind, then age it by ``dt``.
+        """Trôi mọi cụm bằng drag + gió, rồi tăng tuổi thêm ``dt``.
 
-        Drag is applied in the ground frame (``vel`` is a ground velocity).
-        Positions are integrated in the ego frame, so the ego velocity is
-        subtracted there: a cluster keeping its ground speed falls behind at
-        ``|vel - ego_velocity|``. ``ego_velocity`` defaults to zero so callers
-        that do not model ego motion get the 28a behaviour.
+        Drag áp trong hệ **mặt đất** (``vel`` là vận tốc mặt đất). Vị trí tích
+        phân trong hệ **ego**, nên ``ego_velocity`` bị trừ ở đó: cụm giữ vận tốc
+        mặt đất sẽ tụt lại phía sau với tốc độ ``|vel − ego_velocity|``.
+        ``ego_velocity`` mặc định bằng 0 cho caller không mô hình hoá ego.
 
-        Drag may only dissipate air speed. At road speed ``|v_air|^2`` is of
-        order 1000 m^2/s^2, so a positive ``drag`` (the default is the paper's
-        constant ``-0.15``, but the config can pin any value) would otherwise
-        grow as ``v' = +c*v^2`` and reach inf inside one cluster lifetime. The
-        guard skips the update in that case; for every dissipative value the
-        formula is unchanged.
+        Drag chỉ được làm **giảm** tốc độ không khí. Ở tốc độ đường,
+        ``|v_air|²`` bậc 1000 m²/s², nên một ``drag`` dương (mặc định là hằng số
+        của paper ``−0,15``, nhưng config cho phép giá trị bất kỳ) sẽ tăng theo
+        ``v' = +c·v²`` và chạm `inf` trong một đời cụm. Guard bỏ qua cập nhật
+        trong trường hợp đó; mọi giá trị tiêu tán thì công thức không đổi.
         """
         wind = self.wind
         if ego_velocity is None:
@@ -614,15 +554,12 @@ class PlumeState:
                             * (air_speed**2)
                             * dt
                         )
+                # Vị trí ở hệ EGO, nên trừ ego_velocity đúng một lần ở đây.
                 cluster.pos = cluster.pos + (cluster.vel - ego_velocity) * dt
-                # QĐ7 2026-11-19: BỎ clamp ngang 2,43 m (nguồn SSPP `cal`
-                # labels, R2 audit đánh PHẢI BỎ). Vùng sinh giờ đã bị giới hạn
-                # bởi hộp calibration static nên không cần clamp riêng.
-                # [QĐ13] Tán xạ: r(t) = r₀ + α·d_rel(t), d_rel = độ sâu sau mặt
-                # đuôi. Paper §III-B định nghĩa r_cl là đại lượng đo được ở nhiều
-                # tuổi plume ⇒ mô hình hoá tường minh sự nở theo tuổi là nhất quán;
-                # đây là mở rộng NGOÀI paper, có khai báo + một α chung.
                 cluster.age += dt
+                # Tán xạ r(t) = r₀ + α·d_rel(t), d_rel = độ sâu sau mặt đuôi.
+                # Mở rộng NGOÀI paper (có khai báo, một α chung mọi tốc độ):
+                # paper định nghĩa r_cl là đại lượng ĐO ĐƯỢC ở nhiều tuổi plume.
                 alpha = float(cfg.diffusion_alpha)
                 if (
                     alpha > 0.0
@@ -649,16 +586,17 @@ class PlumeState:
         dt: float | None = None,
         rng: np.random.Generator | None = None,
     ) -> int:
-        """Cho cụm tan theo **xác suất** (paper Eq. 1) + trần số học ``12·T``.
+        """Cho cụm tan theo **xác suất** [PAPER] Eq. 1 + trần số học ``12·T``.
 
-        [QĐ12 2026-11-19] Xác suất sống mỗi bước là ``P = exp(−Δt/T)`` đúng paper
-        Eq. 1 ("probability ... to still exist after time t is exp(−t/T)"), thay
-        cho cắt cứng ``age > 4·ttl`` của reference impl. Trần ``12·T`` chỉ là
-        **trần số học** chặn đuôi (``exp(−12) = 6e−6``); không phải mô hình.
+        Xác suất sống mỗi bước là ``P = exp(−Δt/T)`` — nguyên văn paper:
+        *"probability ... to still exist after time t is exp(−t/T)"*. Trần
+        ``12·T`` chỉ là **trần số học** chặn đuôi (``exp(−12) = 6e−6``), không
+        phải mô hình.
 
         ``dt`` mặc định ``DEFAULT_DT_S`` (0,1 s) khi caller gọi trực tiếp;
-        ``rng`` mặc định dùng RNG nội bộ seed 0 để tái lập được. ``ceilings`` giữ
-        cho tương thích và bị bỏ qua (trần theo chiều cao đã bị xoá ở ticket 29h).
+        ``rng`` mặc định dùng RNG nội bộ seed 0 để tái lập được. ``ceilings``
+        nhận cho tương thích và **bị bỏ qua** — plume không có trần theo chiều
+        cao (xem module docstring).
         """
         step = DEFAULT_DT_S if dt is None else float(dt)
         random = self._rng if rng is None else rng
@@ -685,12 +623,12 @@ class PlumeState:
         return removed
 
     def alive(self, object_id: int) -> list[SprayCluster]:
-        """Clusters currently alive for one object in the active scene."""
+        """Cụm đang sống của một vật thể trong scene hiện hành."""
         key = (self._scene_token, object_id)
         return list(self._clusters.get(key, []))
 
     def all_alive(self) -> list[SprayCluster]:
-        """Every live cluster in the active scene, across all objects."""
+        """Mọi cụm còn sống trong scene hiện hành, gộp mọi vật thể."""
         return [
             cluster
             for clusters in self._clusters.values()
@@ -701,24 +639,15 @@ class PlumeState:
         """Cụm còn sống VÀ nằm trong miền hợp lệ của mô hình (ADR-0006 §5.7).
 
         Mặc định (``min_range_m = 0``, ``max_range_m = inf``) trả về đúng
-        ``all_alive()`` — đường nhanh, bit-for-bit hành vi cũ.
-
-        Hai biên đều có paper làm căn cứ:
-        - ``min_range_m``: paper §V cảnh báo *"with higher resolutions, a problem
-          with the spherical cluster representation might appear. The problem can
-          become especially pronounced in close proximity to the sensor"*; dữ liệu
-          thật không có ``label == 2`` dưới 2,5 m.
-        - ``max_range_m``: §V-D chỉ đánh giá 0–50 m, và ``P_det`` (Fig. 7) đo ở 25 m.
+        ``all_alive()``.
 
         ``min_range_m`` so với **mặt cầu** (``‖pos‖ − radius``), không phải tâm:
-        tâm cụm ở 3 m nhưng bán kính 2 m thì mặt cầu đã ở 1 m. Đo trên 40 frame
-        α = 0: lọc theo tâm để **7,3 %** cụm có mặt cầu dưới 2,5 m lọt qua, và 3
-        cụm có mặt cầu **xuyên qua** cảm biến. ``max_range_m`` so với tâm (đó là
-        đại lượng paper đánh giá ở Fig. 11/12).
+        tâm cụm ở 3 m với bán kính 2 m thì mặt cầu đã ở 1 m. ``max_range_m`` so
+        với **tâm** — đó là đại lượng paper đánh giá ở Fig. 11/12.
 
-        Khoảng cách dùng ``‖pos‖`` (3D, từ cảm biến). Vì ``‖pos‖ ≥ |x|``, biên này
-        bao hàm luôn "không trôi quá xa về phía sau": đo được chỉ cắt ``r ≤ 50``
-        đã cho ``x min = −49,4 m``, không cần biên sau riêng.
+        Khoảng cách dùng ``‖pos‖`` 3D từ cảm biến. Vì ``‖pos‖ ≥ |x|``, biên này
+        bao hàm luôn "không trôi quá xa về phía sau": cắt ``r ≤ 50`` đã cho
+        ``x min = −49,4 m``, không cần biên sau riêng.
         """
         clusters = self.all_alive()
         cfg = self._config

@@ -10,8 +10,8 @@ import numpy as np
 from spray.plume_context import sample_wfh_mm
 from spray.wet_ground import WetGroundConfig, apply_wet_ground
 
-# Số điểm/cụm median theo cự ly 3D của tâm cụm trong LiDAR frame [ĐO, ticket 16].
-# Ngoại xuy phẳng: mọi cự ly > 30 m dùng 10 (không bịa đường cong mới).
+# Số điểm/cụm median theo cự ly 3D của tâm cụm trong khung LiDAR [ĐO].
+# Ngoại suy phẳng: mọi cự ly > 30 m dùng 10 (không bịa đường cong mới).
 _POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
     (0.0, 5.0, 30),
     (5.0, 10.0, 20),
@@ -20,33 +20,25 @@ _POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
     (30.0, float("inf"), 10),
 )
 
-# [ĐO] Cụm/frame trên **RoadSpray `*_static`** (DBSCAN 0,7° / minPts 3), theo lớp xe và
-# mốc 10 km/h — nguồn calibration không leak của ADR-0006 **D2**.
+# [ĐO] Cụm/frame trên RoadSpray `*_static` — nguồn calibration độc lập của ADR-0006 D2
+# (DBSCAN 0,7° / minPts 3, lát chuẩn thức Δ = 1,0 m).
 #
-# CỘT CHUẨN THỨC = **bề dày lát Δ = 1,0 m**, không phải Δ = 2,5 m: cắt lát dày làm
-# nhiều đám thật dính thành chuỗi dọc tia nên phình 1,6–2,1× (Crafter 100 km/h:
-# Δ=1,0 → 35,86 cụm/frame; Δ=2,5 → 25,75; Δ=6,0 → 17,21). Quyết định của Lead
-# 2026-11-19 (`docs/measurements/roadspray-static-clusters-by-speed.md` §6).
+# Đơn vị = số cụm **nhìn thấy** trong một frame; `rate` = bảng / K (xem
+# cluster_rate_for_speed). Mốc 50/100/130 đo trực tiếp trên
+# `.scratch/roadspray-cal/tmp/a3_targets_static.json` (key `"{v}_1.0"`, field `cpf`:
+# 9,04 / 35,86 / 33,08); 6 mốc 10 km/h còn lại nội suy tuyến tính.
 #
-# Nguồn số Crafter: `.scratch/roadspray-cal/tmp/a3_targets_static.json`, key `"{v}_1.0"`,
-# field `cpf` — đo trên `plume_crafter_v5.jsonl` (81 bag, lọc `18 ≤ car_range ≤ 38 m`):
-#     v=50 → 9,04 | v=100 → 35,86 | v=130 → 33,08 cụm/frame
-# Ngoài đích cpf, bảng còn chia cho **survival đo được** (cụm sống sót sau DBSCAN /
-# cụm sinh) vì đích là số cụm SỐNG SÓT: spawn(v) = đích_cpf(v) / survival(v).
-# Chỉ 3 mốc đo trực tiếp; 6 mốc 10 km/h còn lại nội suy tuyến tính giữa chúng.
+# Dải bất định **±30–40 %** do định nghĩa vùng (Δ từ 1,0 → 6,0 m), không phải do mẫu —
+# cổng B phải đọc cùng dải này.
 #
-# Golf: chưa có phép đo static Δ=1,0 tương ứng trong `a3_targets_static.json`, nên
-# **giữ nguyên** các giá trị Δ=2,5 cũ (chưa được hiệu chỉnh lại) — ghi rõ để không
-# đọc nhầm là cùng chuẩn.
-#
-# Đối chứng: trước đây bảng lấy từ SSPP `cal` (chứa 6/12 scene test ⇒ V2) rồi từ
-# Δ=2,5 (phồng do chain-merge). Dải bất định vẫn **±30–40 %** vì phụ thuộc định nghĩa
-# vùng (Δ từ 1,0 → 6,0 m), không phải mẫu; cổng B phải đọc cùng dải này.
+# Golf: chưa có phép đo static Δ=1,0 tương ứng; các giá trị dưới đây là Δ=2,5 cũ, nên
+# **không cùng chuẩn** với Crafter. Lý do + toàn bộ lịch sử đổi nguồn: `docs/adr/decision-log.md`
+# (ADR-0006 D2).
 _CLUSTER_VISIBLE_BY_SPEED: dict[str, tuple[tuple[float, float], ...]] = {
     "crafter": (
-        # Đích cpf Δ=1,0 [ĐO]: 9,04 @50 · 35,86 @100 · 33,08 @130 (a3_targets_static.json,
-        # đo trên plume_crafter_v5.jsonl: lọc 18 ≤ car_range ≤ 38 m). 6 mốc còn lại
-        # nội suy tuyến tính. (Mốc 4 sẽ chia thêm survival đo lại sau QĐ7.)
+        # Đích cụm/frame, lát Δ=1,0 m [ĐO]: 9,04 @50 · 35,86 @100 · 33,08 @130
+        # (a3_targets_static.json, đo trên plume_crafter_v5.jsonl, lọc
+        # 18 ≤ car_range ≤ 38 m). 6 mốc còn lại nội suy tuyến tính.
         (50.0, 9.04),
         (60.0, 14.40),
         (70.0, 19.77),
@@ -70,25 +62,21 @@ _CLUSTER_VISIBLE_BY_SPEED: dict[str, tuple[tuple[float, float], ...]] = {
     ),
 }
 
-# [CHỌN] Mức ẩm chuẩn của dataset: 1 mm — cùng giá trị `PlumeContext.wfh_mm`
-# mặc định và mọi phép đo hình học đã công bố. `T_ref` lấy tại mức này.
-# Ticket 29e-c đặt tên và đóng vòng: `rate(v) = visible_ref(v) / K(T_ref)` lấy
-# `T_ref` tại `WFH_REF_MM`, nên `rate` không phụ thuộc `wfh` của frame.
+# [CHỌN] Mức ẩm chuẩn 1 mm — neo để tách `alive = rate × K` thành hai thừa số.
+# `rate` tính tại mức này nên không phụ thuộc `wfh` của frame; `wfh` chỉ tác động
+# qua `T`. Vì sao phải neo + bất nhất với bảng: `docs/adr/decision-log.md` (29e-c).
 WFH_REF_MM = 1.0
 
-# QĐ11 2026-11-19 — vùng **SINH** cụm (tách khỏi vùng ĐO):
-#   dài = |v|·Δt (quãng xe đi trong một scan: 1,4 m @50 · 2,8 @100 · 3,6 @130),
-#   rộng 3,4 m, cao 1,5 m tính từ mặt đường, ngay sau đuôi xe.
-# Nguồn: implementation reference của tác giả (`openMSL/sl-1-2`,
-# `define_spray_volumes()`) + bề ngang/cao của hộp đo calibration static.
-# Paper chỉ nói phân bố đều "in the region behind every moving object", không cho
-# kích thước. QĐ7 gộp nhầm vùng sinh với vùng đo 20 m nên đã sửa lại ở QĐ11.
+# Vùng **SINH** cụm: slab ngay sau đuôi xe, dài = |v|·Δt (1,4 m @50 · 2,8 @100 ·
+# 3,6 @130), rộng 3,4 m, cao 1,5 m tính từ mặt đường. Paper chỉ nói phân bố đều
+# "in the region behind every moving object", không cho kích thước ⇒ lấy từ
+# `define_spray_volumes()` của code tác giả + hộp đo calibration static.
 SPAWN_BOX_WIDTH_M = 3.4
 SPAWN_BOX_HEIGHT_M = 1.5
 _REFERENCE_WATER_FILM_M = WFH_REF_MM / 1000.0
 
-# [CODE] profile VLP-32 `update_cycle_time` = 0.1 s — chu kỳ model tham chiếu sinh cụm.
-# Dùng để cộng dồn số cụm còn sống qua các chu kỳ (hệ số K, ticket 22).
+# [CODE] profile VLP-32 `update_cycle_time` = 0,1 s — chu kỳ sinh cụm, cũng là `Δt`
+# trong `K = 1/(1−exp(−Δt/T))`.
 _UPDATE_CYCLE_TIME_S = 0.1
 
 
@@ -101,22 +89,20 @@ class PlumeConfig:
     Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/measurements/semantic-spray-stats.md,
     docs/adr/0003):
 
-    - Cơ chế port từ code tham chiếu đã publish của Linnhoff et al. 2022
+    - Cơ chế port từ code tham chiếu của Linnhoff et al. 2022
       (openMSL/sl-1-2, MPL-2.0): kích hoạt trên 40 km/h, lifetime
-      `T = wfh*0,02*(v_kmh - 50) + 0,2`. Số cụm **không** còn lấy từ công thức
-      `(0,2*wfh + 0,1) * (v_kmh - 50)` mà từ bảng đo `_CLUSTER_VISIBLE_BY_SPEED`
-      (ticket 29c mục 7).
-      Chi tiết giá trị + số dòng: docs/history/plume-model-provenance.md.
-    - Đo trên SemanticSpray (bản release local): số điểm/cụm median **theo cự ly**
-      (`_POINTS_MEDIAN_BY_RANGE`, ticket 16) và bề dày theo tia
-      `r_range/r_extent = 1,28` (ticket 16, hiệu chỉnh bằng `radial_squash`).
+      `T = 0,02·wfh_mm·(v_kmh − 50) + 0,2`. Số cụm lấy từ bảng đo
+      `_CLUSTER_VISIBLE_BY_SPEED`, không từ công thức.
+    - Đo trên SemanticSpray: số điểm/cụm median **theo cự ly**
+      (`_POINTS_MEDIAN_BY_RANGE`) và bề dày theo tia `r_range/r_extent = 1,28`
+      (hiệu chỉnh bằng `radial_squash`).
     - Lựa chọn của repo, không có nguồn ngoài: `water_film_height_m` mặc định
       1 mm (dataset không khai báo độ ướt), bù hình học, biên an toàn.
 
-    `cluster_radius_median_m` giữ 0,30 dù ticket 16 đo median `r_extent` = 0,755 m:
-    con số 0,755 là **cận trên** vì single-linkage trên `(x, y)` nối chuỗi các cụm
-    gần nhau (`docs/measurements/plume-geometry-vs-real.md` §Caveats), còn profile tham chiếu
-    cho lognormal μ=-1,2 σ=0,8 → median 0,30.
+    `cluster_radius_median_m` = 0,30 dù phép đo single-linkage cho `r_extent`
+    median 0,755 m: con số 0,755 là **cận trên** vì single-linkage trên `(x, y)`
+    nối chuỗi các cụm gần nhau; paper Fig. 5 cho lognormal μ=−1,2, σ=0,8 ⇒
+    median 0,30.
     """
 
     point_cloud_range: tuple[float, float, float, float, float, float] = (
@@ -140,10 +126,9 @@ class PlumeConfig:
     # [CODE] dee.cpp:530 — time_constant = wfh*0.02*(v_kmh - 50) + 0.2 (giây).
     lifetime_water_film_coeff: float = 0.02
     lifetime_base_s: float = 0.2
-    # [QĐ12 2026-11-19] Trần **SỐ HỌC** 12·T, KHÔNG phải mô hình: paper Eq. 1 cho
-    # cụm tan theo xác suất P(age) = exp(-age/T); exp(-12) = 6e-6 nên trần này chỉ
-    # cắt phần đuôi không còn ý nghĩa (< 1 cụm trên 10^5). Trước đây 4,0 là cắt
-    # cứng `[CODE] dee.cpp:446` — đã bỏ theo QĐ12.
+    # Trần **SỐ HỌC** 12·T, không phải mô hình: paper Eq. 1 cho cụm tan theo xác
+    # suất P(age) = exp(−age/T); exp(−12) = 6e−6 nên trần này chỉ cắt phần đuôi
+    # không còn ý nghĩa (< 1 cụm trên 10⁵).
     lifetime_max_age_factor: float = 12.0
     # Số điểm mỗi cụm: lognormal quanh median theo cự ly, sigma chọn để p90 ~ 40.
     # Trường `points_per_cluster_median` giữ lại cho tương thích constructor; generator
@@ -152,41 +137,32 @@ class PlumeConfig:
     points_per_cluster_median: float = 17.0
     points_per_cluster_sigma: float = 0.67
     points_per_cluster_bounds: tuple[int, int] = (3, 200)
-    # Bán kính cụm: lognormal median 0,30 m (Linnhoff Fig. 5, μ=-1,2 sigma=0,8).
-    # Giữ 0,30 dù ticket 16 đo median r_extent = 0,755 m: single-linkage trên (x, y)
-    # nối chuỗi các cụm gần nhau nên 0,755 là CẬN TRÊN; paper Fig. 5 cho đúng 0,30.
+    # Bán kính cụm: lognormal median 0,30 m (paper Fig. 5, μ=−1,2, σ=0,8).
     cluster_radius_median_m: float = 0.30
     cluster_radius_sigma: float = 0.8
-    # [QĐ13 2026-11-19] Paper KHÔNG đặt trần cho r_cl. Đây là **clip SỐ HỌC theo
-    # max quan sát** của cơ chế tán xạ QĐ13 (r(t) = r₀ + α·d_rel; r ~ 3–4 m ở
-    # depth 60 m với α ≈ 0,06), không phải ràng buộc paper. Trần 1,0/2,0 cũ bị bỏ.
+    # Paper KHÔNG đặt trần cho `r_cl`. Đây là **clip SỐ HỌC theo max quan sát** của
+    # cơ chế tán xạ (r ~ 3–4 m ở độ sâu 60 m với α ≈ 0,06), không phải ràng buộc
+    # của paper.
     cluster_radius_bounds_m: tuple[float, float] = (0.10, 4.00)
-    # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm).
-    # Công thức liên tục cho khối cầu đặc vô hạn điểm: S = 1,28/2 = 0,64.
-    # Nhưng cụm chỉ có vài chục điểm rời rạc, nên max |p| hụt so với biên ellipsoid:
-    # S = 0,64 chỉ cho median per-cluster r_range/r_extent ~0,98 (quá mỏng).
-    # Vì vậy S được hiệu chỉnh thực nghiệm: quét S trên ≥900 cụm, nhiều seed,
-    # d = 8–30 m, chọn giá trị cho median per-cluster r_range/r_extent = 1,28
-    # đúng như ticket 16 đo. S hiệu dụng = 0,885 (khác 0,64 vì lý do rời rạc trên).
+    # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm). Khối cầu đặc
+    # vô hạn điểm cho S = 0,64, nhưng cụm chỉ có vài chục điểm rời rạc nên max |p|
+    # hụt so với biên ellipsoid; S = 0,885 hiệu chỉnh để median
+    # per-cluster `r_range/r_extent` = 1,28 như số đo. Đây là `[CHỌN]`, không có
+    # trong paper.
     radial_squash: float = 0.885
     distance_range_m: tuple[float, float] = (1.0, 10.0)
     height_range_m: tuple[float, float] = (0.2, 2.0)
-    # [ĐO] Nửa bề rộng phân bố ĐỀU của tâm cụm: p95(|y - y_tâm_box|) trên 1.022
-    # frame `cal` = 2,22 m; đều trên ±a có p95 = 0,95a ⇒ a = 2,22/0,95 = 2,34 m.
-    # Phân bố đều [PAPER] §III-B, không phải Gaussian.
+    # Nửa bề rộng phân bố ĐỀU của tâm cụm: p95(|y − y_tâm_box|) đo được 2,22 m;
+    # đều trên ±a có p95 = 0,95a ⇒ a = 2,34 m. [PAPER] §III-B: phân bố đều.
     lateral_half_width_m: float = 2.34
     box_margin_m: float = 0.2
     intensity: float = 0.0
     # Cột 5 là ring index; điểm tổng hợp gán ring 0; không dùng cho occlusion.
     ring: float = 0.0
-    # [ĐO] Khối phun sau đuôi: rộng 3,4 m, cao 5–92 % chiều cao box, đáy = đáy
-    # box + 5 % chiều cao box. Số đo trên `cal`: đỉnh khối thực tế ~90 % chiều
-    # cao box, thân khối bắt đầu ngay trên mặt đường. Chỉ đường stateful
-    # (ticket 28b/29c) đọc. 29e-c trả về đúng dải 0,05–0,92 đã đo.
-    #
-    # ClassVar cố ý: `spray/config/plume_default.yaml` phải là bản sao khít của
-    # mọi field dataclass (tests/test_plume_config_yaml.py). Vẫn đọc được qua
-    # `config.tail_block_width_m` v.v.
+    # ClassVar: ba hằng số dưới đây KHÔNG phải field của dataclass nên không đi
+    # qua `PlumeConfig(...)` hay `asdict()`. Chúng giữ lại vì
+    # `scripts/diag_verify_conventions.py` và 2 test đọc qua
+    # `PlumeConfig.<name>`. Đường production đọc `SPAWN_BOX_*` ở đầu module.
     water_film_height_mm: ClassVar[float] = 1.0
     tail_block_width_m: ClassVar[float] = 3.4
     tail_block_height_frac: ClassVar[tuple[float, float]] = (0.05, 0.92)
@@ -198,7 +174,7 @@ class PlumeStats:
     skipped_no_velocity: int = 0
     skipped_low_speed: int = 0
     clusters_spawned: int = 0
-    # Giữ field cho tương thích; luôn 0 từ ticket 22 (dropout đã bỏ, suy giảm nằm trong K).
+    # Giữ field cho tương thích; luôn 0 — suy giảm nằm trong hệ số `K`.
     clusters_dropped_lifetime: int = 0
     clusters: int = 0
     injected: int = 0
@@ -240,7 +216,7 @@ def cluster_visible_target_for_speed(
 ) -> float:
     """Cụm/frame **nhìn thấy** đo trên ``cal``, nội suy tuyến tính theo tốc độ.
 
-    Bảng ``_CLUSTER_VISIBLE_BY_SPEED`` (ticket 29c mục 7). Đường cong không đơn
+    Bảng ``_CLUSTER_VISIBLE_BY_SPEED``. Đường cong không đơn
     điệu nên chỉ nội suy giữa các mốc 10 km/h, không fit hàm. Dưới mốc 50 km/h
     không có số đo ⇒ 0; trên 130 km/h giữ giá trị mốc cuối.
     """
@@ -258,13 +234,10 @@ def cluster_rate_for_speed(
     """Số cụm **sinh mỗi chu kỳ** ``Δt = 0,1 s`` để khớp số cụm/frame đo được.
 
     ``rate(v) = visible_ref(v) / K(T_ref(v))`` với ``K = 1/(1−exp(−Δt/T))``
-    (paper Eq. 1, QĐ12) — **không** chứa ``wfh``; độ ẩm chỉ tác động qua ``T``
-    khi caller tính số cụm hiển thị.
-    ``T_ref`` lấy tại mức ẩm chuẩn của dataset (1 mm), để ``rate`` không đổi khi
-    caller đổi ``wfh``.
-
-    Mẫu số là :func:`steady_state_alive_factor` = ``K`` của paper Eq. 1
-    (QĐ12: tan xác suất, không còn cắt cứng 4T).
+    [PAPER] Eq. 1 — **không** chứa ``wfh``; độ ẩm chỉ tác động qua ``T`` khi
+    caller tính số cụm hiển thị. ``T_ref`` lấy tại ``WFH_REF_MM`` (1 mm) để
+    ``rate`` không đổi khi caller đổi ``wfh`` — lý do phải neo: xem
+    `docs/adr/decision-log.md` (29e-c).
     """
     cfg = config or PlumeConfig()
     visible_ref = cluster_visible_target_for_speed(speed_kmh, vehicle_class)
@@ -280,11 +253,10 @@ def visible_cluster_count_for_speed(
     config: PlumeConfig | None = None,
     vehicle_class: str = "crafter",
 ) -> int:
-    """Số cụm **nhìn thấy trong một frame** = ``round(rate × K)`` (paper Eq. 1).
+    """Số cụm **nhìn thấy trong một frame** = ``round(rate × K)`` [PAPER] Eq. 1.
 
-    Hệ số nhân là :func:`steady_state_alive_factor` (số frame một cụm sống với
-    ``prune()`` xoá cứng ở ``4T``), **không** phải ``K`` — xem docstring
-    :func:`steady_state_cluster_factor`.
+    Hệ số nhân :func:`steady_state_alive_factor` = ``K``, đúng bằng tuổi kỳ vọng
+    của một cụm tính theo frame (``prune`` tan theo xác suất).
     """
     cfg = config or PlumeConfig()
     if speed_kmh <= cfg.min_speed_kmh or cfg.water_film_height_m <= 0.0:
@@ -301,7 +273,7 @@ def cluster_count_for_speed(
     config: PlumeConfig | None = None,
     vehicle_class: str = "crafter",
 ) -> int:
-    """Số cụm nhìn thấy trong một frame cho một box (bảng đo ``cal``, ticket 29c).
+    """Số cụm nhìn thấy trong một frame cho một box, đọc từ bảng cụm/frame.
 
     Giữ tên cũ cho caller hiện có. Mặc định lớp ``Crafter`` (lớp duy nhất paper
     định lượng); ``Golf`` có bảng riêng và phải chọn tường minh.
@@ -316,7 +288,7 @@ def lifetime_time_constant(
 
     ``T = 0,02·wfh_mm·(v − 50) + 0,2``. ``water_film_height_m`` is stored in
     metres (``0.001`` = 1 mm); the reference formula is in millimetres, so the
-    field is converted here. Before ticket 29e it was used as if it already
+    field is converted here. (Dùng như milimét sẽ làm ``T`` sập về 0,2 s.)
     were millimetres, which made ``T`` collapse to ``0.2 s`` at every speed.
     """
     cfg = config or PlumeConfig()
@@ -334,12 +306,11 @@ def steady_state_factor(
     *,
     dt: float = _UPDATE_CYCLE_TIME_S,
 ) -> float:
-    """``K = Σ_{k≥0} exp(-k·Δt/T) = 1 / (1 − exp(−Δt/T))`` — paper Eq. 1.
+    """``K = Σ_{k≥0} exp(−k·Δt/T) = 1 / (1 − exp(−Δt/T))`` [PAPER] Eq. 1.
 
-    [QĐ12 2026-11-19] Cụm tan theo **xác suất** mỗi bước ``P = exp(−Δt/T)``
-    (paper Eq. 1) thay vì cắt cứng ở ``4T`` như reference impl. Vì vậy hệ số
-    tích luỹ là tổng cấp số nhân **vô hạn**, không còn ``max_age_factor`` trong
-    công thức (trần số học 12·T chỉ để chặn đuôi, ảnh hưởng < 1e-5).
+    Cụm tan theo **xác suất** ``P = exp(−Δt/T)`` mỗi bước, nên hệ số tích luỹ là
+    tổng cấp số nhân **vô hạn**; ``max_age_factor`` không xuất hiện trong công
+    thức (trần số học ``12·T`` chỉ chặn đuôi, ảnh hưởng < 1e−5).
     """
     if time_constant <= 0.0:
         return 0.0
@@ -349,15 +320,13 @@ def steady_state_factor(
 def steady_state_cluster_factor(
     speed_kmh: float, config: PlumeConfig | None = None
 ) -> float:
-    """Hệ số tích luỹ ``K = Σ exp(−k·Δt/T)`` của mô hình *thinning xác suất*.
+    """Hệ số tích luỹ ``K = Σ exp(−k·Δt/T) = 1/(1−exp(−Δt/T))`` [PAPER] Eq. 1.
 
-    ``T = lifetime_time_constant(v)`` (dee.cpp:530), ``Δt = 0,1 s``. Với
-    ``T = 0,2 s`` → ``K ≈ 2,51``.
+    ``T = lifetime_time_constant(v)`` `[CODE]`, ``Δt = 0,1 s``. Với ``T = 0,2 s``
+    ⇒ ``K ≈ 2,51``. ``alive = arrival × K``.
 
-    [QĐ12 2026-11-19] Từ khi `prune()` tan theo xác suất (paper Eq. 1), ``K`` này
-    **chính là** hệ số tích luỹ thật: ``alive = arrival × K``. Trước đây code cắt
-    cứng ở 4T nên phải dùng :func:`steady_state_alive_factor` khác — hai hàm giờ
-    bằng nhau, giữ tên cũ cho caller.
+    Giá trị **bằng** :func:`steady_state_alive_factor`; hai tên giữ lại vì caller
+    cũ dùng cả hai.
     """
     cfg = config or PlumeConfig()
     return steady_state_factor(lifetime_time_constant(speed_kmh, cfg))
@@ -368,13 +337,11 @@ def steady_state_alive_factor(
 ) -> float:
     """Số frame kỳ vọng một cụm còn sống = ``K = 1/(1−exp(−Δt/T))``.
 
-    [QĐ12 2026-11-19] ``prune()`` tan theo **xác suất** ``P = exp(−Δt/T)`` mỗi
-    bước (paper Eq. 1) ⇒ tuổi kỳ vọng = ``T/Δt`` frame, chính xác là tổng cấp số
-    nhân ``K``. Giữ tên hàm cho caller; giá trị giờ **bằng**
-    :func:`steady_state_cluster_factor`.
+    ``prune()`` cho cụm tan với xác suất ``P = exp(−Δt/T)`` mỗi bước [PAPER]
+    Eq. 1 ⇒ tuổi kỳ vọng ``T/Δt`` frame, chính là tổng cấp số nhân ``K``.
 
-    Đây là hệ số đổi ``visible`` (số cụm/frame đo được) ↔ ``rate`` (số cụm sinh
-    mỗi chu kỳ): ``arrival = visible / K``, ``alive = arrival × K = visible``.
+    Hệ số đổi ``visible`` (số cụm/frame đo được) ↔ ``rate`` (số cụm sinh mỗi chu
+    kỳ): ``arrival = visible / K``, ``alive = arrival × K = visible``.
     """
     cfg = config or PlumeConfig()
     return steady_state_factor(lifetime_time_constant(speed_kmh, cfg))
@@ -388,14 +355,18 @@ def inject_plume(
     token: str = "",
     config: PlumeConfig | None = None,
 ) -> PlumeResult:
-    """Thêm cụm plume vào sau các box đang chạy.
+    """Thêm cụm plume vào sau các box đang chạy — đường **stateless**.
 
-    Số cụm mỗi box là số cụm **nhìn thấy trong một frame** ở trạng thái dừng:
-    ``cluster_count_for_speed`` = ``round(rate × K)``, với ``rate`` lấy từ bảng
-    đo ``cal`` và ``K`` là tổng cấp số nhân của xác suất sống ``exp(-age/T)``
-    trên ``[0, 4T]`` (ticket 29c mục 7). Generator chạy per-frame, không có
-    state qua frame; **không** còn dropout ``age ~ U(0,4T)`` vì suy giảm lifetime
-    đã nằm trong ``K`` (ticket 22). Deterministic theo ``seed``/``token``.
+    Mỗi frame dựng lại plume từ đầu: **không** có state qua frame, **không** có
+    tuổi, **không** có vệt. Đường production KHÔNG dùng hàm này —
+    :func:`inject_plume_stateful` mới là đường sống (``plume_transform.py``), và
+    ``PlumeTransform`` cũng không gọi hàm này. Chỉ ``scripts/probe_sspp_plume.py``
+    và test dùng.
+
+    Số cụm mỗi box = ``cluster_count_for_speed`` = ``round(rate × K)``, ``rate``
+    từ bảng cụm/frame và ``K`` là tổng cấp số nhân của xác suất sống
+    ``exp(−age/T)`` [PAPER] Eq. 1. Suy giảm lifetime đã nằm trong ``K``.
+    Deterministic theo ``seed``/``token``.
     """
     cfg = config or PlumeConfig()
     clean = _as_five_columns(points)
@@ -526,31 +497,28 @@ def inject_plume_stateful(
     wet_ground: WetGroundConfig | None = None,
     vehicle_class: str = "crafter",
 ) -> PlumeResult:
-    """Add a plume that keeps clusters alive across frames.
+    """Thêm plume có cụm SỐNG qua nhiều frame — đường production.
 
-    Each call advances and prunes the existing clusters once, then spawns this
-    frame's clusters inside a block behind every box:
+    Mỗi call: ``advance()`` + ``prune()`` cụm đang sống một lần, rồi sinh cụm
+    của frame này trong khối sau mỗi box.
 
-    - clusters carry a ground-frame velocity, so the ego velocity
-      ``[ego_speed_mps, 0, 0]`` is passed to ``advance`` and only the position
-      integration happens in the ego frame;
-    - block length ``|v_abs| * dt``, width 3.4 m, height ``0.05–0.92`` of the
-      box height (ticket 29e-c);
-    - block centre ``box_pos - (L_box/2 + L_block/2) * [cos yaw, sin yaw]``;
-    - the block bottom sits at 5 % of the box height above the box bottom;
-    - clusters are removed only once ``age > 4*T``; there is no height
-      ceiling and no initial ``vz`` (ticket 29h, [PAPER] arXiv 2212.08558), so
-      the plume height comes purely from where the block places the clusters;
-    - ``|y - y_block|`` is clamped to 2.43 m every step (ticket 29e-c).
+    - Cụm mang vận tốc **hệ mặt đất**, nên ``advance`` nhận
+      ``[ego_speed_mps, 0, 0]`` và chỉ phần tích phân vị trí chạy trong hệ ego.
+    - Khối sinh: dài ``|v_abs| · dt``, rộng 3,4 m, cao 1,5 m tính từ **mặt
+      đường** (không theo chiều cao box). Tâm khối đặt ngay sau mặt đuôi.
+    - Không có trần chiều cao và không có ``vz`` ban đầu [PAPER], nên chiều cao
+      plume đến **thuần** từ vị trí khối sinh.
+    - Cụm tan theo xác suất ``exp(−Δt/T)`` [PAPER] Eq. 1, trần số học ``12·T``.
+    - Không có clamp ngang.
 
-    Boxes follow the adapter convention (``spray/sspp_adapter.py:117,141``):
-    ``box[2]`` is the box **bottom** (not its centre), ``box[3]`` the length
-    along the yaw axis and ``box[4]`` the width across it.
+    Box theo quy ước adapter (``spray/sspp_adapter.py:117,141``): ``box[2]`` là
+    **đáy** box (không phải tâm), ``box[3]`` dài dọc yaw, ``box[4]`` rộng ngang
+    yaw.
 
-    Clusters are materialised as points of radius ``cluster.radius`` with the
-    per-range point count from ``_POINTS_MEDIAN_BY_RANGE``, ``intensity = 0``
-    and ``ring = -1`` (not assigned yet). The marker line is printed once per
-    call.
+    Hàm **materialise** cụm thành điểm (bán kính ``cluster.radius``, số điểm
+    theo ``_POINTS_MEDIAN_BY_RANGE``) nhưng đường production **vứt phần đó đi**:
+    ``PlumeTransform`` chỉ dùng ``points_clean`` + cụm hình cầu cho raycast.
+    Marker ``PLUME_STATE`` in một dòng mỗi call.
     """
     cfg = config or PlumeConfig()
     clean = _as_five_columns(points)
@@ -573,8 +541,8 @@ def inject_plume_stateful(
     )
     expired = state.prune(dt=dt, rng=rng)
 
-    # [MIỀN — ADR-0006 §5.7] Cách A: giữ nguyên mọi số paper, chỉ chặn phát ngôn ngoài
-    # miền đã kiểm chứng. Bật bằng PLUME_PAPER_DOMAIN=1; tắt (mặc định) = hành vi cũ.
+    # [MIỀN — ADR-0006 §5.7] Cách A: giữ nguyên mọi số paper, chỉ giới hạn về miền
+    # đã kiểm chứng. Bật bằng PLUME_PAPER_DOMAIN=1; tắt (mặc định) = không giới hạn.
     if os.environ.get("PLUME_PAPER_DOMAIN", "").strip() not in ("", "0"):
         state._config = replace(
             state._config,
@@ -599,11 +567,7 @@ def inject_plume_stateful(
         # tâm), box[3] = dài (dọc yaw), box[4] = rộng (ngang yaw), box[5] = cao.
         x, y, z = (float(value) for value in box[:3])
         length, _, _, yaw = (float(value) for value in box[3:7])
-        # QĐ11 2026-11-19 — vùng SINH = slab |v|·Δt ngay sau đuôi xe:
-        #   dài |v|·Δt (reference impl `define_spray_volumes()`), rộng 3,4 m,
-        #   cao 1,5 m tính từ mặt đường. KHÔNG phải hộp đo 20 m của calibration
-        #   (QĐ7 gộp nhầm vùng sinh với vùng đo). Bỏ `tail_block_height_frac`
-        #   (0,05–0,92 × cao thân xe) và clamp ngang 2,43 m — nguồn SSPP, R2 PHẢI BỎ.
+        # Khối sinh = slab |v|·Δt ngay sau đuôi xe (SPAWN_BOX_* ở đầu module).
         forward = np.array([np.cos(yaw), np.sin(yaw), 0.0],
                            dtype=np.float64)
         rear = np.array([x, y, z], dtype=np.float64) - forward * (length / 2.0)

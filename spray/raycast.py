@@ -1,42 +1,43 @@
-"""Beam ray casting for the spray plume: detection, attenuation, occlusion.
+"""Ray-cast tia cho plume: sinh detection, suy hao, che khuất.
 
-This is step 4-5 of ``spec-v2-paper-faithful.md`` and a port of
-``dee.cpp:230-281``. It is **not** wired into the generator yet: it takes a real
-point cloud and a list of spray clusters and returns one echo per beam.
+Đây là bước 4–5 của đường production: nhận point cloud thật + danh sách cụm
+cầu, trả về một echo mỗi tia. ``spray/plume_transform.py`` gọi hàm này trên các
+cụm còn sống của ``PlumeState``.
 
-Three mechanisms from the reference implementation [CODE]:
+Ba cơ chế `[CODE]` port từ ``dee.cpp:230-281``:
 
-- a beam that intersects a sphere spawns a detection with probability
-  ``min(1, lognormal(mu, sigma)) * min(1, exp(-age/T))``;
-- the segment already travelled through earlier clusters attenuates both the
-  new detection and the real point behind it by ``exp(-2 * mean * L)``;
-- ``add_max_detection`` keeps the strongest echo per beam, so a plume can hide
-  a weak real return and vice versa.
+- tia cắt quả cầu sinh một detection với xác suất
+  ``min(1, lognormal(mu, sigma)) × min(1, exp(−age/T))``;
+- quãng đã đi qua các cụm phía trước làm suy hao cả detection mới và điểm thật
+  phía sau nó theo ``exp(−2·mean·L)``;
+- ``add_max_detection`` giữ echo mạnh nhất mỗi tia, nên plume có thể che một
+  điểm thật yếu, và ngược lại.
 
-``P_det`` is the paper's lognormal **modulated by range** (Eq. 7 measures it at
-one distance only, 25 m):
+``P_det`` là lognormal của paper **điều biến theo cự ly** (Eq. 7 chỉ đo ở một
+cự ly, 25 m):
 
-    P_det(R) = P_det0 * (R / R0) ** b,   R0 = 25 m,   b = pdet_range_exponent
+    P_det(R) = P_det0 · (R / R0) ** b,   R0 = 25 m,   b = pdet_range_exponent
 
-with ``R`` the distance from the sensor to the **cluster centre**. ``b = 0``
-keeps the constant ``P_det`` of the paper (and of every earlier run). The
-non-zero exponent is a **calibration to data**, not a mechanism: ``b`` is fit
-on the RoadSpray ``*_static`` clusters with the same beam table this module
-ray-casts with — ``b = +0.222``, CI95 ``[-0.135, +0.547]``, 676/1656 clusters
-excluded because ``n_max = 0``. See ``docs/measurements/pdet-vs-range.md`` §11
-"Áp dụng vào generator" (D2-chặt: static calibration is an allowed source).
-It exists because the paper's ``n_max`` depends on ``R`` while ``P_det`` was
-measured at 25 m only, so a constant ``P_det`` makes the number of detections
-per cluster scale like ``1/R²`` and explode next to the sensor.
+với ``R`` = khoảng cách từ cảm biến tới **tâm cụm**. ``b = 0`` giữ ``P_det``
+hằng của paper. Số mũ khác 0 là **hiệu chỉnh theo dữ liệu**, không phải cơ chế:
+fit trên cụm RoadSpray ``*_static`` với đúng bảng tia của module này —
+``b = +0,222``, CI95 ``[−0,135; +0,547]``, 676/1656 cụm bị loại vì ``n_max = 0``.
+Chi tiết: ``docs/measurements/pdet-vs-range.md`` §11.
 
-Deliberate difference from the reference: segments on one beam are sorted by
-``t0`` before the travelled length ``L`` is accumulated. The reference walks
-clusters in list order (``dee.cpp:230-281``), which depends on spawn order; the
-physical attenuation depends on the order the ray meets them.
+Lý do tồn tại của số mũ: ``n_max`` của paper phụ thuộc ``R`` trong khi ``P_det``
+chỉ được đo ở 25 m, nên nếu để ``P_det`` hằng thì số detection mỗi cụm co giãn
+theo ``1/R²`` và bùng nổ sát cảm biến. Vì ``b`` không phân biệt được với 0 nên
+mặc định **tắt** — nó không cứu được near-field.
 
-Units: positions and lengths in metres, angles in degrees at the API boundary.
-Only numpy and the standard library are used.
+Khác reference một cách **có chủ ý**: các đoạn trên cùng một tia được sắp theo
+``t0`` trước khi cộng dồn quãng ``L``. Reference đi theo thứ tự danh sách cụm
+(``dee.cpp:230-281``) — thứ tự đó phụ thuộc thứ tự sinh, còn suy hao vật lý thì
+phụ thuộc thứ tự tia gặp cụm.
+
+Đơn vị: vị trí/độ dài bằng mét, góc bằng độ ở biên API. Chỉ dùng numpy và
+standard library.
 """
+
 
 from __future__ import annotations
 
@@ -116,12 +117,10 @@ class RaycastConfig:
     mean_attenuation_per_m: float = 0.02
     p_det_mu: float = PAPER_P_DET_MU
     p_det_sigma: float = PAPER_P_DET_SIGMA
-    # [CHỌN — hiệu chỉnh theo dữ liệu calibration, QĐ10/A3 2026-11-19]
-    # Hệ số nhân vào P_det, MẶC ĐỊNH 1,0 = giữ nguyên paper. Lý do cần hiệu
-    # chỉnh: mô hình tia của repo (VLP-32C, 54 750 tia) khác cảm biến của paper;
-    # đại lượng "số tia trúng × P_det" là thứ phải khớp tổng điểm/frame với
-    # RoadSpray static (D2), không phải P_det đứng riêng. Đây KHÔNG phải sửa
-    # paper: P_det vẫn lognormal paper, chỉ hiệu chỉnh tích với hình học tia.
+    # `[CHỌN]` Hệ số nhân vào `P_det`; mặc định 1,0 = giữ nguyên paper.
+    # Đại lượng cần khớp với RoadSpray static là **tích** "số tia trúng × P_det",
+    # không phải `P_det` đứng riêng — vì mô hình tia của repo (VLP-32C, 54 750
+    # tia) khác cảm biến của paper. `P_det` vẫn là lognormal của paper.
     p_det_scale: float = 1.0
     # [CHỌN — hiệu chỉnh P_det(R), 2026-11-19] Số mũ b của P_det(R) trong
     # docs/measurements/pdet-vs-range.md §11. Mặc định 0,0 = P_det hằng (hành

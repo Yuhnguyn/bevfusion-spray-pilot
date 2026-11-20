@@ -1,15 +1,13 @@
-"""LiDAR beam geometry for the spray ray-casting step.
+"""Hình học tia LiDAR cho bước ray-casting của plume.
 
-The measured ``ring -> elevation`` table was rejected: ring ids on this release
-are not beam ids, and the table was produced by a filter that dropped the
-upward rings which see the plume (``docs/history/plume-beam-table.md``
-§ĐÍNH CHÍNH). Casting therefore uses a **uniform grid**: ``0.333°`` in
-elevation over the measured FOV and ``0.197307°`` in azimuth, as decided in
-ticket 29c. The old measured ring table file is deleted and nothing may read
-it.
+Ray-cast dùng **lưới tia đều**: ``0,333°`` theo elevation trên FOV đo được, và
+``0,197307°`` theo azimuth. Bảng ``ring → elevation`` **đo từ release thì không
+dùng**: ``ring`` trên release này không phải beam id, và bảng đo được còn bị
+một filter cắt mất các ring hướng lên — đúng những ring nhìn thấy plume. Không
+file nào được đọc bảng cũ đó (``tests/test_beam_model.py`` assert).
 
-Units are degrees at the API boundary and metres inside the intersection
-helpers. Azimuth follows the LiDAR frame: ``atan2(y, x)``, so 0 deg is ``+x``.
+Đơn vị: độ ở biên API, mét bên trong các hàm giao cắt. Azimuth theo khung LiDAR:
+``atan2(y, x)``, nên 0° là ``+x``.
 """
 
 from __future__ import annotations
@@ -55,11 +53,10 @@ class BeamTable:
 
 
 def load_beam_table() -> BeamTable:
-    """Return the uniform grid over the measured FOV.
+    """Lưới đều trên FOV đo được — 30 ring.
 
-    Elevation runs from ``ELEVATION_MIN_DEG`` in steps of
-    ``ELEVATION_STEP_DEG`` while staying inside ``ELEVATION_MAX_DEG`` — 30
-    rings here. There is no YAML file any more (ticket 29c mục 6).
+    Elevation chạy từ ``ELEVATION_MIN_DEG`` theo bước ``ELEVATION_STEP_DEG``
+    trong khi vẫn nằm trong ``ELEVATION_MAX_DEG``. Không còn file YAML nào.
     """
     elevation = np.arange(
         ELEVATION_MIN_DEG,
