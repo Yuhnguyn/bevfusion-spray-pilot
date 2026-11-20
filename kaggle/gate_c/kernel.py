@@ -37,6 +37,12 @@ REPO = WORK / "repo"
 DATASET = WORK / "sspp"
 OUT = WORK / "gate_c_out"
 PIN_SHORT = "da93b27"
+
+# [A7-b] `True` = chạy lại cổng C KHÔNG có stage wet-ground. Cổng C v5 (kết quả
+# Δrecall = −0,2188) chạy với `--wet-ground` default True, và stage đó đổi
+# intensity của 75,9 % điểm nền chỉ ở nhánh plume — biến này chưa tách được khỏi
+# hiệu ứng vành plume. Lật sang True rồi push để đo phần đóng góp riêng.
+NO_WET_GROUND = True
 PIN_FULL = "da93b27d0fe4563eecd46604e6cc5ddf1c5bd1ea"
 
 _LINES = []
@@ -222,6 +228,10 @@ def dry_run(checkpoint):
         # (đã xảy ra ở kernel v5, mất một lượt kiểm tra chéo).
         "--paper-domain",
     ]
+    if NO_WET_GROUND:
+        # Phải khớp run_gate_c() để dòng GATE_C_PLUME của dry-run không báo
+        # `wet_ground=1` khi lượt chạy thật đã tắt stage đó.
+        command.append("--no-wet-ground")
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO)
     rc, text = stream(command, cwd=REPO, env=env, timeout=1800)
@@ -234,6 +244,14 @@ def run_gate_c(checkpoint):
     log("")
     log("[inference] scripts/sspp_infer.py")
     OUT.mkdir(parents=True, exist_ok=True)
+    # [A7-b] Tách biệt đóng góp của `wet_ground`: cổng C v5 chạy với `--wet-ground`
+    # (default True), và stage đó đổi intensity của 75,9 % điểm nền CHỈ ở nhánh
+    # plume. `kaggle kernels push` không truyền được env, nên dùng hằng số dưới;
+    # output ghi sang tên khác để không đè kết quả v5.
+    no_wet = bool(NO_WET_GROUND)
+    suffix = "_nowet" if no_wet else ""
+    out_jsonl = OUT / f"gate_c_detections{suffix}.jsonl"
+    log(f"wet_ground={int(not no_wet)} out={out_jsonl.name}")
     command = [
         str(bootstrap.PY),
         "scripts/sspp_infer.py",
@@ -251,8 +269,10 @@ def run_gate_c(checkpoint):
         # clean/real không đi qua generator nên không bị ảnh hưởng.
         "--paper-domain",
         "--log-every", "50",
-        "--out", str(OUT / "gate_c_detections.jsonl"),
+        "--out", str(out_jsonl),
     ]
+    if no_wet:
+        command.append("--no-wet-ground")
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO)
     env["CUDA_VISIBLE_DEVICES"] = env.get("CUDA_VISIBLE_DEVICES", "0")
