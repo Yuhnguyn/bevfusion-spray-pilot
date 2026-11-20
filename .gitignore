@@ -35,7 +35,22 @@ graphify-out/
 .scratch/*/tmp/**/*.npy
 .scratch/*/tmp/**/*.bag
 .scratch/*/tmp/**/*.xlsx
+.scratch/*/tmp/**/*.jsonl
+.scratch/*/tmp/**/*.json
+.scratch/*/tmp/**/*.png
+.scratch/*/tmp/**/*.mp4
+.scratch/*/tmp/**/*.txt
+.scratch/*/tmp/bagprobe/
+# NGOẠI LỆ: a3_targets_static.json là NGUỒN của bảng _CLUSTER_VISIBLE_BY_SPEED
+# (spray/plume.py:23-60, ADR-0006 D2). 2 KB, không tái lập được nếu mất laptop.
+!.scratch/roadspray-cal/tmp/a3_targets_static.json
 .scratch/roadspray-fit/tmp/full_*.json
+
+# Video/contact-sheet so sánh plume-vs-thật ở gốc .scratch/ (1–2 MB mỗi bản × 27 bản,
+# là ảnh trung gian của scripts/visualize_plume_vs_real.py — sinh lại được)
+.scratch/*.mp4
+.scratch/*.png
+.scratch/viz_frames/
 
 # Build artifact cua Kaggle bundle (tao lai bang kaggle/gate_c/make_bundles.py)
 kaggle/*/bundles/
