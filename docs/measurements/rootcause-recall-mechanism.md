@@ -67,7 +67,46 @@ mà detector dùng để tự tin vào hộp.
 
 ---
 
-## 4. ỨNG VIÊN LỚN HƠN: `wet_ground` đổi intensity 75,9 % điểm nền
+## 4. SO VỚI SPRAY THẬT: plume của mình dồn điểm vào chỗ nguy hiểm 4,8 lần
+
+Cùng tập test, cùng checkpoint, cùng frame. Spray thật = điểm `label == 2` do cảm biến
+thật ghi từ nước. Plume = điểm generator sinh ra sau raycast.
+
+48 frame, 6 scene:
+
+| | THẬT | MÌNH | Tỉ số |
+|---|---:|---:|---:|
+| Tổng điểm | 27 667 | 9 262 | **0,33×** |
+| Điểm trong vành 2–6 m / frame | 24,9 | 47,4 | **1,90×** |
+| **Mật độ tương đối trong vành** | 1,0 | — | **5,3×** |
+| Điểm nằm trong **6 m quanh vật thể** | **4,4 %** | **21,0 %** | **4,8×** |
+| Điểm ở xa hơn 25 m | 3,4 % | 8,2 % | 2,4× |
+| Cự ly p50 / p95 | 9,37 / 23,93 m | 11,30 / 28,51 m | — |
+
+Đọc đúng bảng này: plume của mình **không nhiều điểm hơn** (chỉ 0,33×) — nó **bám vật thể
+gấp 4,8 lần** và đồng thời **trôi xa hơn**. Hai đầu đều tệ, ở giữa thì thiếu.
+
+### Không phải lỗi intensity
+
+Paper A dòng 398-399: *"the final intensity value of the simulated spray detections are set
+to 0"*. Và đo được **70,5 %** điểm spray thật cũng có `intensity == 0`. Nên `intensity = 0`
+là **đúng paper**, không phải nguyên nhân. (`raycast.py:379-381` gán 0 — khớp [PAPER].)
+
+### Số cụm khớp bảng đo
+
+`cluster_count_for_speed` (bảng `_CLUSTER_VISIBLE_BY_SPEED`, đo trên `cal`):
+
+| | 50 km/h | 90 km/h | 130 km/h |
+|---|---:|---:|---:|
+| crafter | 9,0 | 30,0 | 33,0 |
+| golf | 4,7 | 20,9 | 25,2 |
+
+Nên nguyên nhân **không phải số cụm** — số cụm theo đúng bảng đo. Nghi vấn nằm ở **vị trí
+cụm được sinh và quỹ đạo trôi của chúng** (ticket: cụm bám vật thể quá chặt so với thật).
+
+---
+
+## 5. ỨNG VIÊN LỚN HƠN: `wet_ground` đổi intensity 75,9 % điểm nền
 
 Đây là phát hiện **muộn** và có thể là nguyên nhân **lớn hơn** mục 3.
 
@@ -94,37 +133,44 @@ Phép đo trước ra "0 điểm đổi" là **lỗi script** (không truyền `
 
 ---
 
-## 5. Ba tầng nguyên nhân, xếp theo độ lớn bằng chứng
+## 6. Bốn tầng nguyên nhân, xếp theo độ lớn bằng chứng
 
 1. **`wet_ground` đổi intensity 75,9 % điểm nền** — biến lớn nhất, chưa tách được phần đóng
    góp riêng vì cổng C chạy `wet_ground=1` ở mọi frame plume.
-2. **Nhiễm độc feature vành 2–6 m** — quan hệ liều–đáp ứng đơn điệu (+0,891), mất hộp từ
+2. **Plume bám vật thể 4,8 lần** spray thật (21,0 % vs 4,4 % điểm trong 6 m) — mục 4.
+3. **Nhiễm độc feature vành 2–6 m** — quan hệ liều–đáp ứng đơn điệu (+0,891), mất hộp từ
    2,6 % lên 29,8 % khi vành dày plume.
-3. **Mất điểm vật thể** (2903 điểm, 1818 trong hộp) — có thật nhưng nhỏ (0,01 % tổng).
-4. **Độ mỏng vật thể** — cùng liều, vật thể mỏng mất recall **gấp 4,4 lần**
+4. **Mất điểm vật thể** (2903 điểm, 1818 trong hộp) — có thật nhưng nhỏ (0,01 % tổng).
+5. **Độ mỏng vật thể** — cùng liều, vật thể mỏng mất recall **gấp 4,4 lần**
    (−1,68 vs −0,38 trên mỗi 1 % liều); `corr(điểm xe/box, Δrecall) = −0,492`.
 
 ---
 
-## 6. Phép đo CẦN làm để chốt (chưa làm)
+## 7. Phép đo CẦN làm để chốt (đang chạy / chưa làm)
 
-Chạy lại cổng C với **`--no-wet-ground`** (A7-b, ~15 phút kernel), so với bản đã có. Đây là
-phép tách biệt duy nhất có thể quy phần đóng góp của mục 4 — hiện tại nó bị trộn với mục 2.
+**Đang chạy (kernel v6, A7-b):** cổng C với **`--no-wet-ground`**, output
+`gate_c_detections_nowet.jsonl`. Đây là phép tách biệt duy nhất quy được phần đóng góp của
+mục 5 — hiện nó bị trộn với mục 3.
 
-Tiên đoán ghi trước: nếu `wet_ground` là nguyên nhân chính thì `--no-wet-ground` phải lấy
-lại **≥ 50 %** mức sụt (Δrecall từ −0,2188 lên ≥ −0,109). Nếu chỉ lấy lại < 25 % thì mục 3
-(vành plume) mới là chính.
+Tiên đoán ghi trước (commit `fbec7d3`): nếu `wet_ground` là nguyên nhân chính thì `--no-wet-ground`
+phải lấy lại **≥ 50 %** mức sụt (Δrecall từ −0,2188 lên ≥ −0,109). Nếu chỉ lấy lại < 25 % thì
+vành plume mới là chính.
+
+**Chưa làm:** truy tại sao cụm lại **bám vật thể 4,8×**. Số cụm đúng bảng đo (`cal`), số điểm
+ít hơn thật (0,33×), nên nghi vấn nằm ở **vị trí sinh cụm** và **quỹ đạo trôi** (drag
+`C = −0,15 m⁻¹`, `diffusion_alpha = 0` ở Cách A). Cần đo phân bố vị trí cụm so với paper Fig. 3.
 
 ---
 
-## 7. Cách báo cáo phải sửa
+## 8. Cách báo cáo phải sửa
 
 Không báo `corr(Δrecall, lượng spray)` — gây hiểu sai đúng như đã lo. Báo:
 
 1. **retention** (0,323–0,922, p50 0,773) kèm CI Wilson;
 2. **Δrecall trên mỗi 1 % liều**, chia theo độ dày vật thể;
 3. **Δrecall thô, luôn kèm clean_recall**;
-4. **quan hệ liều–đáp ứng theo vành 2–6 m** (mục 3) — đây là bằng chứng cơ chế mạnh nhất.
+4. **quan hệ liều–đáp ứng theo vành 2–6 m** (mục 3) — bằng chứng cơ chế mạnh nhất;
+5. **so với spray thật** (mục 4) — tỉ lệ điểm trong 6 m quanh vật thể: 21,0 % vs 4,4 %.
 
 ---
 
@@ -141,4 +187,6 @@ $P /opt/anaconda3/bin/python .scratch/paper-faithful/rootcause_annulus.py       
 $P /opt/anaconda3/bin/python .scratch/paper-faithful/rootcause_retention.py         # giải nghịch lý
 $P /opt/anaconda3/bin/python .scratch/paper-faithful/rootcause_fragility.py         # độ mỏng
 $P /opt/anaconda3/bin/python .scratch/paper-faithful/rootcause_wet_ground_fixed.py  # wet_ground
+$P /opt/anaconda3/bin/python .scratch/paper-faithful/why_worse_than_real.py         # so với thật
+$P /opt/anaconda3/bin/python .scratch/paper-faithful/why_concentrated.py            # vì sao bám
 ```
