@@ -1,7 +1,8 @@
 # HANDOFF — nhánh `sspp` (BEVFusion trên SemanticSpray++ + plume spray)
 
-Cập nhật: **2026-11-19 18:20** · nhánh `sspp` · test: **213 passed** (không cần GPU).
+Cập nhật: **2026-11-20** · nhánh `sspp` · test: **222 passed** (không cần GPU).
 Kế hoạch thi công 6 giai đoạn: **`.scratch/roadspray-cal/plan.md`**. ADR chuẩn: **`docs/adr/0006-*.md`**.
+Bảng tra tài liệu lỗi thời: **`docs/adr/0007-superseded-claims.md`** — đọc trước khi tin bất kỳ doc nào.
 
 ---
 
@@ -19,14 +20,22 @@ calibration RoadSpray `*_static`.
 | **A3-V** (kiểm chứng kịch bản following, 72 scene non-eval) | **FAIL 5/6 ô** | đậm hơn thật 2,7–4,6× @80–110, **8–17× @120–130** |
 | **Cổng C** (plume bơm vào frame sạch có hại detector không) | **HƯỚNG TRAIN CHẾT** | plume ↑FP **+0,299** nhưng **recall −0,268**; spray thật chỉ −0,049 |
 
-**Nguyên nhân gốc đã chẩn đoán (quan trọng nhất):** near-field. Ở kịch bản following, cụm bị drag làm rơi lùi
-rồi **trôi ngược xuyên qua cảm biến**; mô hình ray-cast quả cầu cho số detection ∝ `(r/R)²` ⇒ **bùng nổ** khi
-`R→0` (48 % detection sinh ở range <4 m, trong khi dữ liệu thật **không có** spray nào dưới 2,5 m). Plume tạo
-**"tấm màn" trước cảm biến**, che chiếc xe ở 22–25 m ⇒ recall sụp.
+**Nguyên nhân gốc đã chẩn đoán (cập nhật 2026-11-20, dùng bản này):** plume **dồn điểm vào vành
+2–6 m quanh vật thể**, không phải "tấm màn che cảm biến". Bằng chứng: điểm thật bị xoá chỉ
+0,018 %; hộp dự đoán đứng yên (IoU 0,84–0,93); hiệu ứng cục bộ trong ~6 m (mất 22,9 % hộp khi
+plume cách 2–4 m, 0,9 % khi >20 m); quan hệ liều–đáp ứng theo vành **+0,891**. Cơ chế là
+**score calibration**: 28,5 % hộp đúng chỗ vẫn tụt score dưới τ (score p50 0,456 → 0,324).
 
-**Câu hỏi mở duy nhất còn lại:** nếu **cull cụm ở <25 m** (biên paper dùng để hiệu chỉnh) rồi chạy lại cổng C,
-plume có hại **ngang spray thật** không? Nếu có ⇒ augmentation hợp lệ, câu hỏi train mới có nghĩa. Nếu không ⇒
-kết luận trung thực: mô hình paper không dùng được cho bộ dữ liệu này.
+Đi kèm: cụm trôi **ngược qua cảm biến** ở tốc độ cao (41–65 % cụm ở `x < 0`, p01 tới −294 m) vì
+`C = −0,15` `[PAPER]` được hiệu chuẩn ở kịch bản **ego đỗ** rồi áp vào kịch bản **ego bám đuôi**.
+Đây là hệ quả của cùng lỗi miền, không phải nguyên nhân độc lập.
+
+**`wet_ground` KHÔNG phải nguyên nhân** — nó là dead branch, bật/tắt cho output trùng từng byte.
+Xem `docs/adr/0007-superseded-claims.md`.
+
+**Câu hỏi mở duy nhất còn lại:** cull cụm ở <25 m rồi chạy lại cổng C thì plume có hại **ngang
+spray thật** không? Số hiện có nói **không đủ**: Cách A đã cull near-field mà chỉ lấy lại 18 %
+mức sụt, và ở 130 km/h (không có vấn đề lifetime) plume vẫn hại **3,18×** spray thật.
 
 **Phát hiện quan trọng cho motivation:** spray **thật** chỉ làm mất **4,9 điểm recall** ⇒ **trần lợi ích** của mọi
 augmentation spray trên benchmark này là rất nhỏ. Phải nêu ngay ở phần motivation, không để ở phần kết quả âm.

@@ -1,5 +1,8 @@
 # Bản đồ đọc hiểu generator plume (nhánh `sspp`)
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S1, S2, S5.
+> Phần còn đúng: Số chuỗi rate×K ở §5 còn đúng; §4 và §6 mô tả hành vi generator TRƯỚC QĐ11/QĐ12.
+
 Tài liệu cho người mới: đọc theo thứ tự nào, mỗi file làm gì, con số nào lấy từ đâu.
 Mọi khẳng định trích `file:dòng`. Nhãn số theo `docs/PROJECT.md:181`:
 `[ĐO]` đo trên máy này · `[PAPER]` paper nói · `[CODE]` code tham chiếu · `[CHỌN]` tự chọn.

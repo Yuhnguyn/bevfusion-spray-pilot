@@ -1,5 +1,8 @@
 # A3 — chẩn đoán: vì sao generator thiếu khối lượng và thiếu chuỗi (2026-11-19)
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S1, S2, S4.
+> Phần còn đúng: Kết luận A3 và các bảng số còn đúng; mô tả cơ chế trong §6–8 đã bị đảo.
+
 Người đo: lead. Số `[ĐO]` trên máy này. Dụng cụ: `scripts/measure_plume_size_tail.py`.
 Nhãn: `[ĐO]` đo được · `[SUY LUẬN]` suy ra · `[CHỌN]` tự chọn.
 

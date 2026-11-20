@@ -1,5 +1,8 @@
 # Root cause recall cổng C — chuỗi bằng chứng đầy đủ (2026-11-20)
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S5.
+> Phần còn đúng: Chuỗi bằng chứng cổng C vẫn đúng; §5 (wet_ground) SAI, xem ADR-0007.
+
 Truy nguyên cơ chế khiến recall tụt **−0,2188 [−0,2949; −0,1555]** khi bật plume generator
 (Cách A). Mỗi mục là một giả thuyết **đo được**, kèm kết luận.
 
@@ -106,57 +109,70 @@ cụm được sinh và quỹ đạo trôi của chúng** (ticket: cụm bám v�
 
 ---
 
-## 5. ỨNG VIÊN LỚN HƠN: `wet_ground` đổi intensity 75,9 % điểm nền
+## 5. `wet_ground` — **DEAD BRANCH**, không phải "biến gây nhiễu chưa tách"
 
-Đây là phát hiện **muộn** và có thể là nguyên nhân **lớn hơn** mục 3.
+> **SỬA LẠI 2026-11-20.** Mục này trước đây xếp `wet_ground` là "nguyên nhân lớn nhất, chưa tách
+> được". **Sai.** Nó là **no-op** trên đường ống production. Xem `docs/adr/0007-superseded-claims.md`
+> §"Sửa một kết luận sai cụ thể".
 
 `--wet-ground` **default True** (`scripts/sspp_infer.py:1356-1358`), log kernel xác nhận
 `wet_ground=1`. Nó **chỉ chạy ở nhánh plume**; clean/real không có.
 
-Đo trên 6 scene × 6 frame (1 078 344 điểm nền):
+Stage này **có tác dụng thật** nếu được nối đúng — đo trên 1 078 344 điểm nền: **818 933 điểm
+(75,9 %)** bị đổi intensity, p50 còn **0,370** giá trị cũ, **65,1 %** giảm hơn nửa.
+Nhưng output đó **bị vứt bỏ** trước khi tới detector:
 
-| Chỉ số | Giá trị |
-|---|---|
-| Điểm bị đổi intensity | **818 933 = 75,944 %** |
-| Trong đó ở mặt đường (`abs(z−road)<0,15`) | 364 280 = 44,5 % |
-| Trong đó ở thân xe (`z > road+0,4`) | 72 303 = **8,8 %** |
-| Trong hộp GT | 1 453 = 0,2 % |
-| Tỉ lệ intensity sau/trước p05/p50/p95 | **0,002 / 0,370 / 0,687** |
-| Số điểm giảm >50 % intensity | **65,1 %** |
+- `inject_plume_stateful` tính `base` = clean đã qua `apply_wet_ground` (`plume.py:557-566`),
+  rồi trả `points_clean = clean.copy()` — tức **input y nguyên** (`plume.py:730`).
+- `PlumeTransform` lại gọi `raycast_frame(clean, ...)` trên `result.points_clean`
+  (`plume_transform.py:130`), **không** trên `base`.
 
-Nghĩa là: **ba phần tư** đám mây điểm bị đổi cường độ, trung vị còn **37 %** giá trị cũ, và
-8,8 % số điểm bị đổi nằm ở **thân xe**. Detector dùng `in_channels = 5`
-(x, y, z, intensity, ring) ⇒ đây là thay đổi trực tiếp vào input.
+Kiểm bằng số (2026-11-20, frame `Crafter_dynamic/0054` frame 10, cùng seed):
 
-Phép đo trước ra "0 điểm đổi" là **lỗi script** (không truyền `WetGroundConfig` vào
-`inject_plume_stateful`), không phải kết quả.
+| | bật `wet_ground` | tắt | trùng? |
+|---|---|---|---|
+| `wet_points_in` trong stats | 19 922 | 0 | — |
+| output rows | 30 926 | 30 926 | có |
+| `np.array_equal(out["points"])` | — | — | **True (từng byte)** |
+| `det` | 221 | 221 | có |
+
+Và trên kernel: bản A7-b `--no-wet-ground` ra `gate_c_detections_nowet.jsonl` có **md5 trùng
+khít** bản v5 — `18d02243961f1e2c2915692e5520c1f0`, **2.862/2.862 dòng giống hệt**, attenuation
+982 814 và removed 4 957 y hệt, chỉ nhanh hơn 273 s (600 s vs 873 s).
+
+**Hệ quả cho mọi lượt sau:** (a) đừng đổ lỗi `wet_ground` cho FP/recall; (b) đừng "sửa" tham số
+wet-ground để cải thiện eval; (c) nếu muốn nó có tác dụng thật thì phải nối lại đường ống
+(raycast trên `base`) — việc riêng, phải pre-register trước khi đo.
+
+Điều này **không** đổi kết quả cổng C: Δrecall = −0,2188 vẫn đứng, đúng vì biến đó chưa từng
+tác động lên frame nào.
 
 ---
 
-## 6. Bốn tầng nguyên nhân, xếp theo độ lớn bằng chứng
+## 6. Các tầng nguyên nhân, xếp theo độ lớn bằng chứng
 
-1. **`wet_ground` đổi intensity 75,9 % điểm nền** — biến lớn nhất, chưa tách được phần đóng
-   góp riêng vì cổng C chạy `wet_ground=1` ở mọi frame plume.
-2. **Plume bám vật thể 4,8 lần** spray thật (21,0 % vs 4,4 % điểm trong 6 m) — mục 4.
-3. **Nhiễm độc feature vành 2–6 m** — quan hệ liều–đáp ứng đơn điệu (+0,891), mất hộp từ
+1. **Plume bám vật thể 4,8 lần** spray thật (21,0 % vs 4,4 % điểm trong 6 m) — mục 4.
+2. **Nhiễm độc feature vành 2–6 m** — quan hệ liều–đáp ứng đơn điệu (+0,891), mất hộp từ
    2,6 % lên 29,8 % khi vành dày plume.
-4. **Mất điểm vật thể** (2903 điểm, 1818 trong hộp) — có thật nhưng nhỏ (0,01 % tổng).
-5. **Độ mỏng vật thể** — cùng liều, vật thể mỏng mất recall **gấp 4,4 lần**
+3. **Mất điểm vật thể** (2903 điểm, 1818 trong hộp) — có thật nhưng nhỏ (0,01 % tổng).
+4. **Độ mỏng vật thể** — cùng liều, vật thể mỏng mất recall **gấp 4,4 lần**
    (−1,68 vs −0,38 trên mỗi 1 % liều); `corr(điểm xe/box, Δrecall) = −0,492`.
 
+`wet_ground` **không** nằm trong danh sách này — nó là dead branch (mục 5), đóng góp đúng bằng 0.
+
 ---
 
-## 7. Phép đo CẦN làm để chốt (đang chạy / chưa làm)
+## 7. Phép đo đã chốt: ablation `--no-wet-ground`
 
-**Đang chạy (kernel v6, A7-b):** cổng C với **`--no-wet-ground`**, output
-`gate_c_detections_nowet.jsonl`. Đây là phép tách biệt duy nhất quy được phần đóng góp của
-mục 5 — hiện nó bị trộn với mục 3.
+**ĐÃ CHẠY (A7-b, kernel v6).** Kết quả: output **trùng từng byte** với bản v5
+(md5 `18d02243961f1e2c2915692e5520c1f0`, 2.862/2.862 dòng), Δrecall vẫn **−0,2188**. Tiên đoán
+ghi trước ở commit `fbec7d3` ("lấy lại ≥ 50 % mức sụt") **không xảy ra**, và lý do là
+`wet_ground` chưa bao giờ chạy trên đường ống thật — xem mục 5.
 
-Tiên đoán ghi trước (commit `fbec7d3`): nếu `wet_ground` là nguyên nhân chính thì `--no-wet-ground`
-phải lấy lại **≥ 50 %** mức sụt (Δrecall từ −0,2188 lên ≥ −0,109). Nếu chỉ lấy lại < 25 % thì
-vành plume mới là chính.
+Nghĩa là: phần đóng góp của `wet_ground` là **0**, không phải "chưa tách được". Toàn bộ −0,2188
+thuộc về mục 3 và 1 ở trên.
 
-**Chưa làm:** truy tại sao cụm lại **bám vật thể 4,8×**. Số cụm đúng bảng đo (`cal`), số điểm
+**Còn thật sự chưa làm:** truy tại sao cụm lại **bám vật thể 4,8×**. Số cụm đúng bảng đo (`cal`), số điểm
 ít hơn thật (0,33×), nên nghi vấn nằm ở **vị trí sinh cụm** và **quỹ đạo trôi** (drag
 `C = −0,15 m⁻¹`, `diffusion_alpha = 0` ở Cách A). Cần đo phân bố vị trí cụm so với paper Fig. 3.
 

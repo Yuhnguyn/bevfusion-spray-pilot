@@ -1,5 +1,8 @@
 # RoadSpray có dùng được cho repo này không
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S5.
+> Phần còn đúng: Đánh giá độ phù hợp RoadSpray vẫn đúng; 'fit' ở đây đã được thi hành ở D2.
+
 Phân tích 2026-11-18 · nhánh `sspp` @ `064f1c1` · trả lời hai câu: *RoadSpray là bộ calibration hay
 bộ spray-road test, và có áp được vào thí nghiệm hiện tại không?*
 

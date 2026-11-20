@@ -1,5 +1,8 @@
 # Cổng chia `cal` / `held-out` cho SemanticSpray
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S2, S5.
+> Phần còn đúng: Luật chia `cal`/`held-out` v2 vẫn là bản ghi hợp lệ; vai trò của `cal` với tư cách nguồn calibration đã bị thay.
+
 ## Luật chia
 
 - rule: `v2-parity-flip-by-cell`

@@ -1,5 +1,8 @@
 # Hỏi đáp paper qua NotebookLM — Linnhoff et al. 2212.08558
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S1, S5.
+> Phần còn đúng: Trích dẫn paper vẫn đúng nguyên văn; phần diễn giải sang code repo đã lỗi thời.
+
 Nguồn: notebook `Mô Phỏng Hiệu Ứng Bụi Nước Trên Cảm Biến Lidar Ô Tô`
 (id `f2c09ee8-1c5c-45d3-869d-e62559073f1c`), source duy nhất là PDF arXiv
 2212.08558. Câu hỏi soạn theo 5 nhóm, chỉ thị bắt buộc trả lời nguyên văn +

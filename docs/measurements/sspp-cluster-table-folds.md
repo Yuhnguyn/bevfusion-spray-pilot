@@ -1,5 +1,8 @@
 # Cụm/frame SSPP theo fold — không leak, có CI95 (2026-11-18)
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S3, S5.
+> Phần còn đúng: Bảng fold vẫn dùng được làm KIỂM CHỨNG CHÉO, không còn là nguồn chọn tham số.
+
 Người đo: teammate `sspp-table-auditor` (task 7), Lead review. Nhánh `sspp`.
 Script: `scripts/sspp_cluster_table_folds.py` · Test: `tests/test_sspp_cluster_table_folds.py`.
 Nguồn dữ liệu: `data/SemanticSprayDataset` (**207 scene / 17 419 frame**).

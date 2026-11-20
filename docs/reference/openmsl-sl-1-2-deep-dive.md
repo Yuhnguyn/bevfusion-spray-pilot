@@ -1,5 +1,8 @@
 # openMSL/sl-1-2 — đọc sâu repo mô hình LiDAR phản xạ
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S1.
+> Phần còn đúng: Tài liệu này mô tả CODE THAM CHIẾU (`dee.cpp`), không mô tả repo — đọc kèm cảnh báo này.
+
 Đọc ngày 2026-11-17, tại `main` @ `72323af` (2023-09-06). Repo: <https://github.com/openMSL/sl-1-2-reflection-based-lidar-object-model>.
 
 Tài liệu này là bản đọc-hiểu, **không phải** bản port. Mục đích: biết chính xác cái gì trong

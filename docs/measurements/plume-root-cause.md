@@ -1,5 +1,8 @@
 # Root cause: vì sao plume sinh ra thưa và vỡ vụn hơn spray thật
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S1.
+> Phần còn đúng: Các số đo tại thời điểm 2026-11-19 vẫn là bản ghi hợp lệ; phần 'còn phải sửa' đã lỗi thời.
+
 Đo ngày 2026-11-17 trên `sspp` @ `bad0f4b`. Script: `scripts/diag_*.py`
 (`diag_plume_gap`, `diag_spray_location`, `diag_cluster_extent`, `diag_spray_source`,
 `diag_drift_wet`, `diag_steady_state`, `diag_table_check`, `diag_verify_conventions`,

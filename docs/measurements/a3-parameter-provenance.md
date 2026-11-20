@@ -1,5 +1,8 @@
 # A3 — Kiểm nguồn gốc tham số generator plume (R2, 2026-11-19)
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S1, S2, S3, S4, S5.
+> Phần còn đúng: Audit 49 tham số vẫn đúng về nguồn gốc; các tham số đã bị bỏ thì không còn trong code.
+
 Người rà: `paper-archaeologist` (R2). Thời điểm audit: **2026-11-19 12:27 +07**, commit **`bacff42`**,
 tracked working tree **sạch** (R1 có thể đổi sau mốc này — mọi số dòng tính theo đúng commit trên).
 Nhiệm vụ: mỗi tham số số học của generator phải có nguồn thật; tìm chỗ còn rò rỉ SSPP, chỗ bịa,

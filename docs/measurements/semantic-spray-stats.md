@@ -1,5 +1,8 @@
 # SemanticSpray statistics
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S5.
+> Phần còn đúng: Số liệu thống kê dataset vẫn đúng; chỉ vai trò calibration đã đổi.
+
 > ⚠️ **Số về cụm trong file này không dùng làm mốc** (2026-11-11). Clustering ở đây là
 > **single-linkage, bán kính 0,5 m, `dense-min 5`** — chaining gộp cụm nên số cụm và
 > điểm/cụm là **cận trên**, không so được với DBSCAN `minPts = 3` của paper.

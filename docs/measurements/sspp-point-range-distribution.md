@@ -1,5 +1,8 @@
 # SSPP có giữ near-field không? — phân bố range của điểm thật và `label==2`
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S3.
+> Phần còn đúng: Phân bố cự ly điểm vẫn là bản ghi hợp lệ của SSPP.
+
 Mục đích: kiểm tra giả thuyết "ground truth SSPP bị lọc near-field" trước khi kết luận generator
 quá đậm ở kịch bản following (A3-V: 8–17× ở 120–130 km/h). Đo trực tiếp `.bin` + `.label`, không
 sửa code. Nguồn: `data/SemanticSprayDataset` (207 scene), script scratch

@@ -39,3 +39,8 @@ graphify-out/
 
 # Build artifact cua Kaggle bundle (tao lai bang kaggle/gate_c/make_bundles.py)
 kaggle/*/bundles/
+
+# .scratch/diag/ — log + artifact chẩn đoán sinh ra trong phiên (1,3 GB, không tái lập được
+# nhưng cũng không cần trong git). Giữ .gitkeep để thư mục tồn tại.
+.scratch/diag/*
+!.scratch/diag/.gitkeep

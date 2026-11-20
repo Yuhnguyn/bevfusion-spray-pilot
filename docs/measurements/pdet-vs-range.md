@@ -1,5 +1,8 @@
 # `P_det` theo cự ly trên RoadSpray `*_static` — Eq. 7 đo ở nhiều khoảng cách (2026-11-19)
 
+> ⚠️ **LỖI THỜI một phần** — xem `docs/adr/0007-superseded-claims.md` mục S5.
+> Phần còn đúng: Kết quả b = +0,222 và kết luận near-field không cứu được vẫn đúng.
+
 Người đo: subagent đo lường (R3). Script: `scripts/measure_pdet_vs_range.py`.
 Dữ liệu thô: `.scratch/tmp/pdet_vs_range.jsonl` (1 656 cụm) · summary: `.scratch/tmp/pdet_vs_range_summary.json`.
 Nguồn: `data/roadspray/{Crafter,Golf}_static.zip` + `meta_data_measurement.xlsx`.
