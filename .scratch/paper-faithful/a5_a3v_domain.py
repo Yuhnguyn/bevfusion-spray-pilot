@@ -21,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path("/Users/huynguyen/projects/bevfusion-spray-pilot")
+REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 from spray.beam_model import load_beam_table  # noqa: E402
@@ -44,11 +44,15 @@ REGION_DEPTH, REGION_HALF_W = 60.0, 5.0
 
 
 def domain_config(wfh_mm: float, on: bool) -> PlumeStateConfig:
-    """PlumeStateConfig cho một scene; `wfh_mm` chỉ dùng để tính T (spawn/T)."""
+    """PlumeStateConfig cho một scene; `wfh_mm` chỉ dùng để tính T (spawn/T).
+
+    Miền paper là MẶC ĐỊNH từ QĐ15, nên `on=True` = config mặc định. `on=False`
+    tái lập nhánh legacy (không giới hạn miền) để đối chiếu.
+    """
     base = PlumeStateConfig()
-    if not on:
+    if on:
         return base
-    return replace(base, diffusion_alpha=0.0, min_range_m=2.5, max_range_m=50.0)
+    return replace(base, min_range_m=0.0, max_range_m=float("inf"))
 
 
 def scene_meta(root: Path) -> list[dict]:
@@ -258,8 +262,8 @@ def main():
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"wfh_sampling": args.wfh_sampling,
-                               "domain": {"diffusion_alpha": 0.0,
-                                          "min_range_m": 2.5, "max_range_m": 50.0},
+                               "qđ15": "miền paper là mặc định; không còn diffusion_alpha",
+                               "domain": {"min_range_m": 2.5, "max_range_m": 50.0},
                                "summary": summary}, indent=1), encoding="utf-8")
     print(f"\nA5_WRITTEN {out}")
 

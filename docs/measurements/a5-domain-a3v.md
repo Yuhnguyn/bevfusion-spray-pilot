@@ -1,5 +1,12 @@
 # A5 — A3-V với miền hợp lệ "Cách A" (2026-11-19, **bản v2 sau khi sửa lỗi mặt cầu**)
 
+> ⚠️ **SỐ NÀY KHÔNG CÒN LÀ SỐ HIỆN HÀNH** (từ QĐ14 + QĐ15, 2026-11-25).
+> Bảng dưới đo trên code trước QĐ14. Đo lại trên `HEAD 5e4da9b` (cùng script, cùng
+> tập B, cùng seed) cho tỉ lệ thấp hơn −2 % … −35,4 %, đảo 2 ô từ ĐẠT sang TRƯỢT.
+> Nguyên nhân chính là **QĐ14** (P_det0 thành hằng số theo cụm ⇒ tổng det giảm), không
+> phải QĐ15. Thước near-field `R p05` và `x min` **không đổi** — tác dụng của miền giữ nguyên.
+> Số hiện hành: `docs/measurements/a5-domain-a3v-post-qd15.md`.
+
 Thực hiện theo **ADR-0006 §5.7** (pre-register commit `ecfdb23`). Script:
 `.scratch/paper-faithful/a5_a3v_domain.py`. Số thô: `.scratch/tmp/a5_domain_v2.json`.
 
