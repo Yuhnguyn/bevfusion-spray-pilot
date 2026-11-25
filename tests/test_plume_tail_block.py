@@ -236,3 +236,50 @@ def test_marker_prints_one_line_with_seven_keys(capsys):
     assert fields["scene"] == TOKEN
     assert fields["frame"] == str(frame_index)
     assert fields["assumed"] == "1"
+
+
+def test_spawned_clusters_carry_a_fixed_p_det_z_for_their_whole_life():
+    """Viz 0072 fr35: P_det0 phải cố định theo cụm, không rút lại mỗi frame.
+
+    ``spawn`` rút z một lần; ``advance``/``prune``/``raycast`` không được đổi nó
+    ⇒ cụm không còn nháy sáng/tắt giữa các frame dù vẫn sống.
+    """
+    state = PlumeState()
+    created = None
+    for frame_index in range(20):
+        inject_plume_stateful(
+            _empty_points(),
+            BOX,
+            _context(frame_index=frame_index),
+            state,
+            seed=41 + frame_index,
+            token=TOKEN,
+        )
+        fresh = [c for c in state.alive(0) if c.age < 0.0]
+        if fresh:
+            created = fresh
+            break
+
+    assert created
+    z_values = [cluster.p_det_z for cluster in created]
+    assert all(value is not None for value in z_values)
+    # Bản thân phép rút phải là N(0, 1): không phải hằng số, không phải
+    # exp(lognormal) (giá trị dương tuyệt đối).
+    assert any(abs(value) > 0.0 for value in z_values)
+
+    snapshot = {cluster.cluster_id: cluster.p_det_z for cluster in created}
+    for frame_index in range(20, 30):
+        inject_plume_stateful(
+            _empty_points(),
+            BOX,
+            _context(frame_index=frame_index),
+            state,
+            seed=41 + frame_index,
+            token=TOKEN,
+        )
+
+    living = state.alive(0)
+    still_there = [c for c in living if c.cluster_id in snapshot]
+    assert still_there, "cần ít nhất một cụm sống qua các frame để kiểm tra"
+    for cluster in still_there:
+        assert cluster.p_det_z == snapshot[cluster.cluster_id]

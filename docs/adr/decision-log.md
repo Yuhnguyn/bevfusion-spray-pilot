@@ -101,6 +101,30 @@ Bảng tra tài liệu lỗi thời (cấp S1–S5): `docs/adr/0007-superseded-c
 - **Căn cứ:** `docs/measurements/pdet-vs-range.md` §11. D2-chặt: hiệu chỉnh trên `*_static`
   label-free thì hợp lệ, không phải fudge factor.
 
+## QĐ14 · 2026-11-25 · `P_det0` là hằng số theo CỤM (hết nháy sáng/tắt)
+
+- **Trước:** `raycast_frame` rút `lognormal(p_det_mu, p_det_sigma)` mỗi lần gọi, tức mỗi
+  frame cho mỗi cụm. Cụm sống 10–40 frame vì `P = exp(−Δt/T)`, nên cùng một cụm có `P_det0`
+  độc lập giữa các frame dù `p_det_sigma = 1,1` cho p99/p50 ≈ 13× ⇒ cụm rực sáng một frame
+  rồi tắt hẳn frame sau (**nháy**).
+- **Sau:** `spawn` rút **z-score** `N(0,1)` một lần, lưu `SprayCluster.p_det_z`;
+  `raycast_frame` dựng `P_det0 = exp(p_det_mu + p_det_sigma · z)` từ config hiện hành.
+- **Vì sao lưu z chứ không lưu `P_det0` tuyệt đối:** `RaycastConfig.p_det_mu/sigma` là API
+  của caller (gate C, script đo, test). Lưu giá trị tuyệt đối sẽ làm config **bị bỏ qua im
+  lặng** với mọi cụm production.
+- **Căn cứ:** paper Fig. 7 fit lognormal trên phân bố `P_det` **giữa các cụm** ⇒ mỗi cụm có
+  một `P_det` cố định. `[ĐO] 2026-11-25` trên scene 0072 (110 km/h, 40 frame): độ nháy
+  `mean|Δ det|/mean det` giảm **0,420 → 0,232 (−45 %)**; với MỘT cụm cô lập qua 12 frame,
+  CV giảm **0,949 → 0,395** (min/max 0→14 thành 0→7) — phần còn lại là nhiễu Bernoulli.
+- **Không bias kỳ vọng:** 120 realization độc lập của `z` (14 cụm, 8 frame/realization) so
+  với chế độ rút lại: **−2,4 %, |z| = 0,55** ⇒ cùng kỳ vọng. Một phép đo đơn lẻ trước đó
+  lệch −13,5 % chỉ là phương sai mẫu của đuôi nặng (`std giữa realization 158,9` ≈
+  `std giữa frame 156,6`).
+- **Điều KHÔNG sửa được:** phương sai tổng `det/frame` giữa các scene/realization vẫn lớn
+  (CV ≈ 45 %) vì `p_det_sigma = 1,1` là số của paper. Muốn giảm phải đổi σ ⇒ cần quyết định
+  riêng, không thuộc QĐ14.
+- **Không đổi:** cụm không mang `p_det_z` (dựng tay trong test) vẫn được rút z tại chỗ như cũ.
+
 ## ADR-0006 D2 · 2026-11-18 · nguồn bảng số cụm: SSPP `cal` → RoadSpray `*_static`
 
 - **Trước:** `_CLUSTER_VISIBLE_BY_SPEED` đo trên SSPP `cal`, mà `cal` chứa **6/12 scene test**

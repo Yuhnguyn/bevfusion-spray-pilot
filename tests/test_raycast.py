@@ -262,21 +262,31 @@ def test_marker_has_the_six_required_keys(capsys):
 
 # --- P_det: lognormal rút một lần cho mỗi CỤM (paper Eq. 7 + Fig. 7) ---------
 class _SpyRng:
-    """Bọc Generator để ghi lại ``size`` của lần gọi ``lognormal``."""
+    """Bọc Generator để ghi lại ``size`` của lần gọi ``standard_normal``.
+
+    ``raycast_frame`` rút z-score ``N(0, 1)`` một lần cho mỗi cụm (khi cụm chưa
+    mang ``p_det_z``) bằng ``standard_normal`` rồi dựng
+    ``P_det0 = exp(mu + sigma·z)``. Đơn vị đo "một lần rút cho mỗi cụm" là số
+    phần tử của lần gọi đó — ``normal`` không dùng được vì distance và ranking
+    score cũng đi qua nó.
+    """
 
     def __init__(self, seed):
         self._rng = np.random.default_rng(seed)
-        self.lognormal_sizes = []
+        self.standard_normal_sizes = []
+
+    def standard_normal(self, size=None):
+        self.standard_normal_sizes.append(None if size is None else int(size))
+        return self._rng.standard_normal(size=size)
+
+    def normal(self, *args, size=None, **kwargs):
+        return self._rng.normal(*args, size=size, **kwargs)
 
     def lognormal(self, *args, size=None, **kwargs):
-        self.lognormal_sizes.append(None if size is None else int(size))
         return self._rng.lognormal(*args, size=size, **kwargs)
 
     def random(self, *args, **kwargs):
         return self._rng.random(*args, **kwargs)
-
-    def normal(self, *args, **kwargs):
-        return self._rng.normal(*args, **kwargs)
 
 
 def test_pdet_lognormal_is_drawn_once_per_cluster_not_per_beam():
@@ -294,7 +304,7 @@ def test_pdet_lognormal_is_drawn_once_per_cluster_not_per_beam():
     )
 
     assert result.stats.beams_hit > 1
-    assert spy.lognormal_sizes == [1]
+    assert spy.standard_normal_sizes == [1]
 
 
 def test_two_clusters_get_two_independent_lognormal_draws():
@@ -307,7 +317,63 @@ def test_two_clusters_get_two_independent_lognormal_draws():
         rng=spy,
     )
 
-    assert spy.lognormal_sizes == [2]
+    assert spy.standard_normal_sizes == [2]
+
+
+def test_cluster_pdet_z_is_reused_across_frames_instead_of_redrawn():
+    # Nháy sáng/tắt (viz 0072 frame 35): P_det0 phải là hằng số của cụm suốt
+    # đời nó, không rút lại mỗi frame. Cụm sinh ra mang ``p_det_z`` ⇒ raycast
+    # KHÔNG được rút thêm z nào.
+    cluster = _cluster((20.0, 0.0, 0.0))
+    cluster.p_det_z = 0.0  # ⇒ P_det0 = exp(mu) = median, không phụ thuộc frame
+    spy = _SpyRng(0)
+    first = raycast_frame(
+        np.zeros((0, 5)),
+        [cluster],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=spy,
+        config=RaycastConfig(p_det_mu=10.0),
+    )
+    second = raycast_frame(
+        np.zeros((0, 5)),
+        [cluster],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=spy,
+        config=RaycastConfig(p_det_mu=10.0),
+    )
+
+    assert spy.standard_normal_sizes == []  # không rút lại z
+    # p_det_mu = 10 ⇒ P_det0 ≈ e^10, xác suất kẹp 1 ⇒ mọi tia trúng đều nổ.
+    assert first.stats.det == first.stats.beams_hit
+    assert second.stats.det == second.stats.beams_hit
+
+
+def test_config_p_det_mu_still_steers_a_spawned_cluster():
+    # Lưu z (chuẩn hoá) chứ không lưu P_det0 tuyệt đối: đổi ``p_det_mu`` trong
+    # config vẫn phải đổi kết quả với CÙNG một cụm đã sinh.
+    cluster = _cluster((20.0, 0.0, 0.0))
+    cluster.p_det_z = 0.0
+    high = raycast_frame(
+        np.zeros((0, 5)),
+        [cluster],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=np.random.default_rng(3),
+        config=RaycastConfig(p_det_mu=10.0),
+    )
+    low = raycast_frame(
+        np.zeros((0, 5)),
+        [cluster],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=np.random.default_rng(3),
+        config=RaycastConfig(p_det_mu=-10.0),
+    )
+
+    assert high.stats.det == high.stats.beams_hit
+    assert low.stats.det == 0
 
 
 # --- P_det(R): hiệu chỉnh cự ly của xác suất phát hiện (2026-11-19) ---------

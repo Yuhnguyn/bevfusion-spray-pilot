@@ -9,7 +9,9 @@ dưới theo paper (Eq. 7 + Fig. 7), không theo từng đoạn tia:
 
 - tia cắt quả cầu sinh một detection với xác suất ``min(1, P_det0) × P_t``;
   ``P_det0`` rút **một lần cho mỗi cụm** từ lognormal của paper (Fig. 7 =
-  phân bố *giữa các cụm*), rồi mọi tia cắt cụm dùng chung giá trị đó;
+  phân bố *giữa các cụm*), rồi mọi tia cắt cụm dùng chung giá trị đó **mọi
+  frame cụm còn sống** — giá trị sống ở ``SprayCluster.p_det0``, rút lúc
+  ``spawn``; rút lại mỗi frame làm cụm nháy sáng/tắt (viz 0072 fr35);
 - quãng đã đi qua các cụm phía trước làm suy hao cả detection mới và điểm thật
   phía sau nó theo ``exp(−2·mean·L)``;
 - ``add_max_detection`` giữ echo mạnh nhất mỗi tia, nên plume có thể che một
@@ -331,9 +333,27 @@ def raycast_frame(
 
     # One lognormal draw per CLUSTER (paper Eq. 7 + Fig. 7: the lognormal fits
     # the spread of P_det *between clusters*), shared by every beam segment that
-    # hits that cluster. The Bernoulli test stays per segment.
-    lognormal_by_cluster = rng.lognormal(
-        cfg.p_det_mu, cfg.p_det_sigma, size=len(cluster_list)
+    # hits a cluster AND by every frame that cluster lives: ``P_det0`` is a fixed
+    # property of the cluster, drawn once at spawn as a z-score
+    # (``SprayCluster.p_det_z``) and rebuilt here from the *current* config, so
+    # ``p_det_mu``/``p_det_sigma`` still steer the distribution. Re-drawing z
+    # every frame made long-lived clusters flicker on/off (viz 0072 fr35).
+    # Clusters built by hand in tests lack the field (``None``) — draw z for them
+    # here so they keep their old behaviour.
+    p_det_z_by_cluster = np.array(
+        [
+            np.nan if getattr(cluster, "p_det_z", None) is None else cluster.p_det_z
+            for cluster in cluster_list
+        ],
+        dtype=np.float64,
+    )
+    missing = np.isnan(p_det_z_by_cluster)
+    if missing.all():
+        p_det_z_by_cluster = rng.standard_normal(len(cluster_list))
+    elif missing.any():
+        p_det_z_by_cluster[missing] = rng.standard_normal(int(missing.sum()))
+    lognormal_by_cluster = np.exp(
+        cfg.p_det_mu + cfg.p_det_sigma * p_det_z_by_cluster
     )
     lognormal = lognormal_by_cluster[cluster_hit]
     survival_by_cluster = _survival(cluster_list)

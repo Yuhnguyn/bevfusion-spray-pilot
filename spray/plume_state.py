@@ -212,6 +212,13 @@ class SprayCluster:
     # static = v (xe chạy ra xa), follow = 0 (xe giữ khoảng cách). Dùng để dời
     # mặt đuôi theo thời gian khi tính độ sâu `d_rel` cho tán xạ.
     car_speed_mps: float = 0.0
+    # Z-score của ``P_det0``: rút MỘT LẦN lúc sinh, chuẩn hoá ``N(0, 1)``.
+    # ``raycast.py`` dựng ``P_det0 = exp(p_det_mu + p_det_sigma · z)`` từ z này,
+    # nên giá trị là đặc tính CỐ ĐỊNH của cụm (paper Fig. 7: lognormal fit *giữa
+    # các cụm*) mà ``RaycastConfig.p_det_mu/sigma`` vẫn còn hiệu lực. Rút lại
+    # mỗi frame làm cụm sống dài nháy sáng/tắt (viz 0072 fr35).
+    # Cụm dựng tay trong test có thể để ``None`` ⇒ raycast rút hộ như trước.
+    p_det_z: float | None = None
 
     def probability(self) -> float:
         """Displayed survival probability ``P_t = exp(-age/T)`` [PAPER] III-C.
@@ -509,6 +516,11 @@ class PlumeState:
                 rear_point=rear_point,
                 forward=forward if rear_point is not None else None,
                 car_speed_mps=car_speed,
+                # [PAPER] Fig. 7: P_det0 là đặc tính CỐ ĐỊNH của cụm — rút một
+                # lần lúc sinh, mọi frame tái dùng. Rút lại mỗi frame làm cụm
+                # nháy sáng/tắt (viz 0072 fr35). Lưu z (chuẩn hoá) để
+                # `RaycastConfig.p_det_mu/sigma` vẫn điều khiển được P_det0.
+                p_det_z=float(rng.standard_normal()),
             )
             self._next_cluster_id += 1
             bucket.append(cluster)

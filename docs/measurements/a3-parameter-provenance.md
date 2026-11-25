@@ -48,7 +48,7 @@ một số tham số "trông như tham số plume" **không thể** ảnh hưở
 | `placement_knots` / `placement_knot_sigma_m` | `plume_state.py:162-163` | 0 / 0,25 m | `[CHỌN]` overdispersion, không paper; lý do dẫn “plume thật có 1–2 chuỗi ~1000 điểm” (đo SSPP) | **PHẢI BỎ** (default tắt) |
 | `tail_block_width_m` | `plume.py:164` | 3,4 m | `[CODE]` `define_spray_volumes()` hard-code `width = 3.4` (`deep-dive.md:294`); paper NOT STATED | HỢP LỆ `[CODE]` |
 | `tail_block_height_frac` | `plume.py:165` (dùng `:568-584`) | (0,05; 0,92) | `[ĐO]` trên **939.803 điểm nhãn SSPP** + `[CHỌN]` (`paper-qa-notebooklm.md` §7/§8.4); paper NOT STATED | **CẦN ĐO LẠI — vi phạm D2** |
-| `PAPER_P_DET_MU` / `PAPER_P_DET_SIGMA` | `raycast.py:51-52` | −2,3 / 1,1 | paper Fig. 7 `L678`: “µ = −2.3 and σ = 1.09” | HỢP LỆ (làm tròn 1,09 → 1,1; muốn khít thì sửa 1,09) |
+| `PAPER_P_DET_MU` / `PAPER_P_DET_SIGMA` | `raycast.py:74-75` (hằng số) · rút mẫu: `plume_state.py:523` (`spawn`), dựng `P_det0`: `raycast.py:355-357` | −2,3 / 1,1 | paper Fig. 7 `L678`: “µ = −2.3 and σ = 1.09” | HỢP LỆ (làm tròn 1,09 → 1,1; muốn khít thì sửa 1,09). QĐ14: `z ~ N(0,1)` rút **một lần lúc spawn**, lưu `SprayCluster.p_det_z`, `P_det0 = exp(mu + sigma·z)` dựng lại mỗi frame từ config hiện hành |
 | `mean_attenuation_per_m` | `raycast.py:66` | 0,02 m⁻¹ | paper `L740`: “mean extinction coefficient of 0.02 m−1”; dạng `exp(−2μL)` với hệ số 2 là `[CODE]` `dee.cpp:279` (paper không cho công thức) | HỢP LỆ (khai rõ factor 2 `[CODE]`) |
 | `intensity_mu` / `intensity_sigma` | `raycast.py:69-70` | 0,5 / 0,05 | paper `L728-730`; chỉ dùng làm ranking score, intensity phát ra = 0 (`raycast.py:278-284`) | HỢP LỆ |
 | `max_distance_m` / `min_intensity` | `raycast.py:71-72` | 100 m / 0,0 | `[CHỌN]` kỹ thuật | HỢP LỆ |
