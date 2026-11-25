@@ -1,99 +1,91 @@
 # CDF cự ly detection vs RoadSpray `*_static` — lần đo đầu (2026-11-25)
 
-Trước hôm nay **chưa từng** chạy được `--mode real-static`: `data/roadspray/` trống, nên thước
-"thật" của Paper A Fig. 12 (CDF cự ly detection 0–50 m) chỉ có vế sinh. User đưa
-`Crafter_static.zip` / `Crafter_dynamic.zip` / `meta_data_dataset.json`; xlsx metadata lấy thêm qua
-DSpare REST. Golf_static vẫn thiếu (paper chỉ định lượng Crafter).
+> ⚠️ **ĐÃ SỬA HAI LỖI SO VỚI BẢN COMMIT `91773bb`.** Bản đầu ghi CDF10 thật =
+> 71,1 / 36,0 / **0,6** % và kết luận "generator sinh 12,8 % detection trước mặt đuôi xe,
+> vi phạm vật lý". Cả hai **sai vì lỗi phương pháp** — chi tiết §0. Số đúng ở §1–§3.
 
-Lệnh:
+## 0. Hai lỗi của bản đầu, và vì sao
 
+### Lỗi 1 — gộp frame ở mọi cự ly xe rồi so CDF
+
+Kịch bản static quét xe đích `car_range` từ **12,5 m → 169 m** trong cùng một bag. Vài
+frame đầu (xe còn gần) chiếm phần lớn số điểm: bag 50 km/h có 1 679 điểm ở frame 11 nhưng
+chỉ 41 điểm ở frame 16. Gộp mọi frame rồi tính CDF là **trộn những cự ly khác nhau** —
+CDF10 = 71 % ở 50 km/h chỉ nói "frame xe còn gần thì điểm ở gần", không nói "plume thật nằm
+sát cảm biến". Vế sinh có `car_x` tăng đều 20 → 203 m nên mỗi dải cự ly có số frame bằng
+nhau ⇒ **so gộp là so hai thiết kế lấy mẫu khác nhau**.
+
+### Lỗi 2 — "0 % trước mặt đuôi" của vế thật là **tautology**, không phải số đo
+
+Trong `run_real_static` (`measure_cdf_over_range.py:270–271`):
+
+```python
+behind = (residual & spray_like & (depth >= 0.0) & (depth < 60.0))
+masked = (behind & ...)
+sel = np.nonzero(masked)[0]
 ```
-# thật — 6 bag RoadSpray static (2 bag × 50/100/130 km/h), 271 frame
-scripts/measure_cdf_over_range.py --mode real-static \
-  --crafter-zip data/roadspray/Crafter_static.zip \
-  --xlsx data/roadspray/meta_data_measurement.xlsx \
-  --real-static-jsonl $T/real_static.jsonl --speeds 50,100,130 --bags-per-speed 2
 
-# sinh — kịch bản static, 2 seed, 1442 frame
-scripts/measure_cdf_over_range.py --mode gen-static --seeds 2 \
-  --gen-static-jsonl $T/gen_static.jsonl
+`depth >= 0.0` được áp **trước** khi histogram hoá ⇒ `n_ahead_of_rear` của vế thật **luôn
+bằng 0 theo cấu trúc**. Vế sinh tính `depth_hist` trên **toàn bộ** detection
+(`measure_cdf_over_range.py:611`), không lọc trước. Vậy "thật 0 % vs sinh 12,8 %" là **so
+một đại lượng đã lọc với một đại lượng chưa lọc**. Con số 12,8 % của vế sinh là thật, nhưng
+chưa có vế thật cùng định nghĩa ⇒ **kết luận "vi phạm vật lý" rút lại**.
 
-# tổng hợp (cần cả 3 nguồn; thiếu Golf thì script in `!! BỎ QUA lớp Golf` và đi tiếp)
-scripts/measure_cdf_over_range.py --mode aggregate \
-  --real-static-jsonl … --gen-static-jsonl … --following-jsonl … --summary …
-```
+## 1. `[ĐO]` Độ dài đuôi plume — thước phân biệt được hai vế
 
-## 1. `[ĐO]` CDF cự ly — vế **thật** lần đầu có (Crafter, RoadSpray static)
+Quantile của `depth` sau mặt đuôi xe đích (m), tách theo `car_range`:
 
-| band | n det thật | CDF10 | CDF20 | CDF30 | p50 | p25 / p75 |
-|---|---:|---:|---:|---:|---:|---|
-| 50–70 | 13 028 | 71,1 % | 89,9 % | 100 % | 7,6 m | 6,3 / 13,4 |
-| 80–110 | 25 111 | 36,0 % | 84,8 % | 100 % | 22,0 m | — |
-| 120–130 | 30 648 | 0,6 % | 14,0 % | 40,0 % | 33,7 m | — |
+| km/h | `car_range` | THẬT nfr / n_det | p50 | p90 | p95 | p99 | SINH nfr / n_det | p50 | p90 | p95 | p99 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 50 | [20,40) | 32 / 3 193 | 0,5 | 4,5 | 6,5 | 10,5 | 30 / 1 539 | 0,5 | 1,5 | 1,5 | 2,5 |
+| 100 | [20,40) | 14 / 14 070 | **17,5** | 24,5 | 26,5 | 29,5 | 14 / 1 605 | **2,5** | 8,5 | 9,5 | 12,5 |
+| 130 | [20,40) | 5 / 7 279 | **20,5** | 27,5 | 29,5 | 32,5 | 10 / 614 | **3,5** | 8,5 | 9,5 | 11,5 |
+| 50 | [40,80) | 61 / 37 | 45,5 | 57,5 | 59,5 | 59,5 | 56 / 893 | 1,5 | 1,5 | 2,5 | 3,5 |
+| 100 | [40,80) | 28 / 11 003 | **34,5** | 50,5 | 54,5 | 58,5 | 28 / 1 370 | **8,5** | 21,5 | 25,5 | 34,5 |
+| 130 | [40,80) | 25 / 23 139 | **38,5** | 53,5 | 56,5 | 58,5 | 22 / 582 | **14,5** | 29,5 | 35,5 | 42,5 |
 
-**Đây là phát hiện lớn nhất của lần đo này:** plume thật **không** nằm sát đuôi.
-Ở 120–130 km/h chỉ **0,6 %** detection trong 10 m đầu, p50 = **33,7 m**. Ở 50–70 km/h thì ngược
-lại, p50 = 7,6 m. ⇒ **CDF thật dịch ra xa rất mạnh theo tốc độ** (7,6 → 22,0 → 33,7 m).
+**Đây là thước mà hai vế cùng định nghĩa và cùng lấy mẫu** (cả hai đều đo depth sau mặt
+đuôi, đều tách theo dải `car_range`). Kết luận:
 
-Trước đây repo chỉ có số `trail90` (44 / 52 m) — cùng xu hướng nhưng không phải CDF, nên không
-so trực tiếp được với Fig. 12. Nay có CDF.
+- Ở 100–130 km/h, đuôi plume thật dài **gấp 3–7 lần** generator: p95 = 26–56 m so với
+  9,5–35,5 m. **Đuôi hụt là bệnh chính, và nó nặng hơn ở 100 km/h.**
+- Ở 50 km/h thì ngược: thật p95 = 6,5 m (car 20–40) trong khi sinh 1,5 m — generator
+  **ngắn hơn** cả ở tốc độ thấp.
+- Trong dải [40,80), thật 100 km/h có p50 = 34,5 m — nghĩa là **nửa số điểm nằm xa hơn
+  34 m sau đuôi xe**. Generator chỉ 8,5 m.
 
-## 2. `[ĐO]` So với generator (cùng kịch bản static, 2 seed)
+## 2. `[ĐO]` Vì sao CDF10 của vế sinh = 0 trong khi vế thật 27–54 %
 
-| band | KS | KS tại | CDF10 thật | CDF10 sinh | **Δ CDF10** |
-|---|---:|---:|---:|---:|---:|
-| 50–70 | **0,789** | 16 m | 71,1 % | **0,0 %** | **−71,1** |
-| 80–110 | 0,208 | 16 m | 36,0 % | **0,0 %** | **−36,0** |
-| 120–130 | 0,244 | 9 m | 0,6 % | **0,0 %** | −0,6 |
+Không phải bug raycast. Hai ràng buộc cộng lại:
 
-Hai điều:
+- Vùng **sinh** cụm bắt đầu cách xe ≥ 18 m (`measure_plume_size_tail.py`).
+- Miền paper cắt `‖pos‖ − r ≥ 2,5 m`.
 
-1. **Generator KHÔNG BAO GIỜ sinh detection dưới 10 m** ở kịch bản này (`CDF10 = 0,0 %` cả 3
-   band) — vì miền paper cắt `‖pos‖ − r ≥ 2,5 m` **cộng** vùng sinh bắt đầu cách xe ≥ 18 m. Thật
-   thì 71 % ở 50–70 km/h nằm dưới 10 m. Đây là **lệch có cấu trúc**, không phải nhiễu.
-2. Ở 50–70 km/h KS = 0,789 là **lệch nặng nhất trong mọi ô đã đo** — generator dồn ở 20–30 m
-   trong khi thật dồn ở 5–10 m.
+`raycast_frame` sinh detection dọc **tia** trên quả cầu ⇒ cụm ở 20–25 m cho điểm ở 20–25 m.
+Muốn có detection < 10 m thì **phải có cụm ở < 10 m** — tức đổi **vùng sinh**, không phải
+đổi raycast. Đây là hệ quả thiết kế, không phải tham số sai.
 
-## 3. `[ĐO]` Phát hiện nghiêm trọng: 12,8 % detection **trước mặt đuôi xe**
+## 3. `[ĐO]` Kịch bản following (A3-V) — CDF và KS
 
-| vế | n trước mặt đuôi | n trong vùng | % |
-|---|---:|---:|---:|
-| **thật static** | **0** | 68 787 | **0,0 %** |
-| **sinh static** | **3 953** | 26 847 | **12,8 %** |
+Từ `following_all` (360 frame, 12 scene), `|p|` 0–50 m:
 
-Spray bắn ra từ bánh sau **không thể** nằm trước mặt đuôi xe. Đây là vi phạm vật lý của
-generator, độc lập với mọi thước khác. Nguyên nhân khả nghi (chưa kiểm): `raycast_frame` sinh
-detection dọc theo **tia**, không theo mặt cầu — một tia đi qua rìa quả cầu có thể trả điểm ở
-rất gần gốc, và nếu tia đó cắt qua vùng trước mặt đuôi thì điểm rơi vào đó. Cùng cơ chế đã được
-ghi ở `a5-domain-a3v.md` §3 mục 5 cho near-field `det < 3 m` (max tới 127).
+| lớp | band | THẬT CDF10 | p50 | SINH CDF10 | p50 | KS |
+|---|---|---:|---:|---:|---:|---:|
+| crafter | 50–70 | 72,1 % | 7,9 | 18,5 % | 17,5 | **0,625** |
+| crafter | 80–110 | 61,4 % | 8,7 | 71,0 % | 5,7 | 0,277 |
+| crafter | 120–130 | 73,1 % | 7,3 | 81,5 % | 3,3 | 0,464 |
+| golf | 50–70 | 52,2 % | 9,7 | **0,1 %** | 19,7 | **0,848** |
+| golf | 80–110 | 52,4 % | 9,7 | 57,8 % | 8,4 | 0,202 |
+| golf | 120–130 | 58,3 % | 8,9 | 82,6 % | 3,8 | 0,478 |
 
-**Hệ quả:** nếu dùng generator này để train, model sẽ học "spray có thể xuất hiện trước xe" —
-một tín hiệu sai về mặt vật lý. Phải cắt ở tầng detection (sau raycast), đúng như A5 đã kết luận
-("muốn về đúng 0 phải cắt ở tầng detection — **chưa làm**, và nếu làm phải pre-register riêng").
+**Hướng lệch đảo theo tốc độ** — đây là điểm quan trọng nhất cho việc hiệu chuẩn:
 
-## 4. `[ĐO]` Profile độ sâu: generator dồn sát gấp 4 lần
+- 50–70 km/h: generator **quá xa** (p50 17,5–19,7 m vs thật 7,9–9,7). KS 0,625–0,848.
+- 120–130 km/h: generator **quá gần** (p50 3,2–3,8 m vs thật 7,3–8,9). KS 0,46–0,48.
 
-p50 depth sau mặt đuôi (m):
+⇒ Một hệ số vô hướng **không thể** sửa cả hai chiều. Đây là bằng chứng định lượng cho dự
+đoán ở ADR-0006 §5.7 ("một hệ số vô hướng không thể phủ dải 0,86 → 16,92×").
 
-| km/h | thật | sinh | tỉ |
-|---|---:|---:|---:|
-| 50 | 0,4 | 0,2 | 0,50 |
-| 100 | 4,4 | 1,0 | 0,23 |
-| 130 | 6,6 | 1,6 | 0,24 |
-
-Generator dồn sát mặt đuôi **2–4 lần** so với thật trong hệ quy chiếu depth-sau-đuôi, trong khi
-ở hệ quy chiếu cự ly cảm biến (`|p|`, thước paper) nó lại nằm **quá xa** (CDF10 = 0 %).
-Hai phát biểu không mâu thuẫn: cụm nằm ở ~20–25 m tính từ cảm biến, nhưng **ngay sau mặt đuôi**
-vì xe cũng ở ~20–25 m ở kịch bản following; ở static xe chạy ra xa 20→200 m nên cụm bám đuôi
-trong khi thật thì plume trải ra 30 m.
-
-## 5. Việc cần làm, theo thứ tự
-
-1. **Cắt detection trước mặt đuôi** (12,8 % → 0) — vi phạm vật lý, phải sửa trước mọi thứ khác.
-   Pre-register: cắt theo `x > rear_x` ở tầng detection, đo lại A5 + CDF.
-2. **Bù khối lượng** (A5 0,23–0,89×) — cần mở ADR-0006 §5.7 vì đang cấm `spawn_scale`.
-3. **Golf_static** — chỉ cần nếu muốn bảng theo lớp xe; paper chỉ định lượng Crafter.
-
-## 6. Số thô
+## 4. Số thô
 
 `%TEMP%/cdfprobe/{real_static,gen_static,following_all}.jsonl`, `summary_cdf.json`.
