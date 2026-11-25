@@ -87,7 +87,29 @@ cách đạt α = 0 (trước: cờ; nay: không tồn tại).
    + ghi rõ QĐ14/QĐ15 đã đổi nền đo; hoặc giữ doc cũ và thêm khối "số hiện hành
    xem a5-domain-a3v-post-qd15.md".
 
-## 5. Số thô
+## 5. Thước thứ ba: A3 (static) cũng đo lại — FAIL nặng hơn A5
+
+`scripts/measure_plume_size_tail.py --seeds 2`, kịch bản **static** (ego đỗ, xe chạy
+ra xa tới 200 m), cùng generator HEAD `5e4da9b`:
+
+| km/h | điểm/f | trail90 | %≤20 m | CI95 | đích T4 geom | tỉ lệ |
+|---|---:|---:|---:|---:|---|---|
+| 50 | 9,7 | 2,0 m | 100 % | 18,3 % | 85,1 / 6 m / 99,5 % | **0,11×** |
+| 100 | 23,5 | 22,0 m | 89,4 % | 27,8 % | 202,6 / 44 m / 53,8 % | **0,12×** |
+| 130 | 13,8 | 32,0 m | 78,2 % | 7,7 % | 208,9 / 52 m / 25,7 % | **0,07×** |
+
+**KẾT QUẢ A3: FAIL** — thiếu 7–14 lần, tệ hơn nhiều so với a5 (0,23–0,89×).
+
+Chạy lại với `PLUME_LEGACY_DOMAIN=1` để tách phần do miền: 0,11× / 0,13× / 0,18×
+(trail90 2,0 / 22,0 / 25,0 m). ⇒ **miền chỉ giải thích phần chênh ở 130 km/h**
+(0,07× → 0,18×); A3 fail chủ yếu vì **kịch bản static không thuộc miền paper**:
+paper hiệu chuẩn ego ĐỖ ở 25 m và kiểm chứng 0–50 m, còn static đo tới 200 m nên
+phần lớn plume nằm ngoài 50 m và bị cắt — đúng như thiết kế, không phải lỗi mới.
+
+Hệ quả: **A3 từ nay là thước chẩn đoán, không phải thước nghiệm thu** cho cấu hình
+mặc định. Nghiệm thu khối lượng phải đọc A5 (following, trong miền).
+
+## 6. Số thô
 
 | tập | đường dẫn |
 |---|---|
