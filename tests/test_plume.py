@@ -294,15 +294,16 @@ def test_radial_thinning_matches_measured_ratio():
     assert 1.22 <= float(np.median(ratios)) <= 1.34
 
 
-def test_cluster_radius_cap_is_numerical_four_meters():
-    """Trần 4,0 m = **clip SỐ HỌC theo max quan sát** của cơ chế tán xạ QĐ13.
+def test_cluster_radius_cap_is_p99_of_the_paper_lognormal():
+    """Trần 2,0 m = p99 của chính lognormal paper, không phải trần của cơ chế tán xạ.
 
-    [QĐ13 2026-11-19] Paper KHÔNG đặt trần cho r_cl; cơ chế tán xạ (user duyệt)
-    cho r(t) = r₀ + α·d_rel với r ~ 3–4 m ở depth 60 m (α ≈ 0,06). Trần này chỉ
-    để chặn số học, không phải ràng buộc paper; trần 1,0/2,0 cũ bị bỏ.
+    Paper không đặt trần cho `r_cl` (Fig. 5: lognormal μ=−1,2 σ=0,72). Clip 2,0 m
+    chỉ để chặn đuôi số học: `exp(−1,2 + 2,326·0,72) = 1,94 m`. Trần 4,0 m trước
+    đây tồn tại để phục vụ cơ chế tán xạ `r(t) = r₀ + α·d_rel`; cơ chế đó đã bị
+    xoá nên trần cũng về p99.
     """
     config = PlumeConfig()
-    assert config.cluster_radius_bounds_m == (0.10, 4.00)
+    assert config.cluster_radius_bounds_m == (0.10, 2.00)
 
     rng = np.random.default_rng(23)
     radii = np.array(
@@ -317,10 +318,10 @@ def test_cluster_radius_cap_is_numerical_four_meters():
         ]
     )
 
-    assert radii.max() <= 4.0
-    at_cap = float((radii >= 4.0).mean())
-    # P(r >= 4,0 | median 0,30, sigma 0,80) = 1 - Phi(ln(4/0,3)/0,8) ~ 0,06 %
-    assert 0.0001 <= at_cap <= 0.0025, at_cap
+    assert radii.max() <= 2.0
+    at_cap = float((radii >= 2.0).mean())
+    # P(r >= 2,0 | median 0,30, sigma 0,72) ≈ 0,4 % ⇒ hiếm nhưng có
+    assert 0.0005 <= at_cap <= 0.015, at_cap
 
 
 def test_points_per_cluster_decreases_with_range():

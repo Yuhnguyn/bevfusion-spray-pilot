@@ -42,7 +42,34 @@ Bảng tra tài liệu lỗi thời (cấp S1–S5): `docs/adr/0007-superseded-c
 - **Hệ quả:** `steady_state_cluster_factor` và `steady_state_alive_factor` giờ **bằng nhau**
   (cùng là `K = 1/(1−exp(−Δt/T))`); hai tên giữ lại cho caller cũ.
 
-## QĐ13 · 2026-11-19 · tán xạ `r(t) = r₀ + α·d_rel`, α = 0,06
+## QĐ15 · 2026-11-25 · bỏ cơ chế tán xạ; miền paper thành MẶC ĐỊNH
+
+- **Trước:** `PlumeStateConfig.diffusion_alpha = 0,06` (QĐ13) và miền paper là **opt-in**
+  (`PLUME_PAPER_DOMAIN=1` / `--paper-domain`). Mặc định production chạy ngoài miền.
+- **Sau:**
+  1. **Xoá hẳn** cơ chế tán xạ `r(t) = r₀ + α·d_rel`: bỏ `DIFFUSION_ALPHA`, field
+     `diffusion_alpha`, `SprayCluster.radius0/rear_point/forward/car_speed_mps`, và khối nở
+     bán kính trong `advance()`. Bán kính cụm là **một** lognormal của paper, không nở theo tuổi.
+  2. **Miền paper thành mặc định:** `min_range_m = 2,5`, `max_range_m = 50,0` trong
+     `PlumeStateConfig`; bỏ cờ `--paper-domain` (giờ là hành vi chuẩn). Tái lập số cũ bằng
+     `PLUME_LEGACY_DOMAIN=1` hoặc `--legacy-domain`.
+  3. **Xoá các knob không có trong paper** chưa từng được đọc: `placement_knots`,
+     `placement_knot_sigma_m`, `source_count`, `source_lateral_m`, `source_sigma_m`,
+     `source_height_m`, `streak_scale`, `SprayCluster.streak_m` + nhánh streak trong
+     `raycast._collect_hits`.
+  4. **Trần bán kính:** `cluster_radius_bounds_m` 4,0 → **2,00 m**, là p99 của chính lognormal
+     paper (`exp(−1,2 + 2,326·0,72) = 1,94 m`). Trần 4,0 m chỉ tồn tại để phục vụ cơ chế tán xạ.
+- **Vì sao:** đo trên scene 0072 và toàn bộ hồ sơ A3/A5, cơ chế tán xạ (a) **không có trong
+  paper** — paper định nghĩa `r_cl` là đại lượng *đo được*, không phải luật nở; (b) là nguyên
+  nhân chính của near-field và cụm trôi qua cảm biến (plan §2.1–2.3: tắt α thì r p50 1,35 → 0,33 m,
+  det 3.290 → 497). Miền paper đã được pre-register ở ADR-0006 §5.7 và là hướng phát triển chính,
+  nên để nó opt-in nghĩa là nhánh mặc định chạy ngoài miền đã kiểm chứng.
+- **Hệ quả phải khai:** mọi số A3/A3-V/cổng C trong tài liệu **trước** commit này đo ở chế độ
+  legacy. Số của Cách A (A5) vẫn đúng nhưng điều kiện α = 0 giờ là mặc định, không phải cờ.
+- **Căn cứ:** ADR-0006 §5.7 (miền), ADR-0007 (bảng tra đã đảo), `docs/measurements/a5-domain-a3v.md`,
+  `.scratch/paper-faithful/plan.md` §2.1–2.3.
+
+## QĐ13 · 2026-11-19 · tán xạ `r(t) = r₀ + α·d_rel`, α = 0,06 — **ĐÃ BỊ ĐẢO bởi QĐ15**
 
 - **Trước:** bán kính = một lognormal cố định, trần `2,0 m` (p99 của paper).
 - **Sau:** bán kính nở theo độ sâu sau mặt đuôi, trần nâng lên `4,0 m`.

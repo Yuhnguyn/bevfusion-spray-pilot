@@ -140,10 +140,10 @@ class PlumeConfig:
     # Bán kính cụm: lognormal median 0,30 m (paper Fig. 5, μ=−1,2, σ=0,8).
     cluster_radius_median_m: float = 0.30
     cluster_radius_sigma: float = 0.8
-    # Paper KHÔNG đặt trần cho `r_cl`. Đây là **clip SỐ HỌC theo max quan sát** của
-    # cơ chế tán xạ (r ~ 3–4 m ở độ sâu 60 m với α ≈ 0,06), không phải ràng buộc
-    # của paper.
-    cluster_radius_bounds_m: tuple[float, float] = (0.10, 4.00)
+    # Paper KHÔNG đặt trần cho `r_cl`. Đây là **clip SỐ HỌC** ở p99 của chính
+    # lognormal đó — `exp(−1,2 + 2,326·0,72) = 1,94 m` ⇒ 2,00 m. Không phải
+    # ràng buộc của paper, và không dùng trần 4,0 m của cơ chế tán xạ (đã bỏ).
+    cluster_radius_bounds_m: tuple[float, float] = (0.10, 2.00)
     # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm). Khối cầu đặc
     # vô hạn điểm cho S = 0,64, nhưng cụm chỉ có vài chục điểm rời rạc nên max |p|
     # hụt so với biên ellipsoid; S = 0,885 hiệu chỉnh để median
@@ -541,15 +541,16 @@ def inject_plume_stateful(
     )
     expired = state.prune(dt=dt, rng=rng)
 
-    # [MIỀN — ADR-0006 §5.7] Cách A: giữ nguyên mọi số paper, chỉ giới hạn về miền
-    # đã kiểm chứng. Bật bằng PLUME_PAPER_DOMAIN=1; tắt (mặc định) = không giới hạn.
-    if os.environ.get("PLUME_PAPER_DOMAIN", "").strip() not in ("", "0"):
+    # [MIỀN — ADR-0006 §5.7] Miền mô hình paper đã kiểm chứng — MẶC ĐỊNH BẬT.
+    # Chỉ còn một thứ phải bật/tắt: mức ẩm lấy mẫu theo SCENE. Tắt bằng
+    # PLUME_LEGACY_DOMAIN=1 để tái lập hành vi cũ (không giới hạn miền, wfh cố định).
+    if os.environ.get("PLUME_LEGACY_DOMAIN", "").strip() not in ("", "0"):
         state._config = replace(
             state._config,
-            diffusion_alpha=0.0,
-            min_range_m=2.5,
-            max_range_m=50.0,
+            min_range_m=0.0,
+            max_range_m=float("inf"),
         )
+    else:
         # [PAPER §V] mức ẩm lấy mẫu theo SCENE (không theo frame) — xem sample_wfh_mm.
         context = replace_context_wfh(context, sample_wfh_mm(
             context.scene_token, context.epoch, seed

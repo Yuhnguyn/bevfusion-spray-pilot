@@ -223,10 +223,7 @@ def dry_run(checkpoint):
         "--split-json", str(DATASET / "sspp_split.json"),
         "--split", "test",
         "--arms", "clean", "plume", "real",
-        # Phải khớp run_gate_c(): nếu thiếu cờ này, dòng GATE_C_PLUME của dry-run
-        # in `paper_domain=0` và người đọc log tưởng nhánh chính chạy production
-        # (đã xảy ra ở kernel v5, mất một lượt kiểm tra chéo).
-        "--paper-domain",
+        # Miền paper là mặc định của generator (ADR-0006 §5.7); không cần cờ.
     ]
     if NO_WET_GROUND:
         # Phải khớp run_gate_c() để dòng GATE_C_PLUME của dry-run không báo
@@ -264,10 +261,9 @@ def run_gate_c(checkpoint):
         "--arms", "clean", "plume", "real",
         "--seed", "0",
         "--score-thresh", "0.2",
-        # [ADR-0006 §5.7] Cách A: nhánh plume chỉ phát trong miền paper đã kiểm chứng
-        # (diffusion_alpha=0, 2.5 <= |pos| <= 50 m, wfh lấy mẫu theo scene). Hai nhánh
-        # clean/real không đi qua generator nên không bị ảnh hưởng.
-        "--paper-domain",
+        # [ADR-0006 §5.7] Miền paper là MẶC ĐỊNH của generator: nhánh plume chỉ phát
+        # trong 2.5 <= |pos| <= 50 m, wfh lấy mẫu theo scene. Hai nhánh clean/real
+        # không đi qua generator nên không bị ảnh hưởng.
         "--log-every", "50",
         "--out", str(out_jsonl),
     ]

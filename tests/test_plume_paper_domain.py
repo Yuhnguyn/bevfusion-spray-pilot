@@ -1,9 +1,8 @@
-"""Miền hợp lệ "Cách A" của generator (ADR-0006 §5.7)."""
+"""Miền hợp lệ "Cách A" của generator (ADR-0006 §5.7) — mặc định BẬT."""
 
 import numpy as np
 
 from spray.plume_state import (
-    DIFFUSION_ALPHA,
     PlumeState,
     PlumeStateConfig,
     SprayCluster,
@@ -25,7 +24,8 @@ def _cluster(x: float) -> SprayCluster:
 
 def test_domain_off_returns_all_alive():
     """min_range_m=0, max_range_m=inf => select_alive() == all_alive() (cùng list)."""
-    state = PlumeState(PlumeStateConfig())
+    state = PlumeState(PlumeStateConfig(min_range_m=0.0,
+                                        max_range_m=float("inf")))
     state._clusters[(state._scene_token, 0)] = [_cluster(1.0), _cluster(80.0)]
 
     alive = state.all_alive()
@@ -49,15 +49,14 @@ def test_domain_filters_by_radius():
     assert [float(np.linalg.norm(cluster.pos)) for cluster in kept] == [10.0]
 
 
-def test_domain_env_switch_does_not_change_default(monkeypatch):
-    """Không set PLUME_PAPER_DOMAIN => default không bị đổi."""
-    monkeypatch.delenv("PLUME_PAPER_DOMAIN", raising=False)
+def test_domain_is_on_by_default(monkeypatch):
+    """Miền paper là MẶC ĐỊNH: 2,5 m <= ‖pos‖ − r, ‖pos‖ <= 50 m."""
+    monkeypatch.delenv("PLUME_LEGACY_DOMAIN", raising=False)
 
     cfg = PlumeStateConfig()
 
-    assert cfg.min_range_m == 0.0
-    assert cfg.max_range_m == float("inf")
-    assert cfg.diffusion_alpha == DIFFUSION_ALPHA == 0.06
+    assert cfg.min_range_m == 2.5
+    assert cfg.max_range_m == 50.0
 
 
 def _cluster_radius(x: float, radius: float) -> SprayCluster:

@@ -34,7 +34,17 @@ của một kết luận đã từng được dùng để ra quyết định.
 **3. Bảng tra chốt (dưới đây) là nơi duy nhất được liệt kê các cặp "đã đảo".** Không thêm
 cặp mới ở nơi khác; sửa bảng này.
 
-## Bảng tra — 5 cơ chế đã bị đảo
+## Bảng tra — 6 cơ chế đã bị đảo
+
+### (S6) Tán xạ `r(t) = r₀ + α·d_rel` — **XOÁ HẲN**
+
+| | |
+|---|---|
+| Tài liệu còn nói cũ | `docs/measurements/a5-domain-a3v.md`, `docs/measurements/plume-a3-diagnosis.md`, `docs/adr/0006-...md` §5.7 (nhắc `diffusion_alpha = 0` như điều kiện của Cách A), `docs/measurements/a3-parameter-provenance.md` |
+| Code hiện tại | **không còn** `diffusion_alpha` / `DIFFUSION_ALPHA`; `spray/plume_state.py` chỉ có một lognormal bán kính và không nở theo tuổi. `PlumeStateConfig.radius_max_m = 2.0`, `PlumeConfig.cluster_radius_bounds_m = (0.10, 2.00)` |
+| Quyết định | QĐ15 (2026-11-25), đảo QĐ13 |
+| Vì sao đảo | Paper Fig. 5 định nghĩa `r_cl` là đại lượng **đo được**, không phải luật nở; cơ chế này là nguyên nhân chính của near-field và cụm trôi qua cảm biến |
+| Khôi phục | Không. Số cũ tái lập được bằng `PLUME_LEGACY_DOMAIN=1` (chỉ tắt miền, không hồi sinh tán xạ) — muốn có lại tán xạ phải lấy từ git history trước QĐ15 |
 
 ### (S1) `prune` — cắt cứng `4T` → tan theo xác suất
 
