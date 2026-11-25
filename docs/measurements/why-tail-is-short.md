@@ -1,4 +1,26 @@
-# Vì sao đuôi plume ngắn: `drag` paper chặn quãng đường, không phải `wfh`
+# ~~Vì sao đuôi plume ngắn~~ — GIẢ THUYẾT ĐÃ BỊ BÁC (2026-11-25)
+
+> ## ⚠️ TÀI LIỆU NÀY SAI — ĐỌC `drag-reference-frame-notebooklm.md` TRƯỚC
+>
+> Kết luận dưới đây **đã bị bác bỏ bằng số đo ngay trong cùng ngày** (commit `eff81ca`).
+> Bốn tuyên bố chính của tài liệu này đều không đứng được:
+>
+> | tuyên bố trong tài liệu này | trạng thái thật |
+> |---|---|
+> | "Độ dài đuôi bị chặn bởi `drag = −0,15 1/m`" | **SAI.** `advance()` cho cụm bay tới 40,5 m sau 4 s. Eq. (5) của paper mô phỏng thuần cho `depth` p50 = **16,5 m** @100 km/h — khớp thật (17,5 m). Drag **không** chặn quãng đường. |
+> | "`wfh`/`T` không phải đòn bẩy" | **SAI.** `T` đổi 0,50 → 1,40 s khi `wfh` quét 0,3 → 1,2 mm; đó chính là đòn bẩy thời gian. |
+> | "Không còn tham số tự do nào để hiệu chuẩn" | **SAI.** `T`/`wfh` và `C` đều dùng được. Vấn đề là phép đo của tôi sai, không phải mô hình thiếu bậc tự do. |
+> | "Đuôi hụt 6,6 lần" | **SAI.** Ở `car_x` ≥ 110 m generator đạt `depth` p50 = **38,5 m**, bằng thật. Chênh lệch chỉ có ở `car_x` < 80 m — tức plume **mở rộng chậm hơn thật**, không phải đuôi bị cắt. |
+>
+> **Nguyên nhân sai:** tôi so hai vế khác định nghĩa — `run_real_static` lọc `depth >= 0.0`
+> **trước** khi histogram hoá, nên `n_ahead_of_rear` của vế thật luôn bằng 0 theo cấu trúc
+> (`tautology`), trong khi vế sinh đo trên toàn bộ detection. Và tôi gộp frame ở mọi
+> `car_range` (12,5 → 169 m trong cùng một bag) rồi so phân bố.
+>
+> **Số liệu đúng + trích nguyên văn paper:** `docs/measurements/drag-reference-frame-notebooklm.md`
+> (commit `eff81ca`). Script kiểm chứng: `.scratch/paper-faithful/eq5_reference_tail.py`.
+>
+> Đoạn dưới giữ lại làm dấu vết điều tra — **không dùng làm căn cứ**.
 
 Ngày 2026-11-25. Câu hỏi: khi user báo "profile độ sâu trượt nặng nhất, generator dồn mass
 sát đuôi hơn thật", **đòn bẩy nào của generator điều khiển độ dài đuôi?** Trước khi hiệu
