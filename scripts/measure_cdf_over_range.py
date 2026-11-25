@@ -325,6 +325,14 @@ def run_real_static(args: argparse.Namespace) -> None:
     for vehicle_class, zip_path in (
         ("Crafter", args.crafter_zip), ("Golf", args.golf_zip)
     ):
+        if not Path(zip_path).is_file():
+            # Golf_static chưa có trong release local; Crafter mới là lớp paper
+            # định lượng (Fig. 4/5/7). Bỏ qua lớp thiếu thay vì crash, nhưng in
+            # rõ — không được im lặng.
+            print(f"  !! BỎ QUA lớp {vehicle_class}: không có {zip_path}",
+                  flush=True)
+            summary[f"{vehicle_class}_missing"] = str(zip_path)
+            continue
         archive = zipfile.ZipFile(zip_path)
         members = sorted(n for n in archive.namelist() if n.endswith(".bag"))
         for speed in speeds:
