@@ -273,9 +273,20 @@ def process_static_bag(
         masked = (behind
                   & (height >= HEIGHT_MIN_M) & (height <= height_max)
                   & (lateral_rel <= LATERAL_HALF_M))
+        # Biến thể "TẤT CẢ detection trong vùng": KHÔNG ràng buộc `depth >= 0`.
+        # Cần biến thể này vì vế sinh (`gen_static`) đo `depth_hist` trên toàn
+        # bộ detection; so `masked` (đã lọc depth) với vế sinh là so hai định
+        # nghĩa khác nhau — đúng lỗi đã mắc 2026-11-25 (xem
+        # docs/measurements/cdf-vs-roadspray-static.md §0).
+        region_all = (residual & spray_like
+                      & (height >= HEIGHT_MIN_M) & (height <= height_max)
+                      & (lateral_rel <= LATERAL_HALF_M))
         sel = np.nonzero(masked)[0]
+        sel_all = np.nonzero(region_all)[0]
         hist, beyond = range_hist(ranges[sel])
         dhist, ahead, dbeyond = depth_hist(depth[sel])
+        hist_all, beyond_all = range_hist(ranges[sel_all])
+        dhist_all, ahead_all, dbeyond_all = depth_hist(depth[sel_all])
         car_range = float(np.hypot(centre[0], centre[1]))
         records.append({
             "scenario": "real_static",
@@ -292,9 +303,13 @@ def process_static_bag(
             "n_cloud": int(cloud.shape[0]),
             "n_residual": int(residual.sum()),
             "n_spray": int(sel.size),
+            "n_spray_all": int(sel_all.size),
             "range_hist": hist,
             "n_beyond_hist": beyond,
-            "depth_hist": dhist,
+            "range_hist_all": hist_all,
+            "n_beyond_hist_all": beyond_all,
+            "depth_hist_all": dhist_all,
+            "n_ahead_of_rear_all": ahead_all,
             "n_ahead_of_rear": ahead,
             "n_depth_beyond_60": dbeyond,
         })
