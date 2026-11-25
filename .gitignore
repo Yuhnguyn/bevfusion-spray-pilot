@@ -41,6 +41,7 @@ graphify-out/
 .scratch/*/tmp/**/*.mp4
 .scratch/*/tmp/**/*.txt
 .scratch/*/tmp/bagprobe/
+
 # NGOẠI LỆ: a3_targets_static.json là NGUỒN của bảng _CLUSTER_VISIBLE_BY_SPEED
 # (spray/plume.py:23-60, ADR-0006 D2). 2 KB, không tái lập được nếu mất laptop.
 !.scratch/roadspray-cal/tmp/a3_targets_static.json
@@ -51,7 +52,8 @@ graphify-out/
 .scratch/*.mp4
 .scratch/*.png
 .scratch/viz_frames/
-
+.scratch/frames_100kmh
+.scratch/frames_130kmh
 # Build artifact cua Kaggle bundle (tao lai bang kaggle/gate_c/make_bundles.py)
 kaggle/*/bundles/
 
@@ -73,3 +75,6 @@ kaggle/*/bundles/
 # Log ngắn hạn ở gốc .scratch/ (viz*.log) và output probe rời
 .scratch/*.log
 .scratch/roadspray-cal/tmp/*.out
+
+
+pytest-of-ADMIN

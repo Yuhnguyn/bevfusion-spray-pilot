@@ -260,6 +260,56 @@ def test_marker_has_the_six_required_keys(capsys):
     assert match.group(5) == "42"
 
 
+# --- P_det: lognormal rút một lần cho mỗi CỤM (paper Eq. 7 + Fig. 7) ---------
+class _SpyRng:
+    """Bọc Generator để ghi lại ``size`` của lần gọi ``lognormal``."""
+
+    def __init__(self, seed):
+        self._rng = np.random.default_rng(seed)
+        self.lognormal_sizes = []
+
+    def lognormal(self, *args, size=None, **kwargs):
+        self.lognormal_sizes.append(None if size is None else int(size))
+        return self._rng.lognormal(*args, size=size, **kwargs)
+
+    def random(self, *args, **kwargs):
+        return self._rng.random(*args, **kwargs)
+
+    def normal(self, *args, **kwargs):
+        return self._rng.normal(*args, **kwargs)
+
+
+def test_pdet_lognormal_is_drawn_once_per_cluster_not_per_beam():
+    # Fig. 7 của paper fit lognormal trên phân bố P_det *giữa các cụm*: một
+    # cụm có một P_det, mọi tia cắt cụm bốc Bernoulli với cùng giá trị đó.
+    # Một cụm duy nhất bị nhiều tia cắt ⇒ nếu rút theo tia thì size = beams_hit;
+    # theo paper thì size = 1.
+    spy = _SpyRng(0)
+    result = raycast_frame(
+        np.zeros((0, 5)),
+        [_cluster((20.0, 0.0, 0.0))],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=spy,
+    )
+
+    assert result.stats.beams_hit > 1
+    assert spy.lognormal_sizes == [1]
+
+
+def test_two_clusters_get_two_independent_lognormal_draws():
+    spy = _SpyRng(1)
+    raycast_frame(
+        np.zeros((0, 5)),
+        [_cluster((15.0, 0.0, 0.0)), _cluster((20.0, 0.0, 0.0))],
+        table=_table(),
+        road_z_m=ROAD_Z_M,
+        rng=spy,
+    )
+
+    assert spy.lognormal_sizes == [2]
+
+
 # --- P_det(R): hiệu chỉnh cự ly của xác suất phát hiện (2026-11-19) ---------
 # Nguồn số: docs/measurements/pdet-vs-range.md §11. Các test dưới đây chỉ khoá
 # **cơ chế** (đúng luật R^b, đúng R0 = 25 m, mặc định tắt, env override), không

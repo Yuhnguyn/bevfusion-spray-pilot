@@ -4,10 +4,12 @@
 cầu, trả về một echo mỗi tia. ``spray/plume_transform.py`` gọi hàm này trên các
 cụm còn sống của ``PlumeState``.
 
-Ba cơ chế `[CODE]` port từ ``dee.cpp:230-281``:
+Ba cơ chế port từ ``dee.cpp:230-281``. Riêng **độ hạt lấy mẫu** ``P_det`` ở
+dưới theo paper (Eq. 7 + Fig. 7), không theo từng đoạn tia:
 
-- tia cắt quả cầu sinh một detection với xác suất
-  ``min(1, lognormal(mu, sigma)) × min(1, exp(−age/T))``;
+- tia cắt quả cầu sinh một detection với xác suất ``min(1, P_det0) × P_t``;
+  ``P_det0`` rút **một lần cho mỗi cụm** từ lognormal của paper (Fig. 7 =
+  phân bố *giữa các cụm*), rồi mọi tia cắt cụm dùng chung giá trị đó;
 - quãng đã đi qua các cụm phía trước làm suy hao cả detection mới và điểm thật
   phía sau nó theo ``exp(−2·mean·L)``;
 - ``add_max_detection`` giữ echo mạnh nhất mỗi tia, nên plume có thể che một
@@ -327,8 +329,13 @@ def raycast_frame(
             real[point_indices, 3], group_start
         )
 
-    # One draw per intersected segment, bulk.
-    lognormal = rng.lognormal(cfg.p_det_mu, cfg.p_det_sigma, size=keys_hit.size)
+    # One lognormal draw per CLUSTER (paper Eq. 7 + Fig. 7: the lognormal fits
+    # the spread of P_det *between clusters*), shared by every beam segment that
+    # hits that cluster. The Bernoulli test stays per segment.
+    lognormal_by_cluster = rng.lognormal(
+        cfg.p_det_mu, cfg.p_det_sigma, size=len(cluster_list)
+    )
+    lognormal = lognormal_by_cluster[cluster_hit]
     survival_by_cluster = _survival(cluster_list)
     survival = survival_by_cluster[cluster_hit]
     scale = cfg.p_det_scale
