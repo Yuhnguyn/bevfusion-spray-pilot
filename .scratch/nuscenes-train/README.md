@@ -2,6 +2,31 @@
 
 Tách từ `sspp` @ `9b174b4` ngày 2026-11-26. **200 passed, 0 failed.**
 
+## 0. Trạng thái 2026-11-26 16:00 — đọc plan mới, KHÔNG đọc §4 dưới
+
+§4 trong file này đã **SAI**. Nó bảo merge `main` để lấy dây train, nhưng:
+
+    git rev-list --count main..HEAD  → 96
+    git rev-list --count HEAD..main  → 0
+    git merge main                   → Already up to date.
+
+`main` là **tổ tiên** của nhánh này ⇒ merge không mang về gì. Dây train biến mất vì bị **xoá**
+trên chính nhánh này ở hai commit sspp-cleanup:
+
+    f7f0914  chore(sspp): drop the nuScenes training chain (9 modules + 18 tests)
+    c2aa23c  chore(sspp): drop the five Kaggle kernels of the nuScenes chain
+
+Quyết định (user, 2026-11-26): **không restore gì từ `main`**. Dựng lại theo nhu cầu, bám
+`spray/` hiện tại. Kế hoạch chi tiết: **`.hermes/plans/2026-11-26_155812-nuscenes-train-plan.md`**.
+
+Ba số đo chặn đường trong plan đó, đo trên máy này:
+
+| # | phát hiện | hệ quả |
+|---|---|---|
+| 1 | generator sinh **0 cụm** ở mọi vận tốc < 50 km/h (`_CLUSTER_VISIBLE_BY_SPEED` bắt đầu ở 50) | nuScenes đô thị gần như không được augment ⇒ phải chốt miền trước khi train |
+| 2 | box nuScenes `[x,y,z_tâm,w,l,h,yaw]` ≠ adapter SSPP `[x,y,z_đáy,dài,rộng,cao,yaw]` | plume phun vào thân xe, lơ lửng 0,87 m nếu không đổi |
+| 3 | máy này: torch CPU, không có nuscenes/mmdet3d/mmcv/spconv, không có nuScenes, đĩa trống 28 GiB | train phải chạy trên Kaggle |
+
 ## 1. Có gì
 
 Generator plume **đã sửa xong** (A8/A9/A10):
@@ -69,7 +94,9 @@ numpy        OK
 `docs/PROJECT.md` §7 chốt: phải dùng `lidar-only-det.pth` đúng **33.362.653 byte**; nếu trỏ nhầm
 bản fusion thì `strict=False` che lỗi và model nửa khởi tạo.
 
-## 4. Bước kế tiếp, theo thứ tự
+## 4. ~~Bước kế tiếp, theo thứ tự~~ — ĐÃ THAY BẰNG `.hermes/plans/2026-11-26_155812-nuscenes-train-plan.md`
+
+Giữ lại làm mốc lịch sử. Bước 1 ("Merge `main`") **sai**, xem §0.
 
 1. Merge `main` vào `nhanh này` (giải xung đột theo phía nhánh hiện tại) → có dây train.
 2. Cài `nuscenes-devkit` + `mmdet3d`/`mmcv`/`spconv` (hoặc dùng ảnh Docker có sẵn).
