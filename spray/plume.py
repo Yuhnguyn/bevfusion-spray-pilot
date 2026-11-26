@@ -140,25 +140,14 @@ class PlumeConfig:
     # Bán kính cụm: lognormal median 0,30 m (paper Fig. 5, μ=−1,2, σ=0,8).
     cluster_radius_median_m: float = 0.30
     cluster_radius_sigma: float = 0.8
-    # Paper KHÔNG đặt trần cho `r_cl`. Đây là **clip SỐ HỌC theo max quan sát** của
-    # cơ chế tán xạ (r ~ 3–4 m ở độ sâu 60 m với α ≈ 0,06), không phải ràng buộc
-    # của paper.
-    cluster_radius_bounds_m: tuple[float, float] = (0.10, 4.00)
     # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm). Khối cầu đặc
     # vô hạn điểm cho S = 0,64, nhưng cụm chỉ có vài chục điểm rời rạc nên max |p|
     # hụt so với biên ellipsoid; S = 0,885 hiệu chỉnh để median
     # per-cluster `r_range/r_extent` = 1,28 như số đo. Đây là `[CHỌN]`, không có
     # trong paper.
     radial_squash: float = 0.885
-    distance_range_m: tuple[float, float] = (1.0, 10.0)
-    height_range_m: tuple[float, float] = (0.2, 2.0)
-    # Nửa bề rộng phân bố ĐỀU của tâm cụm: p95(|y − y_tâm_box|) đo được 2,22 m;
-    # đều trên ±a có p95 = 0,95a ⇒ a = 2,34 m. [PAPER] §III-B: phân bố đều.
-    lateral_half_width_m: float = 2.34
     box_margin_m: float = 0.2
     intensity: float = 0.0
-    # Cột 5 là ring index; điểm tổng hợp gán ring 0; không dùng cho occlusion.
-    ring: float = 0.0
     # ClassVar: ba hằng số dưới đây KHÔNG phải field của dataclass nên không đi
     # qua `PlumeConfig(...)` hay `asdict()`. Chúng giữ lại vì
     # `scripts/diag_verify_conventions.py` và 2 test đọc qua
@@ -345,138 +334,6 @@ def steady_state_alive_factor(
     """
     cfg = config or PlumeConfig()
     return steady_state_factor(lifetime_time_constant(speed_kmh, cfg))
-
-
-def inject_plume(
-    points: np.ndarray,
-    boxes: np.ndarray,
-    *,
-    seed: int,
-    token: str = "",
-    config: PlumeConfig | None = None,
-) -> PlumeResult:
-    """Thêm cụm plume vào sau các box đang chạy — đường **stateless**.
-
-    Mỗi frame dựng lại plume từ đầu: **không** có state qua frame, **không** có
-    tuổi, **không** có vệt. Đường production KHÔNG dùng hàm này —
-    :func:`inject_plume_stateful` mới là đường sống (``plume_transform.py``), và
-    ``PlumeTransform`` cũng không gọi hàm này. Chỉ ``scripts/probe_sspp_plume.py``
-    và test dùng.
-
-    Số cụm mỗi box = ``cluster_count_for_speed`` = ``round(rate × K)``, ``rate``
-    từ bảng cụm/frame và ``K`` là tổng cấp số nhân của xác suất sống
-    ``exp(−age/T)`` [PAPER] Eq. 1. Suy giảm lifetime đã nằm trong ``K``.
-    Deterministic theo ``seed``/``token``.
-    """
-    cfg = config or PlumeConfig()
-    clean = _as_five_columns(points)
-    box_arr = _as_boxes(boxes)
-    rng = _rng(seed, token)
-    stats = PlumeStats()
-    chunks: list[np.ndarray] = []
-    has_velocity = box_arr.shape[1] >= 9
-
-    for box in box_arr:
-        if not np.isfinite(box[:7]).all():
-            continue
-        if not _in_range(box[:3], cfg.point_cloud_range):
-            continue
-        if not has_velocity:
-            stats.skipped_no_velocity += 1
-            continue
-        vx, vy = float(box[7]), float(box[8])
-        if not np.isfinite(vx) or not np.isfinite(vy):
-            stats.skipped_no_velocity += 1
-            continue
-        speed = float(np.hypot(vx, vy))
-        if speed <= 1e-6:
-            stats.skipped_no_velocity += 1
-            continue
-        speed_kmh = speed * 3.6
-        n_clusters = cluster_count_for_speed(speed_kmh, cfg)
-        if n_clusters == 0:
-            stats.skipped_low_speed += 1
-            continue
-
-        stats.eligible_boxes += 1
-        direction = -np.array([vx, vy], dtype=np.float64) / speed
-        perp = np.array([-direction[1], direction[0]])
-
-        for _ in range(n_clusters):
-            stats.clusters_spawned += 1
-            distance = rng.uniform(*cfg.distance_range_m)
-            lateral = _lateral_offset(rng, cfg.lateral_half_width_m)
-            z = rng.uniform(*cfg.height_range_m)
-            center = (
-                np.asarray(box[:2], dtype=np.float64)
-                + direction * distance
-                + perp * lateral
-            )
-            center3 = np.array([center[0], center[1], z], dtype=np.float64)
-            d = float(np.linalg.norm(center3))
-            radius = _lognormal_clipped(
-                rng,
-                cfg.cluster_radius_median_m,
-                cfg.cluster_radius_sigma,
-                cfg.cluster_radius_bounds_m,
-            )
-            count = _count_for_distance(rng, d, cfg, radius)
-            offsets = _ball(rng, count, radius)
-            if d > 0.0:
-                offsets = _thin_radial(offsets, center3 / d, cfg.radial_squash)
-            cloud = np.empty((count, 5), dtype=np.float32)
-            cloud[:, 0] = offsets[:, 0] + center[0]
-            cloud[:, 1] = offsets[:, 1] + center[1]
-            cloud[:, 2] = offsets[:, 2] + z
-            cloud[:, 3] = cfg.intensity
-            cloud[:, 4] = cfg.ring
-            chunks.append(cloud)
-            stats.clusters += 1
-
-    injected = (
-        np.concatenate(chunks, axis=0)
-        if chunks
-        else np.empty((0, 5), dtype=np.float32)
-    )
-
-    x_min, y_min, z_min, x_max, y_max, z_max = cfg.point_cloud_range
-    in_range = (
-        (injected[:, 0] >= x_min)
-        & (injected[:, 0] <= x_max)
-        & (injected[:, 1] >= y_min)
-        & (injected[:, 1] <= y_max)
-        & (injected[:, 2] >= z_min)
-        & (injected[:, 2] <= z_max)
-    )
-    stats.rejected_range = int((~in_range).sum())
-    injected = injected[in_range]
-
-    if len(injected) and len(box_arr):
-        inside = np.zeros(len(injected), dtype=bool)
-        for box in box_arr:
-            if not np.isfinite(box[:7]).all():
-                continue
-            inside |= _inside_box(injected, box, cfg.box_margin_m)
-        stats.rejected_box = int(inside.sum())
-        injected = injected[~inside]
-
-    budget = _injected_budget(len(clean))
-    if len(injected) > budget:
-        keep = rng.choice(len(injected), budget, replace=False)
-        keep.sort()
-        stats.capped = len(injected) - budget
-        injected = injected[keep]
-
-    stats.injected = int(len(injected))
-    augmented = (
-        np.concatenate([clean, injected], axis=0) if len(injected) else clean.copy()
-    )
-    return PlumeResult(
-        points=augmented,
-        points_clean=clean.copy(),
-        injected=injected,
-        stats=stats,
-    )
 
 
 def replace_context_wfh(context, wfh_mm: float):
@@ -724,11 +581,6 @@ def _rng(seed: int, token: str) -> np.random.Generator:
     return np.random.default_rng(int.from_bytes(digest, "little"))
 
 
-def _lateral_offset(rng: np.random.Generator, half_width: float) -> float:
-    """Tâm cụm lệch ngang ~ **phân bố đều** trên ``±half_width`` [PAPER] §III-B."""
-    return float(rng.uniform(-half_width, half_width))
-
-
 def _injected_budget(real_point_count: int) -> int:
     """Ngân sách điểm plume mỗi frame: ``max(500, round(0,05 × N_thật))``.
 
@@ -785,18 +637,6 @@ def _count_for_distance(
     )
     lo, hi = cfg.points_per_cluster_bounds
     return int(min(max(value, lo), hi))
-
-
-def _lognormal_clipped(
-    rng: np.random.Generator,
-    median: float,
-    sigma: float,
-    bounds: tuple[float, float],
-) -> float:
-    """Lognormal với median cho trước, kẹp vào bounds."""
-    lo, hi = bounds
-    value = median * float(np.exp(sigma * rng.normal()))
-    return float(min(max(value, lo), hi))
 
 
 def _ball(

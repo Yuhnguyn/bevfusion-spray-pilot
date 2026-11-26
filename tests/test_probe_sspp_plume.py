@@ -1,22 +1,4 @@
-import numpy as np
-
-from scripts.probe_sspp_plume import build_markdown, count_clusters
-from spray.plume import PlumeConfig, inject_plume
-
-
-def _synthetic_frame():
-    """800 random points plus one 60 km/h box placed behind the sensor."""
-
-    rng = np.random.default_rng(1234)
-    xyz = rng.uniform((-8.0, -8.0, 0.2), (8.0, 8.0, 1.6), size=(800, 3))
-    points = np.column_stack(
-        [xyz, np.zeros(800, dtype=np.float64), np.zeros(800, dtype=np.float64)]
-    ).astype(np.float32)
-    box = np.array(
-        [[15.0, 0.0, 0.5, 4.5, 1.8, 1.8, 0.0, 60.0 / 3.6, 0.0]],
-        dtype=np.float32,
-    )
-    return points, box
+from scripts.probe_sspp_plume import build_markdown
 
 
 def _side(frames, clusters, points, p50, mean, height, capped=0):
@@ -34,39 +16,6 @@ def _side(frames, clusters, points, p50, mean, height, capped=0):
         "skipped_low_speed": 0,
         "eligible_boxes": frames,
     }
-
-
-def test_cluster_counter_finds_dense_injected_plume():
-    points, box = _synthetic_frame()
-
-    result = inject_plume(
-        points, box, seed=0, token="Crafter_dynamic/scene/000000",
-        config=PlumeConfig(),
-    )
-    clusters, sizes = count_clusters(result.injected)
-
-    assert result.injected.shape[0] > 0
-    assert clusters > 0
-    assert sizes.size == clusters
-    assert sizes.min() >= 3
-
-
-def test_same_token_is_deterministic():
-    points, box = _synthetic_frame()
-
-    first = inject_plume(
-        points, box, seed=0, token="Crafter_dynamic/scene/000000",
-        config=PlumeConfig(),
-    )
-    second = inject_plume(
-        points, box, seed=0, token="Crafter_dynamic/scene/000000",
-        config=PlumeConfig(),
-    )
-
-    assert np.array_equal(first.points, second.points)
-    assert np.array_equal(first.injected, second.injected)
-    assert first.stats.injected == second.stats.injected
-    assert first.stats.capped == second.stats.capped
 
 
 def test_markdown_has_real_and_gen_columns():

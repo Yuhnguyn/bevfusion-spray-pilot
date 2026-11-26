@@ -3,12 +3,9 @@ import pytest
 
 from spray.spray_stats import (
     StatsAccumulator,
-    compare_to_simulator,
     load_scan,
     noise_points,
-    render_markdown,
     scan_clusters,
-    simulator_estimate,
     single_linkage,
 )
 
@@ -101,52 +98,6 @@ def test_accumulator_summarizes_frames_and_clusters():
     assert summary["dense_clusters_frame_median"] == pytest.approx(0.5)
     assert summary["intensity_median"] == pytest.approx(0.0)
     assert summary["height_median_m"] == pytest.approx(0.5)
-
-
-def test_simulator_estimate_uses_the_cal_table():
-    at_fifty = simulator_estimate(speed_kmh=50.0)
-    stopped = simulator_estimate(speed_kmh=0.0)
-    at_fast = simulator_estimate(speed_kmh=500.0)
-
-    # [ĐO] Δ=1,0 (a3_targets_static.json) — bảng cũ Δ=2,5 đã bị bỏ:
-    # 9,04 cụm/frame @50, 17 điểm materialised/cụm ⇒ 153 điểm/frame.
-    assert at_fifty["clusters_per_frame"] == 9
-    assert at_fifty["points_per_frame"] == 153
-    assert stopped["clusters_per_frame"] == 0
-    assert stopped["points_per_frame"] == 0
-    # Trên mốc 130 km/h giữ giá trị cuối bảng (33,08 → 33).
-    assert at_fast["clusters_per_frame"] == 33
-
-
-def test_compare_rows_expose_simulator_values():
-    summary = StatsAccumulator().summary()
-
-    rows = {row["metric"]: row for row in compare_to_simulator(summary)}
-
-    assert rows["points/cluster (dense median)"]["simulator"] == 17.0
-    assert rows["distance to nearest vehicle point (m)"]["simulator"] == (1.0, 10.0)
-    assert rows["intensity (median)"]["simulator"] == 0.0
-
-
-def test_render_markdown_mentions_simulator_and_caveats():
-    accumulator = StatsAccumulator()
-    accumulator.add(
-        _points([1, 1, 1, 3, 0], [1.1, 1.0, 1.2, 0, 0]),
-        np.array([2, 2], dtype=np.int32),
-    )
-    summary = accumulator.summary()
-
-    report = render_markdown(
-        summary,
-        compare_to_simulator(summary),
-        scenes=1,
-        sampled_frames=1,
-    )
-
-    assert "# SemanticSpray statistics" in report
-    assert "So với simulator" in report
-    assert "intensity" in report
-    assert "CC BY 4.0" in report
 
 
 def test_load_scan_reads_points_and_labels(tmp_path):

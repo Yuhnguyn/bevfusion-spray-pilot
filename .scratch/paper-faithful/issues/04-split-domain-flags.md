@@ -136,6 +136,37 @@ script còn import được, không phải port.
   khác cần sửa — **liệt kê trong báo cáo**.
 - Test nào khẳng định `radius` tăng theo tuổi (khoá cơ chế tán xạ) → **xoá**, ghi tên vào báo cáo.
 
+### Bước 8 — xoá `--basic-out` ở `scripts/semantic_spray_stats.py`
+
+File này đang **ImportError** từ sau A8:
+
+```
+ImportError: cannot import name 'compare_to_simulator' from 'spray.spray_stats'
+```
+
+nguyên nhân: dòng 51 import `compare_to_simulator`, dòng 600 gọi nó — cả hai đã bị A8 xoá. Nhánh
+`--basic-out` render "legacy summary report" bằng cách so số đo thật với **simulator stateless đã
+chết**, nên đường này **vô nghĩa**, không phải hỏng tạm. Xoá hẳn.
+
+Xoá ở `scripts/semantic_spray_stats.py`:
+
+1. docstring dòng 15-22: bỏ mục `* legacy summary report (opt-in via --basic-out)` và
+   ``spray.spray_stats.render_markdown``; sửa "Two reports can be produced" → "One report is
+   produced".
+2. imports dòng 48-55: xoá `StatsAccumulator`, `compare_to_simulator`, `render_markdown`. **Giữ**
+   `NOISE_LABEL`, `load_scan`, `single_linkage` — ba cái này còn dùng thật (dòng 117, 121, 178,
+   576).
+3. `--basic-out` (dòng 551-555) và `--speed-kmh` (dòng 556): xoá cả hai. `--speed-kmh` chỉ phục vụ
+   `compare_to_simulator`; kiểm bằng grep rồi mới xoá — nếu còn chỗ khác đọc `args.speed_kmh` thì
+   **giữ lại** và ghi vào báo cáo.
+4. `basic = (...)` dòng 568-572: xoá.
+5. khối `if basic is not None: basic.add(...)` dòng 579-580: xoá.
+6. cả khối `if basic is not None:` dòng 598-614: xoá.
+
+**Không** xoá `StatsAccumulator`, `render_markdown`, `load_scan`, `single_linkage` khỏi
+`spray/spray_stats.py` — `tests/test_spray_stats.py`, `tests/test_semantic_stats.py` và
+`scripts/semantic_spray_split.py` vẫn dùng `StatsAccumulator`; `render_markdown` vẫn có 1 test.
+
 ## 3. Ràng buộc
 
 1. **Không** đổi: `RADIUS_MU = -1.2`, `RADIUS_SIGMA = 0.72`, `WFH_MIN_MM = 0.1`,
@@ -156,6 +187,7 @@ script còn import được, không phải port.
 - `scripts/sspp_infer.py`
 - `scripts/measure_plume_size_tail.py`
 - `scripts/measure_cdf_over_range.py`
+- `scripts/semantic_spray_stats.py`
 - `tests/test_plume_paper_domain.py`
 - `tests/test_plume_wfh_sampling.py`
 - test khác **chỉ khi** grep cho thấy chúng dùng `radius0|rear_point|car_speed_mps|diffusion_alpha`
@@ -187,7 +219,25 @@ grep -rn "diffusion_alpha\|DIFFUSION_ALPHA\|radius0\|rear_point\|car_speed_mps" 
 
 grep -rn "PLUME_PAPER_DOMAIN" --include=*.py spray/ tests/ scripts/
 # => KHÔNG dòng nào
+
+grep -rn "compare_to_simulator\|simulator_estimate\|basic_out\|basic-out" \
+  --include=*.py spray/ tests/ scripts/ | grep -v __pycache__
+# => KHÔNG dòng nào
+
+# (c2) MỌI script trong scripts/ phải import được — test suite KHÔNG bắt loại lỗi này.
+# A8 để lại đúng lỗi này (semantic_spray_stats.py ImportError) mà `203 passed` không thấy.
+# PYTHONPATH phải có :scripts — 2 file import module cùng thư mục (sspp_cluster_table_folds).
+for f in scripts/*.py; do
+  CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=.:scripts \
+    /opt/anaconda3/bin/python -c "import runpy; runpy.run_path('$f', run_name='__test_import__')" \
+    > /dev/null 2>/tmp/import_err.txt \
+    || { echo "FAIL $f"; tail -3 /tmp/import_err.txt; }
+done
+echo "--- het danh sach, chi FAIL o tren moi la loi ---"
 ```
+
+**Giá trị PM đo trên code TRƯỚC khi sửa (2026-11-26):** chỉ **1** dòng FAIL là
+`FAIL scripts/semantic_spray_stats.py` (đúng cái bước 8 xoá). Sau khi sửa phải **0 dòng FAIL**.
 
 ```bash
 # (d) default mới

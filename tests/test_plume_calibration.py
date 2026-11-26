@@ -5,8 +5,6 @@ không leak vì RoadSpray static không nằm trong tập đánh giá; dải b�
 ±30-40 % ghi trong docs/measurements/roadspray-static-clusters-by-speed.md.
 """
 
-import inspect
-
 import numpy as np
 import pytest
 
@@ -14,7 +12,6 @@ from spray import plume
 from spray.plume import (
     PlumeConfig,
     _injected_budget,
-    _lateral_offset,
     cluster_count_for_speed,
     cluster_rate_for_speed,
     visible_cluster_count_for_speed,
@@ -112,32 +109,3 @@ def test_injected_budget_is_five_percent_with_a_floor_of_500(
     real_points, expected
 ):
     assert _injected_budget(real_points) == expected
-
-
-def test_lateral_offset_is_uniform_on_plus_minus_half_width():
-    half_width = PlumeConfig().lateral_half_width_m
-    rng = np.random.default_rng(0)
-    samples = np.array(
-        [_lateral_offset(rng, half_width) for _ in range(20_000)]
-    )
-
-    assert samples.min() >= -half_width
-    assert samples.max() <= half_width
-
-    counts, _ = np.histogram(samples, bins=10, range=(-half_width, half_width))
-    expected = np.full(10, samples.size / 10.0)
-    chi_square = float(((counts - expected) ** 2 / expected).sum())
-    # 9 degrees of freedom, p = 0.01 -> 21.666.
-    assert chi_square < 21.666
-
-
-def test_inject_plume_no_longer_draws_gaussian_lateral():
-    source = inspect.getsource(plume.inject_plume)
-
-    assert "rng.normal(0.0, cfg.lateral" not in source
-    assert "_lateral_offset" in source
-
-
-def test_lateral_half_width_comes_from_the_cal_measurement():
-    # p95(|y - y_box|) on 1,022 cal frames = 2.22 m; uniform ±a has p95 = 0.95a.
-    assert PlumeConfig().lateral_half_width_m == pytest.approx(2.34, abs=0.01)

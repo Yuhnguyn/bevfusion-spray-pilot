@@ -5,8 +5,6 @@ from pathlib import Path
 
 import numpy as np
 
-from spray.plume import PlumeConfig, cluster_count_for_speed
-
 NOISE_LABEL = 2
 FOREGROUND_LABEL = 1
 
@@ -226,81 +224,6 @@ class StatsAccumulator:
             "height_p10_m": _percentile(heights, 10),
             "height_p90_m": _percentile(heights, 90),
         }
-
-
-def simulator_estimate(
-    config: PlumeConfig | None = None, speed_kmh: float = 50.0
-) -> dict:
-    cfg = config or PlumeConfig()
-    clusters = cluster_count_for_speed(speed_kmh, cfg)
-    return {
-        "clusters_per_frame": clusters,
-        "points_per_frame": int(round(clusters * cfg.points_per_cluster_median)),
-        "points_per_cluster": cfg.points_per_cluster_median,
-        "cluster_diameter_m": 2.0 * cfg.cluster_radius_median_m,
-        "distance_range_m": cfg.distance_range_m,
-        "height_range_m": cfg.height_range_m,
-        "intensity": cfg.intensity,
-    }
-
-
-def compare_to_simulator(
-    summary: dict,
-    config: PlumeConfig | None = None,
-    speed_kmh: float = 50.0,
-) -> list[dict]:
-    sim = simulator_estimate(config, speed_kmh)
-    rows = [
-        {
-            "metric": "points/frame",
-            "real": summary["dense_points_frame_median"],
-            "simulator": sim["points_per_frame"],
-            "note": "dense clusters only, vs one 50 km/h lead vehicle",
-        },
-        {
-            "metric": "clusters/frame",
-            "real": summary["dense_clusters_frame_median"],
-            "simulator": sim["clusters_per_frame"],
-            "note": "dense clusters only, vs reference round((0.2*wfh+0.1)*(v-50) * K)",
-        },
-        {
-            "metric": "points/cluster (median)",
-            "real": summary["cluster_size_median"],
-            "simulator": sim["points_per_cluster"],
-            "note": "all clusters, including singletons",
-        },
-        {
-            "metric": "points/cluster (dense median)",
-            "real": summary["dense_size_median"],
-            "simulator": sim["points_per_cluster"],
-            "note": f"clusters with >= {summary['dense_min']} points",
-        },
-        {
-            "metric": "cluster extent (m)",
-            "real": summary["dense_extent_p90_m"],
-            "simulator": sim["cluster_diameter_m"],
-            "note": "p90 max axis-aligned span (chaining caveat) vs 2*radius",
-        },
-        {
-            "metric": "distance to nearest vehicle point (m)",
-            "real": summary["dense_vehicle_distance_median_m"],
-            "simulator": sim["distance_range_m"],
-            "note": "không so trực tiếp: real đo tới điểm foreground, simulator đo từ tâm box",
-        },
-        {
-            "metric": "height (m)",
-            "real": summary["height_median_m"],
-            "simulator": sim["height_range_m"],
-            "note": "median vs configured uniform range",
-        },
-        {
-            "metric": "intensity (median)",
-            "real": summary["intensity_median"],
-            "simulator": sim["intensity"],
-            "note": "raw SemanticSpray intensity vs configured constant",
-        },
-    ]
-    return rows
 
 
 def render_markdown(

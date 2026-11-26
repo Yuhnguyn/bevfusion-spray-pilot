@@ -33,7 +33,13 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from spray.plume import PlumeConfig, inject_plume  # noqa: E402
+# CẢNH BÁO (brief A8): `inject_plume` stateless đã bị xoá khỏi spray/plume.py.
+# Script này ĐANG HỎNG — các hàm dưới đây gọi thẳng `inject_plume(...)` và sẽ NameError.
+# Số nó từng in (docs/measurements/sspp-plume-probe.md) đo bằng đường ĐÃ CHẾT, KHÔNG dùng
+# làm target calibration. Muốn dựng lại: viết trên `inject_plume_stateful`.
+inject_plume = None  # gọi vào sẽ TypeError — xem cảnh báo trên
+
+from spray.plume import PlumeConfig  # noqa: E402
 from spray.semantic_stats import cluster_angular  # noqa: E402
 from spray.sspp_adapter import (  # noqa: E402
     build_info,
