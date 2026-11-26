@@ -366,3 +366,48 @@ Dán nguyên, không tóm tắt:
 
 Ngoài phạm vi, không làm: port `probe_sspp_plume.py` sang stateful, sửa `T`/lifetime, sửa
 `scripts/sspp_infer.py` ở chỗ khác 2 dòng `n_injected`, đổi ngưỡng/`P_det`, sửa docs.
+
+---
+
+## 8. Biên bản nghiệm thu — 2026-11-26
+
+Người nghiệm thu: PM. HEAD sau thi công: `af9b4b2`. Diff: 21 file, +74 / −336.
+
+| Hạng mục | Kết quả | Đo bằng |
+|---|---|---|
+| pytest | **200 passed, 0 failed** (trước: 206) | `pytest -q tests/`, chạy lại sau commit |
+| Bất biến det | **TRÙNG KHÍT** | `diff /tmp/a10_before.json /tmp/a10_after.json` → không khác byte nào. det_total 2945 / 15011 / 3854 @50/100/130, md5 từng frame giống hệt |
+| Helper chết | 0 tham chiếu | grep §6(b1) |
+| Field chết | 0 tham chiếu | grep §6(b2) |
+| `capped=` | còn 4 dòng, đều trong `probe_sspp_plume.py` + test của nó (đã hỏng từ A8) | grep §6(b3) |
+| yaml ↔ dataclass | `yaml-only: [] cfg-only: []`, mọi giá trị bằng default | script §6(d) |
+| import-check scripts/ | 3 FAIL, **cả 3 y hệt trên HEAD `d9646ec`** (thiếu `scripts/` trên sys.path) | chạy harness trên HEAD sạch để đối chứng |
+| pyflakes file đã sửa | 6 cảnh báo, **giống hệt HEAD**, không phát sinh mới | pyflakes trên HEAD sạch rồi so |
+| wet-ground physics | 15 test `-k wet` pass | `pytest -k wet` |
+
+### Hai việc ngoài danh sách §5 — chấp nhận
+
+1. `tests/test_box_convention.py` (ngoài §5) import `_inside_box` và có 2 test gọi trực tiếp nó. Xoá
+   `_inside_box` ⇒ ImportError. Worker xoá 2 test đó. **Đã kiểm lại bằng mutation**: đổi
+   `length = box[3]` → `box[4]` trong `spray/plume.py:397` làm **2 test khác đỏ**
+   (`test_spawn_box_is_the_reference_slab_behind_the_tail`, `test_spawn_box_matches_the_reference_slab`),
+   và trục z vẫn bị `test_box_z_is_bottom_not_centre` khoá. ⇒ Bất biến quy ước box **không mất**,
+   phần bị xoá chỉ là unit test của chính hàm helper vừa xoá.
+2. `test_sspp_paperpath.py::test_wet_ground_lowers_background_intensity` đọc suy giảm từ
+   `result.points` (không còn). Worker chuyển sang `stats.wet_mean_ratio ∈ (0,1)`. Đo độc lập trên máy
+   này: bật wet-ground ⇒ `wet_points_in=500`, `mean_ratio=0.526`, `points_clean` **không đổi byte nào**
+   so với input ⇒ tính chất "chỉ hạ, không tăng" vẫn đúng và vẫn được kiểm.
+
+### Kết luận: **ACCEPT**
+
+---
+
+## 9. Nợ còn lại sau A10 (không thuộc phạm vi brief này)
+
+| # | Nợ | Bằng chứng |
+|---|---|---|
+| 9.1 | `plume_transform.py:150` vẫn `stats["injected"] = int(raycast.stats.det)` — key trùng nghĩa với `"det"`, không ai đọc | grep `"injected"` trong `spray/ scripts/ tests/` → chỉ còn dòng này |
+| 9.2 | `apply_wet_ground` tính xong rồi **vứt** (`_, wet_stats = ...`). Đo: 38,9 ms/frame trên 40k điểm cho output không đổi một byte | det 14046 = 14046 với `wet_ground` on/off; `points_clean` identical với input |
+| 9.3 | docstring `PlumeConfig` còn câu "bù hình học, biên an toàn" — cụm từ của tầng vừa xoá | `plume.py:86` |
+| 9.4 | ~25 dòng trong `docs/` còn mô tả tầng đã xoá (`_POINTS_MEDIAN_BY_RANGE`, `result.injected`, `radial_squash`, `stats.capped`…) | `docs/measurements/a3-parameter-provenance.md`, `plume-a3-diagnosis.md`, `generator-reading-map.md`, `sspp-cluster-radius-by-speed.md`, `sspp-plume-probe.md` |
+| 9.5 | `probe_sspp_plume.py` + `tests/test_probe_sspp_plume.py` vẫn hỏng / còn nhắc `capped` | A8 |
