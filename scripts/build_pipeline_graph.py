@@ -319,6 +319,12 @@ UNICODE_SYMBOLS = {
     "infty": "∞",
 }
 FUNCTIONS = {"min", "max", "sin", "cos", "tan", "exp", "log", "ln", "arg"}
+SCRIPT_CAPITALS = {
+    "A": "𝒜", "B": "ℬ", "C": "𝒞", "D": "𝒟", "E": "ℰ", "F": "ℱ", "G": "𝒢",
+    "H": "ℋ", "I": "ℐ", "J": "𝒥", "K": "𝒦", "L": "ℒ", "M": "ℳ", "N": "𝒩",
+    "O": "𝒪", "P": "𝒫", "Q": "𝒬", "R": "ℛ", "S": "𝒮", "T": "𝒯", "U": "𝒰",
+    "V": "𝒱", "W": "𝒲", "X": "𝒳", "Y": "𝒴", "Z": "𝒵",
+}
 
 
 class MathRenderer:
@@ -438,6 +444,13 @@ class MathRenderer:
         if name in {"mathbf", "boldsymbol"}:
             return f"<b>{self._atom()}</b>"
         if name == "mathcal":
+            while self._peek().isspace():
+                self.pos += 1
+            char = self._peek()
+            if char.isalpha():
+                self.pos += 1
+                glyph = SCRIPT_CAPITALS.get(char.upper(), char)
+                return f'<span class="cal">{glyph}</span>'
             return f'<span class="cal">{self._atom()}</span>'
         if name in {"mathrm", "text", "operatorname"}:
             return f'<span class="rm">{self._atom()}</span>'
@@ -518,6 +531,18 @@ def qualified_owner(qualname: str, relative_path: str) -> tuple[str, str]:
     return parts[-1], ".".join(parts[:-1])
 
 
+def statement_span(definition: ast.AST, line: int) -> tuple[int, int]:
+    best: tuple[int, int] | None = None
+    for sub in ast.walk(definition):
+        if not isinstance(sub, ast.stmt):
+            continue
+        start, end = sub.lineno, sub.end_lineno
+        if start <= line <= end:
+            if best is None or (end - start) < (best[1] - best[0]):
+                best = (start, end)
+    return best or (line, line)
+
+
 def build_nodes() -> dict[str, dict]:
     parsed: dict[str, tuple[str, ast.Module, list[str]]] = {}
     nodes: dict[str, dict] = {}
@@ -548,7 +573,12 @@ def build_nodes() -> dict[str, dict]:
                 regex = re.compile(pattern)
                 for offset, line in enumerate(lines[start - 1:end]):
                     if regex.search(line):
-                        highlights.add(start + offset)
+                        hit = start + offset
+                        if qualname is not None:
+                            first, last = statement_span(definition, hit)
+                            highlights.update(range(first, last + 1))
+                        else:
+                            highlights.add(hit)
 
         group = GROUP_BY_ID[spec["group"]]
         nodes[spec["id"]] = {
@@ -864,6 +894,7 @@ svg{width:100%;height:auto;display:block;min-height:300px}
 .p-close:hover{color:var(--ink);border-color:#c8d4da}
 .p-body{padding:16px 20px 40px;overflow:auto;flex:1}
 .p-body p{margin:0 0 14px;color:#2b3b46}
+.p-note{font-size:12.5px;line-height:1.5;color:#40525e;background:var(--wash);border-left:3px solid var(--c);border-radius:0 8px 8px 0;padding:8px 11px}
 .formula{overflow-x:auto;margin:0 0 12px;padding:12px 14px;border-radius:10px;border:1px solid #dcebe7;background:#f2faf7;color:#123c37;font-family:"STIX Two Math","Latin Modern Math","Cambria Math",Georgia,serif;font-size:1.16rem;line-height:2;white-space:normal}
 .formula .frac{display:inline-flex;flex-direction:column;vertical-align:-.48em;text-align:center;font-size:.92em;margin:0 .13em}
 .formula .frac .num{padding:0 .2em;border-bottom:1.2px solid currentColor;line-height:1.12}
@@ -950,7 +981,7 @@ const haystack = new Map(DATA.nodes.map(n => {
 }));
 
 function formulaText(node) {
-  return node.formulas.map(item => item.html.replace(/<[^>]+>/g, " ")).join(" ");
+  return node.formulas.map(item => item.search || "").join(" ");
 }
 function normalize(value) {
   return (value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/[_.,;:(){}\[\]\\\/]/g, " ").replace(/\s+/g, " ").trim();
@@ -1107,6 +1138,7 @@ function openPanel(id) {
     </div>
     <div class="p-body">
       <p>${esc(node.description)}</p>
+      ${group.note ? `<p class="p-note" style="--c:${group.color}">${esc(group.note)}</p>` : ""}
       ${formulas}
       ${links ? `<div class="links">${links}</div>` : ""}
       <pre class="code">${code}</pre>
@@ -1117,6 +1149,9 @@ function openPanel(id) {
   panel.querySelectorAll(".links button").forEach(button => {
     button.addEventListener("click", () => openPanel(button.dataset.target));
   });
+  const firstMarks = [...panel.querySelectorAll(".cl.hl")].filter(el => !el.classList.contains("cl-def"));
+  const target = firstMarks[0] || panel.querySelector(".cl.hl");
+  if (target) panel.querySelector(".p-body").scrollTop = Math.max(0, target.offsetTop - 140);
 }
 
 function closePanel() {
@@ -1176,13 +1211,19 @@ applyFilters();
 """
 
 
+def plain_formula(latex: str) -> str:
+    text = re.sub(r"\\[a-zA-Z]+", " ", latex)
+    text = re.sub(r"[{}_]", " ", text)
+    return " ".join(text.split())
+
+
 def build_html(payload: dict) -> str:
     page_payload = json.loads(json.dumps(payload, ensure_ascii=False))
     for formula in page_payload["formulas"]:
-        formula.pop("latex", None)
+        formula["search"] = plain_formula(formula.pop("latex", ""))
     for node in page_payload["nodes"]:
         for formula in node["formulas"]:
-            formula.pop("latex", None)
+            formula["search"] = plain_formula(formula.pop("latex", ""))
     data = json.dumps(page_payload, ensure_ascii=False, separators=(",", ":"))
     data = data.replace("</", "<\\/")
     subtitle = f"Sinh từ {payload['generated_from']} · {len(payload['nodes'])} node · {len(payload['edges'])} edge"
