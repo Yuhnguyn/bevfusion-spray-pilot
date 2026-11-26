@@ -69,7 +69,7 @@ def test_disabled_keeps_clean_and_points_identical():
 
     assert np.array_equal(out["points"], points)
     assert np.array_equal(out["points_clean"], points)
-    assert out["spray_stats"]["injected"] == 0
+    assert out["spray_stats"]["det"] == 0
 
 
 def test_enabled_without_context_raises():
@@ -97,10 +97,10 @@ def test_clean_points_are_byte_equal_and_points_are_real_then_detections():
     assert np.all(augmented[-det:, 3] == 0.0)
 
 
-def test_marker_has_the_six_keys_once_per_frame(capsys):
+def test_marker_has_the_five_keys_once_per_frame(capsys):
     regex = re.compile(
         r"PLUME_RAYCAST beams=(\d+) hit=(\d+) det=(\d+) "
-        r"att_m=([0-9.]+) capped=(\d+) ms=([0-9.]+)"
+        r"att_m=([0-9.]+) ms=([0-9.]+)"
     )
     transform = PlumeTransform(seed=5)
     for frame in range(5):

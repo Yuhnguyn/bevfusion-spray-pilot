@@ -171,7 +171,6 @@ def raycast_frame(
     road_z_m: float,
     rng: np.random.Generator,
     config: RaycastConfig | None = None,
-    capped: int = 0,
 ) -> RaycastResult:
     """Cast the uniform beam grid through ``clusters`` for one frame.
 
@@ -237,7 +236,7 @@ def raycast_frame(
             stats=stats,
         )
         if cluster_list:
-            _emit_marker(stats, capped, started)
+            _emit_marker(stats, started)
         return result
 
     keys_hit, t0_hit, t1_hit, cluster_hit = hits
@@ -396,7 +395,7 @@ def raycast_frame(
 
     stats.det = int(detections.shape[0])
     if cluster_list:
-        _emit_marker(stats, capped, started)
+        _emit_marker(stats, started)
     return RaycastResult(
         detections=detections,
         real_points=real[~dropped],
@@ -405,9 +404,9 @@ def raycast_frame(
 
 
 def _emit_marker(
-    stats: RaycastStats, capped: int, started: float
+    stats: RaycastStats, started: float
 ) -> None:
-    """Print one ``PLUME_RAYCAST`` line with the six required keys."""
+    """Print one ``PLUME_RAYCAST`` line with the five required keys."""
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     print(
         "PLUME_RAYCAST "
@@ -415,7 +414,6 @@ def _emit_marker(
         f"hit={stats.beams_hit} "
         f"det={stats.det} "
         f"att_m={stats.att_m_total:.3f} "
-        f"capped={int(capped)} "
         f"ms={elapsed_ms:.3f}"
     )
 

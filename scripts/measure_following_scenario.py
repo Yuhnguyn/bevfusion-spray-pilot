@@ -289,7 +289,7 @@ def measure_scene(
             vehicle_class=scene["vehicle_class"],
         )
         ray = raycast_frame(
-            result.points,
+            result.points_clean,
             state.all_alive(),
             table=table,
             road_z_m=road_z,

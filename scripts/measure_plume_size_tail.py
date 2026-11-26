@@ -2,8 +2,8 @@
 """Đo đuôi phân bố điểm/cụm của plume **ở tầng detector thật sự thấy**.
 
 **Bài học sửa dụng cụ (2026-11-19, do user phát hiện):** bản cũ đo trên
-``PlumeResult.injected`` — các điểm *vật chất hoá* bên trong quả cầu cụm với
-``ring = -1``. Nhưng ``spray/raycast.py:117`` nói rõ: điểm ``ring`` ngoài
+lớp điểm *vật chất hoá* bên trong quả cầu cụm với ``ring = -1`` (lớp này đã bị
+xoá ở A10). Nhưng ``spray/raycast.py:117`` nói rõ: điểm ``ring`` ngoài
 ``0..M-1`` *"take no part in intersection or occlusion"* ⇒ tầng vật chất hoá
 **vô hiệu** với detector; detection thật sự sinh từ giao của **bộ tia
 (VLP-32C: 32 ring × 1800 az) với mặt cầu cụm** (``_collect_hits``), một lượt rút
@@ -400,7 +400,7 @@ def measure_speed(
             # đo mọi frame sinh ra sau khi đã đủ xa (xem start_x)
 
             ray = raycast_frame(
-                result.points,
+                result.points_clean,
                 state.all_alive(),
                 table=table,
                 road_z_m=ROAD_Z_M,

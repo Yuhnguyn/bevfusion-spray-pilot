@@ -64,10 +64,9 @@ def test_none_matches_call_without_the_parameter():
     without = _run(points, seed=5)
     explicit_none = _run(points, seed=5, wet_ground=None)
 
-    assert np.array_equal(without.points, explicit_none.points)
     assert np.array_equal(without.points_clean, explicit_none.points_clean)
-    assert np.array_equal(without.injected, explicit_none.injected)
-    assert without.stats.injected == explicit_none.stats.injected
+    assert without.stats.wet_points_in == explicit_none.stats.wet_points_in
+    assert without.stats.wet_mean_ratio == explicit_none.stats.wet_mean_ratio
 
 
 def test_high_cloud_is_untouched_and_reports_no_pavement_points():
@@ -86,7 +85,7 @@ def test_high_cloud_is_untouched_and_reports_no_pavement_points():
         wet_ground=WetGroundConfig(enabled=True),
     )
 
-    assert np.array_equal(result.points, points)
+    assert np.array_equal(result.points_clean, points)
     assert result.stats.wet_points_in == 0
 
 
@@ -112,10 +111,6 @@ def test_pavement_point_attenuates_background_but_not_points_clean():
     )
 
     assert np.array_equal(result.points_clean[:, 3], points[:, 3])
-    background = result.points[: len(points)]
-    assert background[0, 3] < points[0, 3]
-    assert background[1, 3] < points[1, 3]
-    assert np.all(background[:, 3] <= points[:, 3]), "wet ground must not boost"
     assert result.stats.wet_points_in == 2
     assert 0.0 < result.stats.wet_mean_ratio < 1.0
 

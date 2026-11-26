@@ -593,7 +593,9 @@ def inject_plume(
     points = np.asarray(out["points"], dtype=np.float32)
     stats = dict(out["spray_stats"])
     before = int(len(clean))
-    after = int(len(points) - int(stats.get("injected", 0)))
+    # Trước A10 `n_injected` đếm điểm materialise `ring=-1` (vô hiệu với detector);
+    # từ A10 nó là số detection plume thật (`raycast.stats.det`).
+    after = int(len(points) - int(stats.get("det", 0)))
     clean_after = np.asarray(out["points_clean"], dtype=np.float32)
     return {
         "points": points,
@@ -602,7 +604,7 @@ def inject_plume(
         "n_real_after": max(0, after),
         "n_real_removed": max(0, before - max(0, after)),
         "n_real_attenuated": int(stats.get("att_real_points", 0)),
-        "n_injected": int(stats.get("injected", 0)),
+        "n_injected": int(stats.get("det", 0)),
         "clean_unchanged": bool(
             clean_after.shape == clean.shape and np.array_equal(clean_after, clean)
         ),

@@ -13,7 +13,7 @@ continuous instead of being rebuilt from scratch every frame.
 import numpy as np
 import pytest
 
-from spray.plume import PlumeConfig, _inside_box, inject_plume_stateful
+from spray.plume import PlumeConfig, inject_plume_stateful
 from spray.plume_context import PlumeContext
 from spray.plume_state import PlumeState
 
@@ -154,23 +154,6 @@ def test_trail_spans_more_than_one_block_so_it_persists():
     assert gap_p50 < 4.0 * block_len
 
 
-def test_no_injected_point_lies_inside_the_body_box():
-    state = PlumeState()
-
-    result = inject_plume_stateful(
-        np.zeros((1, 5), dtype=np.float32),
-        BOX,
-        _context(),
-        state,
-        seed=3,
-        token=TOKEN,
-    )
-
-    inside = _inside_box(result.injected, BOX[0], PlumeConfig().box_margin_m)
-    assert not inside.any()
-    assert result.stats.rejected_box >= 0
-
-
 def test_probability_is_capped_at_one_on_birth_frame():
     state = PlumeState()
     center = np.array([18.67, 0.0, 0.34], dtype=np.float64)
@@ -196,7 +179,7 @@ def test_probability_is_capped_at_one_on_birth_frame():
         assert 0.0 < cluster.probability() <= 1.0
 
 
-def test_marker_prints_one_line_with_seven_keys(capsys):
+def test_marker_prints_one_line_with_six_keys(capsys):
     state = PlumeState()
 
     # Ticket 29f: a frame with no spawn prints assumed=0, so the marker is read
@@ -230,7 +213,6 @@ def test_marker_prints_one_line_with_seven_keys(capsys):
         "spawned",
         "alive",
         "expired",
-        "capped",
         "assumed",
     }
     assert fields["scene"] == TOKEN

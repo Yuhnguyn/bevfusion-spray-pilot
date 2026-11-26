@@ -133,7 +133,6 @@ class PlumeTransform:
             table=load_beam_table(),
             road_z_m=context.road_z_m,
             rng=np.random.default_rng(seed),
-            capped=result.stats.capped,
         )
 
         augmented = np.concatenate(

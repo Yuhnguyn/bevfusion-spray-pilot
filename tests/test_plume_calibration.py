@@ -11,7 +11,6 @@ import pytest
 from spray import plume
 from spray.plume import (
     PlumeConfig,
-    _injected_budget,
     cluster_count_for_speed,
     cluster_rate_for_speed,
     visible_cluster_count_for_speed,
@@ -99,13 +98,3 @@ def test_rate_is_closed_at_the_one_millimetre_reference():
 def test_no_clusters_below_the_first_cal_row():
     assert cluster_count_for_speed(49.9) == 0
     assert cluster_count_for_speed(50.0) == 9  # [ĐO] Δ=1,0: 9,04 -> 9
-
-
-@pytest.mark.parametrize(
-    ("real_points", "expected"),
-    [(1000, 500), (10000, 500), (40000, 2000)],
-)
-def test_injected_budget_is_five_percent_with_a_floor_of_500(
-    real_points, expected
-):
-    assert _injected_budget(real_points) == expected

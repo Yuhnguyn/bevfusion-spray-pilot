@@ -96,7 +96,7 @@ def run_scene(
             vehicle_class="crafter",
         )
         raycast = raycast_frame(
-            result.points,
+            result.points_clean,
             state.all_alive(),
             table=TABLE,
             road_z_m=ROAD_Z_M,
@@ -108,9 +108,10 @@ def run_scene(
                 "alive": len(state.all_alive()),
                 "det": int(raycast.stats.det),
                 "detections": raycast.detections.copy(),
-                "points": result.points.copy(),
-                "background": result.points[: len(points)].copy(),
+                "points": result.points_clean.copy(),
+                "points_clean": result.points_clean.copy(),
                 "wet_points_in": int(result.stats.wet_points_in),
+                "wet_mean_ratio": float(result.stats.wet_mean_ratio),
             }
         )
     return frames
@@ -151,11 +152,9 @@ def test_wet_ground_lowers_background_intensity():
 
     for wet_frame, dry_frame in zip(wet, dry):
         assert wet_frame["wet_points_in"] > 0
+        # ``mean_ratio`` = i_out / i_in trên điểm trong dải mặt đường ⇒ < 1
+        # nghĩa là cường độ bị hạ.
+        assert 0.0 < wet_frame["wet_mean_ratio"] < 1.0
         assert dry_frame["wet_points_in"] == 0
-        assert np.array_equal(
-            wet_frame["background"][:, :3], dry_frame["background"][:, :3]
-        )
-        assert (
-            wet_frame["background"][:, 3].sum()
-            < dry_frame["background"][:, 3].sum()
-        )
+        # Wet ground không được đụng vào ``points_clean`` (input cho camera).
+        assert np.array_equal(wet_frame["points_clean"], dry_frame["points_clean"])

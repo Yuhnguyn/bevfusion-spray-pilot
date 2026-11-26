@@ -204,7 +204,7 @@ def run_scene(
             vehicle_class=vehicle_class,
         )
         raycast = raycast_frame(
-            result.points,
+            result.points_clean,
             state.all_alive(),
             table=table,
             road_z_m=context.road_z_m,

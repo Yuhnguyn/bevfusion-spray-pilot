@@ -178,7 +178,7 @@ def main() -> None:
         # (spray/raycast.py:117). Bản cũ vẽ injected => trông "tròn vo" như cụm
         # cứng — đúng cái user bắt được trong clip.
         ray = raycast_frame(
-            result.points,
+            result.points_clean,
             state.all_alive(),
             table=vlp32c_table(),
             road_z_m=road_z,

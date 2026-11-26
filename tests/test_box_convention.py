@@ -8,7 +8,7 @@ below fails on exactly one of the three convention bugs.
 
 import numpy as np
 
-from spray.plume import _inside_box, inject_plume_stateful
+from spray.plume import inject_plume_stateful
 from spray.plume_context import PlumeContext
 from spray.plume_state import PlumeState
 
@@ -97,24 +97,3 @@ def test_spawn_box_is_the_reference_slab_behind_the_tail():
     assert np.all(np.abs(pos[:, 1]) <= 3.4 / 2.0 + 1e-6)
     assert np.all(pos[:, 2] >= BOX_BOTTOM - 1e-6)
     assert np.all(pos[:, 2] <= BOX_BOTTOM + 1.5 + 1e-6)
-
-
-def test_inside_box_uses_length_on_x():
-    box = _box()[0]
-    along = np.array([[2.0, 0.0, 0.5]], dtype=np.float64)
-    across = np.array([[0.0, 2.0, 0.5]], dtype=np.float64)
-
-    assert bool(_inside_box(along, box, margin=0.0)[0])
-    assert not bool(_inside_box(across, box, margin=0.0)[0])
-
-
-def test_inside_box_z_range_is_bottom_to_bottom_plus_height():
-    box = _box()[0]
-
-    inside = np.array([[0.0, 0.0, -0.30]], dtype=np.float64)
-    below = np.array([[0.0, 0.0, -0.60]], dtype=np.float64)
-    above = np.array([[0.0, 0.0, 2.30]], dtype=np.float64)
-
-    assert bool(_inside_box(inside, box, margin=0.0)[0])
-    assert not bool(_inside_box(below, box, margin=0.0)[0])
-    assert not bool(_inside_box(above, box, margin=0.0)[0])

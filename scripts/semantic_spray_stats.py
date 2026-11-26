@@ -41,7 +41,7 @@ import numpy as np
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
-from spray.plume import PlumeConfig  # noqa: E402
+from spray.plume_state import RADIUS_MEDIAN_M  # noqa: E402
 from spray.spray_stats import (  # noqa: E402
     NOISE_LABEL,
     load_scan,
@@ -272,7 +272,6 @@ def _sample_description(args: argparse.Namespace, scenes: list[str]) -> dict:
 def render_geometry_markdown(
     summary: dict,
     sample: dict,
-    config: PlumeConfig,
 ) -> str:
     buckets = summary["buckets"]
     min_clusters = sample["min_clusters"]
@@ -332,7 +331,7 @@ def render_geometry_markdown(
         "## Bảng 2 — Hình học bán kính theo cự ly `[ĐO]`",
         "",
         "Tham chiếu generator `[CODE]`: "
-        f"`cluster_radius_median_m = {config.cluster_radius_median_m:.2f} m`.",
+        f"`cluster_radius_median_m = {RADIUS_MEDIAN_M:.2f} m`.",
         "",
         "| bucket (m) | n_clusters | median r_extent (m) | median r_range (m) | median r_range/r_extent | n (ratio) |",
         "|---|---:|---:|---:|---:|---:|",
@@ -362,7 +361,7 @@ def render_geometry_markdown(
         "",
         "## Kết luận bằng số",
         "",
-        *_geometry_conclusions(buckets, enough, min_clusters, config),
+        *_geometry_conclusions(buckets, enough, min_clusters),
         "",
         "## Caveats",
         "",
@@ -445,7 +444,6 @@ def _geometry_conclusions(
     buckets: list[dict],
     enough: dict[str, bool],
     min_clusters: int,
-    config: PlumeConfig,
 ) -> list[str]:
     near = _bucket_by_label(buckets, "0–5")
     mid = _bucket_by_label(buckets, "20–30")
@@ -483,9 +481,9 @@ def _geometry_conclusions(
         lines.append(
             f"- `median r_extent` ở 0–5 m là {near_extent:.3f} m "
             f"(n={near['n_clusters']}) `[ĐO]`, tức "
-            f"{near_extent / config.cluster_radius_median_m:.2f}× giá trị cấu "
+            f"{near_extent / RADIUS_MEDIAN_M:.2f}× giá trị cấu "
             "hình "
-            f"`cluster_radius_median_m = {config.cluster_radius_median_m:.2f} m` "
+            f"`cluster_radius_median_m = {RADIUS_MEDIAN_M:.2f} m` "
             "`[CODE]`."
         )
 
@@ -569,7 +567,7 @@ def main() -> int:
 
     sample = _sample_description(args, scenes)
     summary = accumulator.summary()
-    report = render_geometry_markdown(summary, sample, PlumeConfig())
+    report = render_geometry_markdown(summary, sample)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.geometry_out)), exist_ok=True)
     with open(args.geometry_out, "w", encoding="utf-8") as handle:

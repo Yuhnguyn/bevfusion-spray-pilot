@@ -62,13 +62,3 @@ for v_kmh in (60, 100, 120):
     print(f"   rate×K = {rate*K:.1f} (phải ≈ visible)")
     for k, (alive, exp) in marks.items():
         print(f"   frame {k:3d}: alive={alive:3d} expired={exp}")
-
-
-print("\n=== (c) Điểm/frame ở trạng thái dừng (lý thuyết) ===")
-from spray.plume import _points_median_for_distance
-for v_kmh in (60, 100, 120):
-    target = cluster_visible_target_for_speed(v_kmh, "crafter")
-    # cự ly điển hình của cụm: sau đuôi box x=22, l=6.83 → x≈18, d≈18
-    for d in (10.0, 15.0, 18.0, 25.0):
-        ppm = _points_median_for_distance(d)
-        print(f" v={v_kmh} d={d:.0f}m: {target:.0f} cụm × {ppm} điểm = {target*ppm:.0f} điểm/frame")

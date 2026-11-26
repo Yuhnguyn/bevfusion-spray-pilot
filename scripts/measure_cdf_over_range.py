@@ -489,7 +489,7 @@ def run_following(args: argparse.Namespace) -> None:
                 token=f"follow/{scene['rel_path']}/{position_in_scene}",
                 config=config, vehicle_class=scene["vehicle_class"])
             ray = raycast_frame(
-                result.points, state.all_alive(), table=table,
+                result.points_clean, state.all_alive(), table=table,
                 road_z_m=road_z, rng=np.random.default_rng(FIXED_SEED))
             synthetic = ray.detections
             gen_xyz = synthetic[:, :3].astype(np.float64)
@@ -590,7 +590,7 @@ def run_gen_static(args: argparse.Namespace) -> None:
                     seed=seed * 100_000 + index, token=f"tail/{index}",
                     config=config)
                 ray = raycast_frame(
-                    result.points, state.all_alive(), table=table,
+                    result.points_clean, state.all_alive(), table=table,
                     road_z_m=ROAD_Z_M,
                     rng=np.random.default_rng(seed * 777 + index),
                     config=RaycastConfig())

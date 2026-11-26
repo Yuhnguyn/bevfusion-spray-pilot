@@ -233,10 +233,10 @@ def test_every_generated_detection_has_intensity_zero():
     assert result.stats.att_m_total >= 0.0
 
 
-def test_marker_has_the_six_required_keys(capsys):
+def test_marker_has_the_five_required_keys(capsys):
     regex = re.compile(
         r"PLUME_RAYCAST beams=(\d+) hit=(\d+) det=(\d+) "
-        r"att_m=([0-9.]+) capped=(\d+) ms=([0-9.]+)"
+        r"att_m=([0-9.]+) ms=([0-9.]+)"
     )
 
     raycast_frame(
@@ -246,7 +246,6 @@ def test_marker_has_the_six_required_keys(capsys):
         road_z_m=ROAD_Z_M,
         rng=np.random.default_rng(7),
         config=RaycastConfig(p_det_mu=10.0),
-        capped=42,
     )
 
     lines = [
@@ -257,7 +256,6 @@ def test_marker_has_the_six_required_keys(capsys):
     assert len(lines) == 1
     match = regex.fullmatch(lines[0])
     assert match is not None
-    assert match.group(5) == "42"
 
 
 # --- P_det: lognormal rút một lần cho mỗi CỤM (paper Eq. 7 + Fig. 7) ---------

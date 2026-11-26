@@ -9,16 +9,6 @@ import numpy as np
 from spray.plume_context import sample_wfh_mm
 from spray.wet_ground import WetGroundConfig, apply_wet_ground
 
-# Số điểm/cụm median theo cự ly 3D của tâm cụm trong khung LiDAR [ĐO].
-# Ngoại suy phẳng: mọi cự ly > 30 m dùng 10 (không bịa đường cong mới).
-_POINTS_MEDIAN_BY_RANGE: tuple[tuple[float, float, int], ...] = (
-    (0.0, 5.0, 30),
-    (5.0, 10.0, 20),
-    (10.0, 20.0, 14),
-    (20.0, 30.0, 10),
-    (30.0, float("inf"), 10),
-)
-
 # [ĐO] Cụm/frame trên RoadSpray `*_static` — nguồn calibration độc lập của ADR-0006 D2
 # (DBSCAN 0,7° / minPts 3, lát chuẩn thức Δ = 1,0 m).
 #
@@ -85,23 +75,15 @@ class PlumeConfig:
 
     Xem docs/history/plume-model-provenance.md
 
-    Ba nhóm giá trị, phân biệt rõ nguồn (xem docs/measurements/semantic-spray-stats.md,
+    Hai nhóm giá trị, phân biệt rõ nguồn (xem docs/measurements/semantic-spray-stats.md,
     docs/adr/0003):
 
     - Cơ chế port từ code tham chiếu của Linnhoff et al. 2022
       (openMSL/sl-1-2, MPL-2.0): kích hoạt trên 40 km/h, lifetime
       `T = 0,02·wfh_mm·(v_kmh − 50) + 0,2`. Số cụm lấy từ bảng đo
       `_CLUSTER_VISIBLE_BY_SPEED`, không từ công thức.
-    - Đo trên SemanticSpray: số điểm/cụm median **theo cự ly**
-      (`_POINTS_MEDIAN_BY_RANGE`) và bề dày theo tia `r_range/r_extent = 1,28`
-      (hiệu chỉnh bằng `radial_squash`).
     - Lựa chọn của repo, không có nguồn ngoài: `water_film_height_m` mặc định
       1 mm (dataset không khai báo độ ướt), bù hình học, biên an toàn.
-
-    `cluster_radius_median_m` = 0,30 dù phép đo single-linkage cho `r_extent`
-    median 0,755 m: con số 0,755 là **cận trên** vì single-linkage trên `(x, y)`
-    nối chuỗi các cụm gần nhau; paper Fig. 5 cho lognormal μ=−1,2, σ=0,8 ⇒
-    median 0,30.
     """
 
     point_cloud_range: tuple[float, float, float, float, float, float] = (
@@ -135,24 +117,6 @@ class PlumeConfig:
     # suất P(age) = exp(−age/T); exp(−12) = 6e−6 nên trần này chỉ cắt phần đuôi
     # không còn ý nghĩa (< 1 cụm trên 10⁵).
     lifetime_max_age_factor: float = 12.0
-    # Số điểm mỗi cụm: lognormal quanh median theo cự ly, sigma chọn để p90 ~ 40.
-    # Trường `points_per_cluster_median` giữ lại cho tương thích constructor; generator
-    # không đọc nữa vì median giờ phụ thuộc cự ly (ticket 16), xem
-    # `_POINTS_MEDIAN_BY_RANGE`. 17 vẫn là median gộp của mọi cụm [ĐO].
-    points_per_cluster_median: float = 17.0
-    points_per_cluster_sigma: float = 0.67
-    points_per_cluster_bounds: tuple[int, int] = (3, 200)
-    # Bán kính cụm: lognormal median 0,30 m (paper Fig. 5, μ=−1,2, σ=0,8).
-    cluster_radius_median_m: float = 0.30
-    cluster_radius_sigma: float = 0.8
-    # Hệ số bẹp cụm dọc theo tia (hướng từ gốc LiDAR tới tâm cụm). Khối cầu đặc
-    # vô hạn điểm cho S = 0,64, nhưng cụm chỉ có vài chục điểm rời rạc nên max |p|
-    # hụt so với biên ellipsoid; S = 0,885 hiệu chỉnh để median
-    # per-cluster `r_range/r_extent` = 1,28 như số đo. Đây là `[CHỌN]`, không có
-    # trong paper.
-    radial_squash: float = 0.885
-    box_margin_m: float = 0.2
-    intensity: float = 0.0
     # ClassVar: ba hằng số dưới đây KHÔNG phải field của dataclass nên không đi
     # qua `PlumeConfig(...)` hay `asdict()`. Chúng giữ lại vì
     # `scripts/diag_verify_conventions.py` và 2 test đọc qua
@@ -171,10 +135,6 @@ class PlumeStats:
     # Giữ field cho tương thích; luôn 0 — suy giảm nằm trong hệ số `K`.
     clusters_dropped_lifetime: int = 0
     clusters: int = 0
-    injected: int = 0
-    rejected_range: int = 0
-    rejected_box: int = 0
-    capped: int = 0
     wet_points_in: int = 0
     wet_mean_ratio: float = 0.0
     # Ray-casting counters, filled by ``PlumeTransform`` from ``RaycastStats``.
@@ -186,9 +146,7 @@ class PlumeStats:
 
 @dataclass
 class PlumeResult:
-    points: np.ndarray
     points_clean: np.ndarray
-    injected: np.ndarray
     stats: PlumeStats
 
 
@@ -382,10 +340,9 @@ def inject_plume_stateful(
     **đáy** box (không phải tâm), ``box[3]`` dài dọc yaw, ``box[4]`` rộng ngang
     yaw.
 
-    Hàm **materialise** cụm thành điểm (bán kính ``cluster.radius``, số điểm
-    theo ``_POINTS_MEDIAN_BY_RANGE``) nhưng đường production **vứt phần đó đi**:
-    ``PlumeTransform`` chỉ dùng ``points_clean`` + cụm hình cầu cho raycast.
-    Marker ``PLUME_STATE`` in một dòng mỗi call.
+    Hàm chỉ sinh/giữ cụm hình cầu; detector đọc cụm qua ``points_clean`` + raycast
+    (``spray/raycast.py``), không qua điểm vật chất hoá. Marker ``PLUME_STATE``
+    in một dòng mỗi call.
     """
     cfg = config or PlumeConfig()
     # PlumeTransform chỉ chuyển tiếp PlumeConfig nên hai núm này đọc thêm từ cfg.
@@ -394,14 +351,13 @@ def inject_plume_stateful(
     sample_water_film = bool(sample_water_film) and bool(cfg.sample_water_film)
     clean = _as_five_columns(points)
     if wet_ground is not None and wet_ground.enabled:
-        base, wet_stats = apply_wet_ground(
+        _, wet_stats = apply_wet_ground(
             clean,
             road_z_m=context.road_z_m,
             wfh_mm=context.wfh_mm,
             config=wet_ground,
         )
     else:
-        base = clean
         wet_stats = None
     box_arr = _as_boxes(boxes)
     rng = _rng(seed, token or context.scene_token)
@@ -490,65 +446,10 @@ def inject_plume_stateful(
                 cluster.velocity_assumed for cluster in created
             )
 
-    chunks: list[np.ndarray] = []
-    for cluster in state.select_alive():
-        distance = float(np.linalg.norm(cluster.pos))
-        count = _count_for_distance(rng, distance, cfg, cluster.radius)
-        offsets = _ball(rng, count, cluster.radius)
-        if distance > 0.0:
-            offsets = _thin_radial(
-                offsets, cluster.pos / distance, cfg.radial_squash
-            )
-        cloud = np.empty((count, 5), dtype=np.float32)
-        cloud[:, 0:3] = offsets + cluster.pos
-        cloud[:, 3] = 0.0
-        cloud[:, 4] = -1.0
-        chunks.append(cloud)
-        stats.clusters += 1
-
-    injected = (
-        np.concatenate(chunks, axis=0)
-        if chunks
-        else np.empty((0, 5), dtype=np.float32)
-    )
-
-    x_min, y_min, z_min, x_max, y_max, z_max = cfg.point_cloud_range
-    in_range = (
-        (injected[:, 0] >= x_min)
-        & (injected[:, 0] <= x_max)
-        & (injected[:, 1] >= y_min)
-        & (injected[:, 1] <= y_max)
-        & (injected[:, 2] >= z_min)
-        & (injected[:, 2] <= z_max)
-    )
-    stats.rejected_range = int((~in_range).sum())
-    injected = injected[in_range]
-
-    if len(injected) and len(box_arr):
-        inside = np.zeros(len(injected), dtype=bool)
-        for box in box_arr:
-            if not np.isfinite(box[:7]).all():
-                continue
-            inside |= _inside_box(injected, box, cfg.box_margin_m)
-        stats.rejected_box = int(inside.sum())
-        injected = injected[~inside]
-
-    budget = _injected_budget(len(clean))
-    if len(injected) > budget:
-        keep = rng.choice(len(injected), budget, replace=False)
-        keep.sort()
-        stats.capped = len(injected) - budget
-        injected = injected[keep]
-
-    stats.injected = int(len(injected))
+    stats.clusters = len(state.select_alive())
     if wet_stats is not None:
         stats.wet_points_in = wet_stats.points_in
         stats.wet_mean_ratio = wet_stats.mean_ratio
-    augmented = (
-        np.concatenate([base, injected], axis=0)
-        if len(injected)
-        else base.copy()
-    )
 
     print(
         "PLUME_STATE "
@@ -557,17 +458,11 @@ def inject_plume_stateful(
         f"spawned={spawned} "
         f"alive={state.counters.alive} "
         f"expired={expired} "
-        f"capped={stats.capped} "
         f"assumed={1 if assumed else 0}"
     )
     print(f"PLUME_WFH {wfh_marker}")
 
-    return PlumeResult(
-        points=augmented,
-        points_clean=clean.copy(),
-        injected=injected,
-        stats=stats,
-    )
+    return PlumeResult(points_clean=clean.copy(), stats=stats)
 
 
 def _as_five_columns(points: np.ndarray) -> np.ndarray:
@@ -597,15 +492,6 @@ def _rng(seed: int, token: str) -> np.random.Generator:
     return np.random.default_rng(int.from_bytes(digest, "little"))
 
 
-def _injected_budget(real_point_count: int) -> int:
-    """Ngân sách điểm plume mỗi frame: ``max(500, round(0,05 × N_thật))``.
-
-    Thay trần tuyệt đối 2.000 (lỗi D7): hình học đúng cho 807–1.555 điểm/frame,
-    trần cũ cắt oan frame dày. Sàn 500 giữ frame thưa vẫn có plume.
-    """
-    return max(500, int(round(0.05 * int(real_point_count))))
-
-
 def _in_range(
     point: np.ndarray,
     bounds: tuple[float, float, float, float, float, float],
@@ -615,76 +501,4 @@ def _in_range(
         x_min <= point[0] <= x_max
         and y_min <= point[1] <= y_max
         and z_min <= point[2] <= z_max
-    )
-
-
-def _points_median_for_distance(distance: float) -> int:
-    for lo, hi, median in _POINTS_MEDIAN_BY_RANGE:
-        if lo <= distance < hi:
-            return median
-    return _POINTS_MEDIAN_BY_RANGE[-1][2]
-
-
-def _count_for_distance(
-    rng: np.random.Generator,
-    distance: float,
-    cfg: PlumeConfig,
-    radius: float | None = None,
-) -> int:
-    """Số điểm một cụm, **tỉ lệ với tiết diện quả cầu** như mô hình paper.
-
-    Paper mô hình cụm là quả cầu và *suy ra* số detection từ giao tia × ``P_det``,
-    nên cụm to hơn bị nhiều tia cắt qua hơn: số điểm ∝ ``r²``. Bản port trước đây
-    lấy ``count`` **độc lập với** ``radius`` (hai lần lấy mẫu rời nhau) — đó là lỗi
-    mô hình chứ không phải lựa chọn: nó bỏ mất cơ chế duy nhất khiến đuôi phân bố
-    dài ra. `[ĐO] 2026-11-19`: bảng median theo cự ly giữ nguyên (đã hiệu chỉnh ở
-    bán kính median), thêm hệ số ``(r / r_median)²``; vì ``r`` là lognormal
-    ``σ = 0,8`` (Linnhoff Fig. 5) nên ``r²`` cho ``σ_hiệu_dụng = 1,6`` **không cần
-    thêm tham số tự do nào**.
-    """
-    median = _points_median_for_distance(distance)
-    spread = 1.0
-    if radius is not None and cfg.cluster_radius_median_m > 0.0:
-        spread = (radius / cfg.cluster_radius_median_m) ** 2.0
-    value = round(
-        median
-        * spread
-        * float(np.exp(cfg.points_per_cluster_sigma * rng.normal()))
-    )
-    lo, hi = cfg.points_per_cluster_bounds
-    return int(min(max(value, lo), hi))
-
-
-def _ball(
-    rng: np.random.Generator, count: int, radius: float
-) -> np.ndarray:
-    vec = rng.normal(size=(count, 3))
-    norms = np.linalg.norm(vec, axis=1, keepdims=True)
-    vec = np.divide(vec, norms, out=np.zeros_like(vec), where=norms > 0)
-    scale = radius * rng.random((count, 1)) ** (1.0 / 3.0)
-    return (vec * scale).astype(np.float32)
-
-
-def _thin_radial(offsets: np.ndarray, u: np.ndarray, squash: float) -> np.ndarray:
-    """Ép offset dọc theo tia ``u`` với hệ số ``squash`` (bỏ thành phần dọc tia)."""
-    along = offsets @ u
-    return offsets - (1.0 - squash) * along[:, None] * u[None, :]
-
-
-def _inside_box(points: np.ndarray, box: np.ndarray, margin: float) -> np.ndarray:
-    # 9 cột theo adapter (spray/sspp_adapter.py:117,141):
-    # (x, y, z_bottom, size_x, size_y, size_z, yaw, vx, vy) trong đó
-    # box[2] = ĐÁY box, box[3] = DÀI (dọc yaw), box[4] = RỘNG (ngang yaw).
-    cx, cy, cz, length, width, height, yaw = (float(v) for v in box[:7])
-    dx = points[:, 0] - cx
-    dy = points[:, 1] - cy
-    cos_yaw = np.cos(-yaw)
-    sin_yaw = np.sin(-yaw)
-    local_x = dx * cos_yaw - dy * sin_yaw
-    local_y = dx * sin_yaw + dy * cos_yaw
-    return (
-        (np.abs(local_x) <= length / 2.0 + margin)
-        & (np.abs(local_y) <= width / 2.0 + margin)
-        & (points[:, 2] >= cz - margin)
-        & (points[:, 2] <= cz + height + margin)
     )

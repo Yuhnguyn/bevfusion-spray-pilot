@@ -34,7 +34,12 @@ FRAC_LO, FRAC_HI = PlumeConfig.tail_block_height_frac
 
 
 def _inject(z_bottom: float, speed_mps: float = SPEED_MPS) -> np.ndarray:
-    """Chạy vài frame để có plume, trả về các điểm spray được chèn ở frame cuối."""
+    """Chạy vài frame để có plume, trả về vị trí **tâm cụm** sống ở frame cuối.
+
+    Detector đọc cụm qua hình cầu (``state``) chứ không qua điểm vật chất hoá, nên
+    tính chất "khối nằm trên ĐÁY box, không phải TÂM box" được kiểm trên ``pos``
+    của cụm — cùng đại lượng raycast dùng.
+    """
     boxes, _, _ = _boxes_to_arrays(
         [{
             "name": "Crafter",
@@ -51,7 +56,7 @@ def _inject(z_bottom: float, speed_mps: float = SPEED_MPS) -> np.ndarray:
     )
     config = PlumeConfig()
     state = PlumeState()
-    injected = np.zeros((0, 3))
+    positions = np.zeros((0, 3))
     with contextlib.redirect_stdout(io.StringIO()):
         for index in range(40):
             context = PlumeContext(
@@ -64,7 +69,7 @@ def _inject(z_bottom: float, speed_mps: float = SPEED_MPS) -> np.ndarray:
                 wfh_mm=1.0,
                 road_z_m=z_bottom,
             )
-            result = inject_plume_stateful(
+            inject_plume_stateful(
                 np.zeros((0, 5), dtype=np.float32),
                 boxes,
                 context,
@@ -73,9 +78,12 @@ def _inject(z_bottom: float, speed_mps: float = SPEED_MPS) -> np.ndarray:
                 token=f"a4/{index}",
                 config=config,
             )
-            if len(result.injected):
-                injected = result.injected[:, :3].astype(np.float64)
-    return injected
+            alive = state.select_alive()
+            if alive:
+                positions = np.array(
+                    [cluster.pos for cluster in alive], dtype=np.float64
+                )
+    return positions
 
 
 def test_adapter_puts_the_box_bottom_in_column_two():
@@ -98,15 +106,15 @@ def test_adapter_puts_the_box_bottom_in_column_two():
 def test_plume_sits_above_the_box_bottom_not_the_box_centre():
     """Điểm mấu chốt của A4: dịch lên ``h/2`` là bug, không phải nhiễu."""
     z_bottom = -1.6
-    injected = _inject(z_bottom)
-    assert len(injected) > 0, "không có điểm plume nào — test không kiểm được gì"
+    positions = _inject(z_bottom)
+    assert len(positions) > 0, "không có cụm plume nào — test không kiểm được gì"
 
     expected_low = z_bottom + FRAC_LO * BOX_HEIGHT
     expected_high = z_bottom + FRAC_HI * BOX_HEIGHT
     expected_mid = 0.5 * (expected_low + expected_high)
     wrong_mid = expected_mid + BOX_HEIGHT / 2.0  # nếu box[2] bị hiểu là tâm
 
-    mean_z = float(injected[:, 2].mean())
+    mean_z = float(positions[:, 2].mean())
     assert abs(mean_z - expected_mid) < 0.35 * BOX_HEIGHT, (
         f"plume ở z={mean_z:.2f}, kỳ vọng quanh {expected_mid:.2f} "
         f"(đáy {expected_low:.2f} … đỉnh {expected_high:.2f}); nếu là "
@@ -130,9 +138,9 @@ def test_raising_the_box_bottom_raises_the_plume_by_the_same_amount():
 
 def test_plume_is_behind_the_box_along_its_yaw():
     """Khối plume nằm **sau** hộp: tâm khối lệch về phía -x khi yaw = 0."""
-    injected = _inject(-1.6)
-    assert len(injected) > 0
+    positions = _inject(-1.6)
+    assert len(positions) > 0
     # box ở x = 20 m, dài 4,5 m ⇒ đuôi xe ở x = 17,75 m; khối plume nằm sau đó.
-    assert injected[:, 0].mean() < 17.75 + 1e-6, (
+    assert positions[:, 0].mean() < 17.75 + 1e-6, (
         "plume lấn về phía trước đuôi xe — sai chiều đặt khối"
     )

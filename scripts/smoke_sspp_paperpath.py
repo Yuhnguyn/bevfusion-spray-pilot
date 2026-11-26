@@ -180,7 +180,7 @@ def smoke_scene(
             vehicle_class=vehicle_class,
         )
         raycast = raycast_frame(
-            result.points,
+            result.points_clean,
             state.all_alive(),
             table=table,
             road_z_m=context.road_z_m,
@@ -199,7 +199,6 @@ def smoke_scene(
                 "det": int(raycast.stats.det),
                 "att_m": float(raycast.stats.att_m_total),
                 "wet_in": int(result.stats.wet_points_in),
-                "capped": int(result.stats.capped),
                 "beams_hit": int(raycast.stats.beams_hit),
                 "beams_total": int(raycast.stats.beams_total),
                 "clusters": list(state.all_alive()),
@@ -213,8 +212,7 @@ def smoke_scene(
             f"alive={rows[-1]['alive']} "
             f"det={rows[-1]['det']} "
             f"att_m={rows[-1]['att_m']:.2f} "
-            f"wet_in={rows[-1]['wet_in']} "
-            f"capped={rows[-1]['capped']}"
+            f"wet_in={rows[-1]['wet_in']}"
         )
 
     return {"scene": rel_scene, "frames": rows}
