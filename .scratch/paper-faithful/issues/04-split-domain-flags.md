@@ -212,10 +212,12 @@ CONDA_NO_PLUGINS=true env -u PYTHONPATH PYTHONPATH=. \
   /opt/anaconda3/bin/python -m pytest -q tests/ 2>&1 | tail -2
 # => 0 failed, 0 error
 
-# (c) không còn dấu vết
+# (c) không còn dấu vết trong CODE
 grep -rn "diffusion_alpha\|DIFFUSION_ALPHA\|radius0\|rear_point\|car_speed_mps" \
-  --include=*.py spray/ tests/ scripts/ kaggle/ | grep -v __pycache__
+  --include=*.py spray/ scripts/ kaggle/ | grep -v __pycache__
 # => KHÔNG dòng nào
+# KHÔNG grep tests/ ở đây: test PHẢI nêu tên field đã xoá để khẳng định nó vắng mặt.
+# Hit trong tests/ là dấu hiệu test còn sống, không phải dấu vết sót.
 
 grep -rn "PLUME_PAPER_DOMAIN" --include=*.py spray/ tests/ scripts/
 # => KHÔNG dòng nào

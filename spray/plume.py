@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 from dataclasses import dataclass, replace
 from typing import ClassVar
 
@@ -120,6 +119,12 @@ class PlumeConfig:
     # [CHỌN] OSI không cho default, dataset không khai báo độ ướt. Giả định 1 mm
     # (mặt đường ướt đều) — phải ghi rõ ở mọi báo cáo dùng generator.
     water_film_height_m: float = 0.001
+    # Mức ẩm truyền xuống `inject_plume_stateful` khi đi qua ``PlumeTransform``:
+    # transform chỉ chuyển tiếp ``PlumeConfig``, không có kênh tham số riêng.
+    #   ``water_film_mm`` khác None ⇒ cố định số đó, không lấy mẫu;
+    #   ``sample_water_film = False`` ⇒ giữ ``wfh_mm`` của caller.
+    sample_water_film: bool = True
+    water_film_mm: float | None = None
     # [CODE] profile num_clusters_velocity_offset_kmh = 50.0. Bảng đo `cal` bắt đầu
     # ở mốc 50 km/h; dưới mốc đó không có số đo nên giữ 0 cụm, KHÔNG thêm sàn.
     cluster_count_velocity_offset_kmh: float = 50.0
@@ -353,6 +358,8 @@ def inject_plume_stateful(
     dt: float = _UPDATE_CYCLE_TIME_S,
     wet_ground: WetGroundConfig | None = None,
     vehicle_class: str = "crafter",
+    sample_water_film: bool = True,
+    water_film_mm: float | None = None,
 ) -> PlumeResult:
     """Thêm plume có cụm SỐNG qua nhiều frame — đường production.
 
@@ -367,6 +374,9 @@ def inject_plume_stateful(
       plume đến **thuần** từ vị trí khối sinh.
     - Cụm tan theo xác suất ``exp(−Δt/T)`` [PAPER] Eq. 1, trần số học ``12·T``.
     - Không có clamp ngang.
+    - Mức ẩm: ``water_film_mm`` khác ``None`` ⇒ dùng số đó, không lấy mẫu;
+      ngược lại ``sample_water_film`` ⇒ lấy mẫu theo scene [PAPER §V]; tắt ⇒ giữ
+      ``wfh_mm`` của caller.
 
     Box theo quy ước adapter (``spray/sspp_adapter.py:117,141``): ``box[2]`` là
     **đáy** box (không phải tâm), ``box[3]`` dài dọc yaw, ``box[4]`` rộng ngang
@@ -378,6 +388,10 @@ def inject_plume_stateful(
     Marker ``PLUME_STATE`` in một dòng mỗi call.
     """
     cfg = config or PlumeConfig()
+    # PlumeTransform chỉ chuyển tiếp PlumeConfig nên hai núm này đọc thêm từ cfg.
+    if water_film_mm is None:
+        water_film_mm = cfg.water_film_mm
+    sample_water_film = bool(sample_water_film) and bool(cfg.sample_water_film)
     clean = _as_five_columns(points)
     if wet_ground is not None and wet_ground.enabled:
         base, wet_stats = apply_wet_ground(
@@ -398,19 +412,20 @@ def inject_plume_stateful(
     )
     expired = state.prune(dt=dt, rng=rng)
 
-    # [MIỀN — ADR-0006 §5.7] Cách A: giữ nguyên mọi số paper, chỉ giới hạn về miền
-    # đã kiểm chứng. Bật bằng PLUME_PAPER_DOMAIN=1; tắt (mặc định) = không giới hạn.
-    if os.environ.get("PLUME_PAPER_DOMAIN", "").strip() not in ("", "0"):
-        state._config = replace(
-            state._config,
-            diffusion_alpha=0.0,
-            min_range_m=2.5,
-            max_range_m=50.0,
-        )
-        # [PAPER §V] mức ẩm lấy mẫu theo SCENE (không theo frame) — xem sample_wfh_mm.
+    # [PAPER §V] mức ẩm: ``water_film_mm`` khác ``None`` ⇒ dùng số đó (đường tái
+    # lập số cũ, vd 1.0), không lấy mẫu. Ngược lại ``sample_water_film`` ⇒ lấy mẫu
+    # theo SCENE (không theo frame) — xem sample_wfh_mm. Tắt ⇒ giữ ``wfh_mm`` của
+    # caller.
+    if water_film_mm is not None:
+        context = replace_context_wfh(context, float(water_film_mm))
+        wfh_marker = f"fixed={float(water_film_mm):g}"
+    elif sample_water_film:
         context = replace_context_wfh(context, sample_wfh_mm(
             context.scene_token, context.epoch, seed
         ))
+        wfh_marker = f"sampled={context.wfh_mm:g}"
+    else:
+        wfh_marker = f"caller={context.wfh_mm:g}"
 
     spawned = 0
     assumed = False
@@ -545,6 +560,7 @@ def inject_plume_stateful(
         f"capped={stats.capped} "
         f"assumed={1 if assumed else 0}"
     )
+    print(f"PLUME_WFH {wfh_marker}")
 
     return PlumeResult(
         points=augmented,

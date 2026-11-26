@@ -2,7 +2,11 @@
 
 import inspect
 
-from spray.plume_context import sample_wfh_mm
+import numpy as np
+
+from spray.plume import inject_plume_stateful
+from spray.plume_context import PlumeContext, sample_wfh_mm
+from spray.plume_state import PlumeState
 
 
 def test_sample_wfh_in_paper_range():
@@ -44,3 +48,39 @@ def test_sample_wfh_mean_near_0766():
     mean = sum(values) / len(values)
 
     assert 0.70 <= mean <= 0.85
+
+
+def _context() -> PlumeContext:
+    return PlumeContext(
+        scene_token="Crafter_dynamic/0060",
+        frame_index=0,
+        epoch=0,
+        sensor_origin=np.zeros(3, dtype=np.float64),
+        ego_speed_mps=0.0,
+        object_speed_mps=30.0,
+        wfh_mm=0.5,
+        road_z_m=-0.411,
+    )
+
+
+def test_fixed_water_film_is_not_sampled(monkeypatch, capsys):
+    """``water_film_mm`` khác None => dùng số đó, KHÔNG gọi ``sample_wfh_mm``."""
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("sample_wfh_mm must not be called when fixed")
+
+    monkeypatch.setattr("spray.plume.sample_wfh_mm", _boom)
+
+    inject_plume_stateful(
+        np.zeros((100, 5), dtype=np.float32),
+        np.empty((0, 9), dtype=np.float32),
+        _context(),
+        PlumeState(),
+        seed=0,
+        token="Crafter_dynamic/0060",
+        water_film_mm=1.0,
+    )
+
+    output = capsys.readouterr().out
+
+    assert "PLUME_WFH fixed=1" in output

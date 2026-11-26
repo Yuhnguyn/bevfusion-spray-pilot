@@ -73,14 +73,10 @@ MAX_AGE_FACTOR = 12.0
 # ⇒ dùng hằng số, không dùng bảng theo tốc độ.
 RADIUS_MU = -1.2
 RADIUS_SIGMA = 0.72
-# Clip **số học** theo max quan sát của cơ chế tán xạ (`diffusion_alpha`), không
-# phải ràng buộc của paper — paper không đặt trần cho lognormal
-# (p99 = exp(−1,2 + 2,326·0,72) = 1,94 m). 4,0 m ứng với r ở độ sâu ~60 m.
-RADIUS_MAX_M = 4.0
-# Hệ số tán xạ `r(t) = r₀ + α·d_rel(t)`, `d_rel` = độ sâu cụm sau mặt đuôi.
-# **Mở rộng NGOÀI paper** (có khai báo); α = 0,06 hiệu chỉnh từ `trail90` của
-# RoadSpray `*_static` (6 / 44 / 52 m @ 50/100/130 km/h).
-DIFFUSION_ALPHA = 0.06
+# Clip **số học** theo p99 của lognormal paper
+# (exp(−1,2 + 2,326·0,72) = 1,61 m). Paper không đặt trần; 2,0 m nằm giữa
+# p99 (1,61) và p99,9 (2,79) nên cắt bớt ~0,1 % đuôi, không đụng thân phân bố.
+RADIUS_MAX_M = 2.0
 # [ĐO] trung vị 3 mốc static Δ=1,0 = 0,311 m; paper = 0,301 m ⇒ lấy 0,31.
 RADIUS_MEDIAN_M = 0.31
 
@@ -134,17 +130,11 @@ class PlumeStateConfig:
     radius_mu: float = RADIUS_MU
     radius_sigma: float = RADIUS_SIGMA
     radius_max_m: float = RADIUS_MAX_M
-    # Hệ số tán xạ `r(t) = r₀ + α·d_rel(t)`, `d_rel` = độ sâu cụm sau mặt đuôi.
-    # 0,0 = tắt. Một α dùng chung cho mọi tốc độ. Mở rộng NGOÀI paper.
-    diffusion_alpha: float = DIFFUSION_ALPHA
-    # [MIỀN — ADR-0006 §5.7] Giới hạn miền mô hình phát ngôn. Bật bằng
-    # PLUME_PAPER_DOMAIN=1 (xem spray/plume.py).
+    # [MIỀN — ADR-0006 §5.7] Giới hạn miền mô hình phát ngôn.
     #   min/max_range_m: paper §V-D đánh giá 0–50 m; §V cảnh báo biểu diễn cầu vỡ
     #     ở gần cảm biến. Dữ liệu thật: r p01 = 2,75 m, chỉ 0,02 % điểm có r > 50 m.
-    #   Cách A của ADR-0006 còn đặt diffusion_alpha = 0 (Fig. 5 cho r_cl là MỘT
-    #     lognormal, không nở theo tuổi).
-    min_range_m: float = 0.0
-    max_range_m: float = float("inf")
+    min_range_m: float = 2.5
+    max_range_m: float = 50.0
     initial_vz_max_mps: float = INITIAL_VZ_MAX_MPS
     drag_mean: float = DRAG_MEAN
     drag_std: float = DRAG_STD
@@ -201,17 +191,6 @@ class SprayCluster:
     # quét qua trong một chu kỳ thay vì quả cầu đứng yên. Mặc định 0 (tắt):
     # ``streak_scale = 0``; cơ chế này KHÔNG có trong paper.
     streak_m: float = 0.0
-    # Tham số phục vụ tán xạ: bán kính gốc (lognormal paper, không clip) + mặt
-    # đuôi/hướng chạy tại thời điểm sinh. Mỗi bước:
-    # ``radius = min(radius_max, radius0 + diffusion_alpha · d_rel)`` với ``d_rel``
-    # = độ sâu cụm sau mặt đuôi. Mở rộng NGOÀI paper, có khai báo.
-    radius0: float | None = None
-    rear_point: np.ndarray | None = None
-    forward: np.ndarray | None = None
-    # Tốc độ **tương đối** của xe dẫn so với ego dọc phương chạy (m/s): kịch bản
-    # static = v (xe chạy ra xa), follow = 0 (xe giữ khoảng cách). Dùng để dời
-    # mặt đuôi theo thời gian khi tính độ sâu `d_rel` cho tán xạ.
-    car_speed_mps: float = 0.0
 
     def probability(self) -> float:
         """Displayed survival probability ``P_t = exp(-age/T)`` [PAPER] III-C.
@@ -455,19 +434,13 @@ class PlumeState:
                 )
         lateral_axis = np.array([-forward[1], forward[0], 0.0])
         created: list[SprayCluster] = []
-        rear_point = None
-        car_speed = 0.0
-        if center is not None:
-            # Mặt "trước" của slab = mặt đuôi xe (slab nằm ngay sau đuôi).
-            rear_point = block_center + forward * block_extents[0]
-            car_speed = float((base_vel - ego_velocity) @ forward)
         for _ in range(count):
             radius_median = cluster_radius_median_for_speed(v_abs_kmh)
-            radius0 = float(
+            radius_draw = float(
                 np.exp(rng.normal(float(np.log(radius_median)),
                                   cfg.radius_sigma))
             )
-            radius = min(cfg.radius_max_m, radius0)
+            radius = min(cfg.radius_max_m, radius_draw)
             ttl = max(
                 0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))
             )
@@ -505,10 +478,6 @@ class PlumeState:
                 # thành vệt KHÔNG có trong paper; knob giữ lại cho thí nghiệm.
                 streak_m=float(np.linalg.norm(ego_velocity)) * dt
                 * float(cfg.streak_scale),
-                radius0=radius0,
-                rear_point=rear_point,
-                forward=forward if rear_point is not None else None,
-                car_speed_mps=car_speed,
             )
             self._next_cluster_id += 1
             bucket.append(cluster)
@@ -540,7 +509,6 @@ class PlumeState:
             ego_velocity = np.zeros(3, dtype=np.float64)
         else:
             ego_velocity = np.asarray(ego_velocity, dtype=np.float64)
-        cfg = self._config
         for clusters in self._clusters.values():
             for cluster in clusters:
                 air = cluster.vel - wind
@@ -557,26 +525,6 @@ class PlumeState:
                 # Vị trí ở hệ EGO, nên trừ ego_velocity đúng một lần ở đây.
                 cluster.pos = cluster.pos + (cluster.vel - ego_velocity) * dt
                 cluster.age += dt
-                # Tán xạ r(t) = r₀ + α·d_rel(t), d_rel = độ sâu sau mặt đuôi.
-                # Mở rộng NGOÀI paper (có khai báo, một α chung mọi tốc độ):
-                # paper định nghĩa r_cl là đại lượng ĐO ĐƯỢC ở nhiều tuổi plume.
-                alpha = float(cfg.diffusion_alpha)
-                if (
-                    alpha > 0.0
-                    and cluster.radius0 is not None
-                    and cluster.rear_point is not None
-                    and cluster.forward is not None
-                ):
-                    # Mặt đuôi DỜI theo xe: rear(t) = rear_birth + v_rel·elapsed.
-                    # elapsed = age + dt (age=-dt lúc sinh ⇒ elapsed=0).
-                    elapsed = max(0.0, float(cluster.age) + dt)
-                    depth = float(
-                        (cluster.rear_point - cluster.pos) @ cluster.forward
-                    ) + float(cluster.car_speed_mps) * elapsed
-                    cluster.radius = min(
-                        cfg.radius_max_m,
-                        cluster.radius0 + alpha * max(0.0, depth),
-                    )
         self._counters.alive = self._total_alive()
 
     def prune(

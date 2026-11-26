@@ -3,7 +3,6 @@
 import numpy as np
 
 from spray.plume_state import (
-    DIFFUSION_ALPHA,
     PlumeState,
     PlumeStateConfig,
     SprayCluster,
@@ -23,9 +22,9 @@ def _cluster(x: float) -> SprayCluster:
     )
 
 
-def test_domain_off_returns_all_alive():
+def test_domain_unbounded_returns_all_alive():
     """min_range_m=0, max_range_m=inf => select_alive() == all_alive() (cùng list)."""
-    state = PlumeState(PlumeStateConfig())
+    state = PlumeState(PlumeStateConfig(min_range_m=0.0, max_range_m=float("inf")))
     state._clusters[(state._scene_token, 0)] = [_cluster(1.0), _cluster(80.0)]
 
     alive = state.all_alive()
@@ -49,15 +48,36 @@ def test_domain_filters_by_radius():
     assert [float(np.linalg.norm(cluster.pos)) for cluster in kept] == [10.0]
 
 
-def test_domain_env_switch_does_not_change_default(monkeypatch):
-    """Không set PLUME_PAPER_DOMAIN => default không bị đổi."""
-    monkeypatch.delenv("PLUME_PAPER_DOMAIN", raising=False)
-
+def test_domain_defaults_are_set():
+    """Miền paper (ADR-0006 §5.7) là default của config, không còn cờ env."""
     cfg = PlumeStateConfig()
 
-    assert cfg.min_range_m == 0.0
-    assert cfg.max_range_m == float("inf")
-    assert cfg.diffusion_alpha == DIFFUSION_ALPHA == 0.06
+    assert cfg.min_range_m == 2.5
+    assert cfg.max_range_m == 50.0
+
+
+def test_diffusion_fields_are_removed():
+    """Cơ chế tán xạ đã bị xoá hẳn khỏi cluster/config, không để đường tái lập."""
+    removed = ("radius0", "rear_point", "forward", "car_speed_mps")
+
+    for name in removed:
+        assert name not in SprayCluster.__dataclass_fields__
+    assert not hasattr(PlumeStateConfig(), "diffusion_alpha")
+
+
+def test_diffusion_mechanism_has_no_code_path():
+    """Tên cơ chế không còn xuất hiện trong source (không chỉ trong dataclass fields).
+
+    Kiểm ``inspect.getsource`` thay vì ``grep`` để chắc chắn không có nhánh chết
+    nào còn đọc các trường đã xoá. Nếu ai thêm lại, test này đỏ ngay.
+    """
+    import inspect
+
+    import spray.plume_state as module
+
+    source = inspect.getsource(module)
+    for name in ("diffusion_alpha", "car_speed_mps", "rear_point"):
+        assert name not in source, f"{name} con trong spray/plume_state.py"
 
 
 def _cluster_radius(x: float, radius: float) -> SprayCluster:

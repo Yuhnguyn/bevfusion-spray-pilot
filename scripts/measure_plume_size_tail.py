@@ -348,7 +348,6 @@ def measure_speed(
     radius_sigma: float | None = None,
     streak_scale: float | None = None,
     p_det_scale: float = 1.0,
-    diffusion_alpha: float | None = None,
     class_name: str = "crafter",
 ) -> dict:
     """Một seed của kịch bản **static** QĐ14 (ego đứng yên, xe chạy ra xa)."""
@@ -359,8 +358,6 @@ def measure_speed(
         radius_sigma = defaults.radius_sigma
     if streak_scale is None:
         streak_scale = defaults.streak_scale
-    if diffusion_alpha is None:
-        diffusion_alpha = defaults.diffusion_alpha
     config = PlumeConfig(
         point_cloud_range=(-60.0, -20.0, -6.0, 220.0, 20.0, 6.0)
     )
@@ -369,7 +366,6 @@ def measure_speed(
             spawn_scale=spawn_scale,
             radius_sigma=radius_sigma,
             streak_scale=streak_scale,
-            diffusion_alpha=diffusion_alpha,
         )
     )
     speed_mps = speed_kmh / 3.6
@@ -471,9 +467,6 @@ def main() -> None:
     _cfg = PlumeStateConfig()
     _ap.add_argument("--radius-sigma", type=float, default=_cfg.radius_sigma)
     _ap.add_argument("--streak-scale", type=float, default=_cfg.streak_scale)
-    _ap.add_argument("--diffusion-alpha", type=float,
-                     default=_cfg.diffusion_alpha,
-                     help="QĐ13: hệ số tán xạ bán kính theo độ sâu (0,0 = tắt)")
     _ap.add_argument("--p-det-scale", type=float, default=1.0,
                      help="hệ số nhân P_det [CHỌN] hiệu chỉnh theo static")
     _ap.add_argument("--seeds", type=int, default=SEEDS,
@@ -502,7 +495,6 @@ def main() -> None:
         f"THAM SỐ: spawn_scale={_args.spawn_scale:.3f} "
         f"radius_sigma={_args.radius_sigma:.3f} "
         f"streak_scale={_args.streak_scale:.3f} "
-        f"diffusion_alpha={_args.diffusion_alpha:.3f} "
         f"p_det_scale={_args.p_det_scale:.3f} | seeds={SEEDS}"
     )
     header = (
@@ -519,7 +511,6 @@ def main() -> None:
                 speed_kmh, seed, table, _args.spawn_scale,
                 _args.radius_sigma, _args.streak_scale,
                 p_det_scale=_args.p_det_scale,
-                diffusion_alpha=_args.diffusion_alpha,
             )
             for seed in range(SEEDS)
         ]
@@ -598,7 +589,6 @@ def main() -> None:
                         "spawn_scale": _args.spawn_scale,
                         "radius_sigma": _args.radius_sigma,
                         "streak_scale": _args.streak_scale,
-                        "diffusion_alpha": _args.diffusion_alpha,
                         "p_det_scale": _args.p_det_scale,
                     },
                     "targets": {

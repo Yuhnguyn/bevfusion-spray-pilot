@@ -568,8 +568,7 @@ def run_gen_static(args: argparse.Namespace) -> None:
             state = PlumeState(PlumeStateConfig(
                 spawn_scale=defaults.spawn_scale,
                 radius_sigma=defaults.radius_sigma,
-                streak_scale=defaults.streak_scale,
-                diffusion_alpha=defaults.diffusion_alpha))
+                streak_scale=defaults.streak_scale))
             speed_mps = speed_kmh / 3.6
             step_m = speed_mps * STATIC_DT_S
             start_x = STATIC_MIN_TAIL_RANGE_M + step_m + 0.5

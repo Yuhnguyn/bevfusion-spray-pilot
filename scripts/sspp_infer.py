@@ -48,10 +48,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import pickle
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -61,6 +61,7 @@ sys.path.insert(0, str(REPO))
 
 from proxy_eval.bootstrap import scene_bootstrap  # noqa: E402
 from proxy_eval.matcher import EvalConfig, evaluate_frame  # noqa: E402
+from spray.plume import PlumeConfig  # noqa: E402
 from spray.plume_context import PlumeContext  # noqa: E402
 from spray.plume_state import PlumeState  # noqa: E402
 from spray.plume_transform import PlumeTransform  # noqa: E402
@@ -497,7 +498,9 @@ def build_context(args, info: dict, rel_scene: str, frame_index: int, boxes: np.
         sensor_origin=np.zeros(3, dtype=np.float64),
         ego_speed_mps=ego_speed,
         object_speed_mps=object_speed_mps(boxes, ego_speed),
-        wfh_mm=float(args.wfh_mm),
+        wfh_mm=(
+            1.0 if args.wfh_mm is None else float(args.wfh_mm)
+        ),
         road_z_m=float(args.road_z_m),
         # Following scenario: the object keeps its distance ahead of the ego, so
         # its velocity in the ego frame is ~0 (PROJECT.md §3c measured
@@ -548,14 +551,12 @@ def frame_indices(frames: list[dict]) -> list[int]:
 # Plume: call the production transform directly (not declared in any config).
 # --------------------------------------------------------------------------
 def make_plume_transform(args) -> PlumeTransform:
-    # [ADR-0006 §5.7] Cách A: chặn phát ngôn ngoài miền paper đã kiểm chứng.
-    # Đặt qua env vì `inject_plume_stateful` đọc env ở tầng dưới; cờ CLI chỉ là
-    # đường vào tiện dụng cho kernel (kernel không truyền env biến lạ).
-    if bool(getattr(args, "paper_domain", False)):
-        os.environ["PLUME_PAPER_DOMAIN"] = "1"
     wet_ground = WetGroundConfig(enabled=bool(args.wet_ground))
     return PlumeTransform(
-        config=None,
+        config=PlumeConfig(
+            sample_water_film=bool(getattr(args, "sample_water_film", True)),
+            water_film_mm=getattr(args, "wfh_mm", None),
+        ),
         enabled=True,
         seed=int(args.seed),
         wet_ground=wet_ground,
@@ -570,8 +571,16 @@ def inject_plume(
     context: PlumeContext,
     token: str,
     seed: int,
+    *,
+    sample_water_film: bool = True,
+    water_film_mm: float | None = None,
 ) -> dict:
     """Run PlumeTransform on one frame and report what it changed."""
+    transform.config = replace(
+        transform.config,
+        sample_water_film=bool(sample_water_film),
+        water_film_mm=water_film_mm,
+    )
     results = {
         "points": clean.copy(),
         "gt_bboxes_3d": boxes,
@@ -1000,12 +1009,7 @@ def dry_run(args) -> int:
         f"transform=spray.plume_transform.PlumeTransform seed={args.seed} "
         f"epoch={args.epoch} wfh_mm={args.wfh_mm} road_z_m={args.road_z_m} "
         f"wet_ground={int(args.wet_ground)} scenario=following "
-        f"paper_domain={int(bool(getattr(args, 'paper_domain', False)))}"
-        + (
-            " (Cách A: diffusion_alpha=0, 2.5<=|pos|<=50 m, wfh~Exp[0.1;1.2] per scene)"
-            if bool(getattr(args, "paper_domain", False))
-            else " (production: KHONG co mien, khong lay mau wfh)"
-        )
+        f"wfh_sampling={int(bool(args.sample_water_film))}"
     )
 
     speeds: dict[int, int] = {}
@@ -1032,7 +1036,11 @@ def dry_run(args) -> int:
     transform = make_plume_transform(args)
     state = PlumeState()
     seed = _frame_seed(rel_scene, sample_index, args.epoch, args.seed)
-    injected = inject_plume(transform, state, clean, boxes, context, sample["token"], seed)
+    injected = inject_plume(
+        transform, state, clean, boxes, context, sample["token"], seed,
+        sample_water_film=args.sample_water_film,
+        water_film_mm=args.wfh_mm,
+    )
     if not injected["clean_unchanged"]:
         raise SystemExit(
             "GATE_C_FAILED plume transform changed points_clean; pairing between "
@@ -1172,7 +1180,9 @@ def run(args) -> int:
                 }
             elif arm == "plume":
                 injected = inject_plume(
-                    transform, state, clean, boxes, context, info["token"], seed
+                    transform, state, clean, boxes, context, info["token"], seed,
+                    sample_water_film=args.sample_water_film,
+                    water_film_mm=args.wfh_mm,
                 )
                 input_points = injected["points"]
                 point_stats = {
@@ -1274,7 +1284,7 @@ def run(args) -> int:
         "legacy_channel4": bool(getattr(args, "legacy_channel4", False)),
         "z_shift_m": float(getattr(args, "z_shift_m", 0.0)),
         "epoch": int(args.epoch),
-        "wfh_mm": float(args.wfh_mm),
+        "wfh_mm": None if args.wfh_mm is None else float(args.wfh_mm),
         "road_z_m": float(args.road_z_m),
         "wet_ground": bool(args.wet_ground),
         "scenario": "following",
@@ -1349,8 +1359,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--range-m", type=float, default=54.0)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--epoch", type=int, default=0)
-    parser.add_argument("--wfh-mm", type=float, default=1.0,
-                        help="[CHỌN] water film height for the synthetic plume")
+    parser.add_argument("--wfh-mm", dest="wfh_mm", default=None,
+                        type=lambda s: None if s.lower() in ("none", "") else float(s),
+                        help="[CHỌN] water film height (mm); 'none'/bỏ trống ⇒ lấy "
+                             "mẫu theo scene [PAPER §V]")
+    parser.add_argument("--no-wfh-sampling", dest="sample_water_film",
+                        action="store_false", default=True,
+                        help="tắt lấy mẫu mức ẩm, giữ wfh_mm của caller")
     parser.add_argument("--road-z-m", type=float, default=-0.411,
                         help="ground plane z in the LiDAR frame (PROJECT.md §3)")
     parser.add_argument("--wet-ground", dest="wet_ground", action="store_true",
@@ -1360,9 +1375,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="disable the wet-ground stage (sensitivity only)")
     parser.add_argument("--paper-domain", dest="paper_domain", action="store_true",
                         default=False,
-                        help="[ADR-0006 §5.7 Cách A] chặn phát ngôn ngoài miền paper đã "
-                             "kiểm chứng: diffusion_alpha=0, 2.5 <= |pos| <= 50 m, "
-                             "wfh lấy mẫu theo scene")
+                        help="[DEPRECATED, no-op] miền paper giờ là default của "
+                             "PlumeStateConfig; cờ chỉ giữ để kernel cũ chạy được")
     parser.add_argument("--legacy-channel4", dest="legacy_channel4",
                         action="store_true",
                         help="tái hiện lỗi cũ: nạp thẳng cột 4 của file .bin "
@@ -1375,6 +1389,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="chỉ chạy đúng các frame token này (thay --limit)")
     parser.add_argument("--log-every", type=int, default=50)
     args = parser.parse_args(argv)
+    if getattr(args, "paper_domain", False):
+        print(
+            "WARN --paper-domain is deprecated and has no effect; the paper "
+            "domain is now the PlumeStateConfig default",
+            file=sys.stderr,
+        )
     if args.infos is None:
         args.infos = str(REPO / "data" / f"sspp_infos_{args.split}.pkl")
     return args

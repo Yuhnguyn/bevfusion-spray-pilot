@@ -12,14 +12,11 @@ The script reads the extracted SemanticSpray dataset, clusters label-2 (noise)
 points with the same single-linkage rule used for the simulator comparison
 (radius 0.5 m, dense cluster >= 5 points), and reports per-range geometry.
 
-Two reports can be produced:
+One report is produced:
 
 * geometry report (default): ``docs/measurements/plume-geometry-vs-real.md`` with
   ``n_points``, ``r_extent``, ``r_range``, ``r_range / r_extent``, ``n_rings``
-  and ``ring_span`` per distance bucket;
-* legacy summary report (opt-in via ``--basic-out``): the older
-  ``docs/measurements/semantic-spray-stats.md`` content rendered by
-  ``spray.spray_stats.render_markdown``.
+  and ``ring_span`` per distance bucket.
 
 One-command reproduction of the committed geometry report (2,070 frames):
     CONDA_NO_PLUGINS=true /opt/anaconda3/bin/python \
@@ -47,10 +44,7 @@ sys.path.insert(0, REPO)
 from spray.plume import PlumeConfig  # noqa: E402
 from spray.spray_stats import (  # noqa: E402
     NOISE_LABEL,
-    StatsAccumulator,
-    compare_to_simulator,
     load_scan,
-    render_markdown,
     single_linkage,
 )
 
@@ -548,12 +542,6 @@ def main() -> int:
         "--geometry-out",
         default=os.path.join(REPO, "docs", "measurements", "plume-geometry-vs-real.md"),
     )
-    parser.add_argument(
-        "--basic-out",
-        default="",
-        help="optional path for the legacy summary report (opt-in)",
-    )
-    parser.add_argument("--speed-kmh", type=float, default=50.0)
     args = parser.parse_args()
 
     groups = [name.strip() for name in args.groups.split(",") if name.strip()]
@@ -565,19 +553,12 @@ def main() -> int:
         raise SystemExit(f"no scenes found under {args.data}")
 
     accumulator = GeometryAccumulator(radius=args.radius, dense_min=args.dense_min)
-    basic = (
-        StatsAccumulator(radius=args.radius, dense_min=args.dense_min)
-        if args.basic_out
-        else None
-    )
     sampled_frames = 0
     for number, scene in enumerate(scenes, start=1):
         for scan_id in sample_scan_ids(scene, args.frames_per_scene):
             points, labels = load_scan(scene, scan_id)
             records = scan_cluster_records(points, labels, radius=args.radius)
             accumulator.add(labels, records)
-            if basic is not None:
-                basic.add(points, labels)
             sampled_frames += 1
         print(
             f"\rscene {number}/{len(scenes)}  frames {sampled_frames}",
@@ -594,23 +575,6 @@ def main() -> int:
     with open(args.geometry_out, "w", encoding="utf-8") as handle:
         handle.write(report)
     print(f"wrote {args.geometry_out}")
-
-    if basic is not None:
-        basic_summary = basic.summary()
-        rows = compare_to_simulator(basic_summary, speed_kmh=args.speed_kmh)
-        basic_report = render_markdown(
-            basic_summary,
-            rows,
-            scenes=len(scenes),
-            sampled_frames=sampled_frames,
-            speed_kmh=args.speed_kmh,
-        )
-        os.makedirs(
-            os.path.dirname(os.path.abspath(args.basic_out)), exist_ok=True
-        )
-        with open(args.basic_out, "w", encoding="utf-8") as handle:
-            handle.write(basic_report)
-        print(f"wrote {args.basic_out}")
 
     for row in summary["buckets"]:
         print(
