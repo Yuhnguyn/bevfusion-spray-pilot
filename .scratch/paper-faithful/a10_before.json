@@ -1,0 +1,29 @@
+{
+  "50": {
+    "det": [
+      637,
+      1414,
+      894
+    ],
+    "det_total": 2945,
+    "per_frame_md5": "c7315e174a788b6887e500ec1bfdbe6b"
+  },
+  "100": {
+    "det": [
+      3152,
+      10432,
+      1427
+    ],
+    "det_total": 15011,
+    "per_frame_md5": "c3b1dc3b0e7f06f7e3650ec9dd75e3ec"
+  },
+  "130": {
+    "det": [
+      2368,
+      905,
+      581
+    ],
+    "det_total": 3854,
+    "per_frame_md5": "56e7f9f4c2e4bba38d0fc393e4a6b5e6"
+  }
+}
