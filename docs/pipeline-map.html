@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bản đồ công thức pipeline spray</title>
+<style>
+:root{color-scheme:light;--ink:#17232d;--muted:#526575;--line:#d7e0e7;--paper:#fff;--wash:#f2f6f8;--blue:#126782;--teal:#147d70;}
+*{box-sizing:border-box}body{margin:0;background:var(--wash);color:var(--ink);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:#102b3a;color:#f5fbff;padding:2.5rem max(1.25rem,calc((100vw - 1080px)/2))}header p{color:#c5d9e3;max-width:70ch}
+main{max-width:1080px;margin:1.5rem auto;padding:0 1rem 4rem}h1,h2,h3{line-height:1.25}h1{font-size:clamp(2rem,5vw,3rem);margin:0}h2{margin-top:2.6rem;padding-bottom:.45rem;border-bottom:1px solid var(--line)}h3{margin-top:1.8rem;color:var(--blue)}
+a{color:var(--blue);text-decoration-thickness:1px;text-underline-offset:3px}p,li{max-width:85ch}blockquote{margin:1rem 0;padding:.8rem 1rem;border-left:4px solid #d38b28;background:#fff7e7;color:#563e1d}
+pre,code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}pre{overflow:auto;padding:1rem;border-radius:10px;background:#102b3a;color:#e8f4fa;line-height:1.55}:not(pre)>code{background:#e6eef2;border-radius:4px;padding:.1rem .3rem}
+.table-wrap{overflow:auto;margin:1rem 0 1.5rem}table{border-collapse:collapse;width:100%;background:var(--paper);font-size:.94rem}th,td{text-align:left;vertical-align:top;padding:.65rem .75rem;border:1px solid var(--line)}th{background:#e6eff3;color:#163e50}
+.formula{display:block;overflow:auto;margin:.7rem 0;padding:.8rem 1rem;border-left:4px solid var(--teal);background:#e7f3f1;font:600 1.08rem/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}.formula-inline{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#e7f3f1;padding:.12rem .25rem;border-radius:4px}
+.index{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;margin:1rem 0}.index a{display:block;background:white;border:1px solid var(--line);border-radius:8px;padding:.75rem;text-decoration:none}.index a:hover{border-color:var(--teal);box-shadow:0 2px 10px #173b4a18}
+.top{position:fixed;right:1rem;bottom:1rem;border-radius:99px;background:var(--teal);color:white;padding:.55rem .9rem;text-decoration:none;box-shadow:0 2px 8px #0002}
+@media(max-width:600px){body{font-size:15px}header{padding:1.6rem 1rem}main{padding:0 .75rem 3rem}}
+</style></head><body><header><h1>Bản đồ công thức pipeline spray</h1><p>Trang được sinh từ <code>docs/pipeline-map.md</code>. Sửa Markdown rồi chạy <code>python scripts/render_pipeline_map.py</code>.</p></header><main><h1 id="bản-đồ-công-thức-pipeline-spray-chuẩn">Bản đồ công thức pipeline spray chuẩn</h1>
+<blockquote>Bản đồ graph tương tác: <a href="pipeline-graph.html"><code>docs/pipeline-graph.html</code></a> — rebuild bằng <code>python scripts/build_pipeline_graph.py</code>.</blockquote>
+<blockquote>Phạm vi: đường chạy chuẩn <code>PlumeTransform</code> trong code hiện tại. Trang này lần theo dữ liệu đầu vào và các bước mô phỏng spray; không mô tả huấn luyện detector. Khi code và tài liệu cũ khác nhau, lấy code được liên kết dưới đây làm chuẩn.</blockquote>
+<nav class="index" aria-label="Các phần"><a href="#luồng-tổng-quát">Luồng tổng quát</a><a href="#1-hợp-đồng-dữ-liệu-đầu-vào">1. Hợp đồng dữ liệu đầu vào</a><a href="#2-mức-ướt-mặt-đường-tuỳ-chọn">2. Mức ướt mặt đường (tuỳ chọn)</a><a href="#3-chu-kỳ-cụm-cũ-trước-mới-sau">3. Chu kỳ cụm: cũ trước, mới sau</a><a href="#4-khởi-động-trạng-thái-và-sinh-cụm">4. Khởi động trạng thái và sinh cụm</a><a href="#5-trôi-cụm-gió-lực-cản-vị-trí">5. Trôi cụm: gió, lực cản, vị trí</a><a href="#6-tia-lidar-và-phản-hồi-spray">6. Tia LiDAR và phản hồi spray</a><a href="#7-ghép-đầu-ra">7. Ghép đầu ra</a><a href="#bảng-tra-nhanh-theo-công-thức">Bảng tra nhanh theo công thức</a></nav><h2 id="luồng-tổng-quát">Luồng tổng quát</h2>
+<pre><code>results: points + gt_bboxes_3d + plume_context
+  → PlumeTransform.__call__
+  → inject_plume_stateful
+      → (nếu bật) apply_wet_ground (nhánh hiện không đổi points_clean)
+      → advance cụm đang sống
+      → prune cụm đã tan
+      → warm_start khi bắt đầu cảnh
+      → spawn cụm mới phía sau xe
+  → raycast_frame(points_clean, state.select_alive())
+      → tia cắt cầu bụi? → xác suất phản hồi → suy hao / giữ echo mạnh nhất
+  → points = raycast.real_points + raycast.detections</code></pre>
+<p><code>PlumeTransform</code> là điểm vào của đường chuẩn. Nó cần <code>points</code> dạng N×5, hộp xe trong <code>gt_bboxes_3d</code>, và một <code>PlumeContext</code>. Thiếu context thì transform báo lỗi, không tự chuyển sang đường khác. Xem <a href="../spray/plume_transform.py#L85"><code>PlumeTransform.__call__</code></a>.</p>
+<p>Transform không tự đọc nhãn từng điểm và không tự bỏ <code>label == 2</code>; caller phải đưa đúng point cloud vào. <code>points_clean</code> ở đây có nghĩa là bản sao điểm đầu vào trước raycast, không đồng nghĩa với “đã lọc spray theo nhãn”.</p>
+<h2 id="1-hợp-đồng-dữ-liệu-đầu-vào">1. Hợp đồng dữ liệu đầu vào</h2>
+<div class="table-wrap"><table>
+<tr><th>Cần tra cứu</th><th>File / hàm</th><th>Ý nghĩa</th></tr>
+<tr><td>Dữ liệu của một frame</td><td><a href="../spray/plume_transform.py#L85"><code>PlumeTransform.__call__</code></a></td><td>Điểm LiDAR <code>points (N,5)</code>, hộp <code>gt_bboxes_3d (M,≥9)</code>, metadata/seed và <code>plume_context</code>.</td></tr>
+<tr><td>Trường context</td><td><a href="../spray/plume_context.py#L24"><code>PlumeContext</code></a></td><td>Cảnh, frame, epoch, gốc cảm biến, tốc độ ego/vật thể, độ ướt và cao độ mặt đường.</td></tr>
+<tr><td>Tái lập ngẫu nhiên</td><td><a href="../spray/plume_context.py#L204"><code>seed_for</code></a></td><td>Tạo seed ổn định theo cảnh, frame, epoch và seed gốc.</td></tr>
+<tr><td>Cách dựng context trong SSPP evaluator</td><td><a href="../scripts/sspp_infer.py#L492"><code>build_context</code></a></td><td>Nguồn tốc độ, mặt đường và vận tốc tương đối xe dẫn. Đây là caller của evaluator, không phải transform tự đọc dataset.</td></tr>
+</table></div>
+<p>Hộp theo adapter SSPP có thứ tự <code>[x, y, z_đáy, dài, rộng, cao, yaw, vx, vy]</code>; công thức chuyển hộp ở <a href="../spray/sspp_adapter.py#L90"><code>read_frame_boxes</code></a> và đóng gói mảng ở <a href="../spray/sspp_adapter.py#L128"><code>_boxes_to_arrays</code></a>. Đường chuẩn generic không tự chuyển hộp: nó nhận hộp đã được pipeline phía trước chuẩn bị.</p>
+<h2 id="2-mức-ướt-mặt-đường-tuỳ-chọn">2. Mức ướt mặt đường (tuỳ chọn)</h2>
+<p><code>inject_plume_stateful()</code> chỉ gọi <code>apply_wet_ground()</code> nếu caller truyền cấu hình bật. Hàm ở <a href="../spray/wet_ground.py#L140"><code>spray/wet_ground.py</code></a>; cấu hình mặc định trong <code>PlumeTransform</code> là <code>wet_ground=None</code>. Khi bật, generator hiện chỉ giữ <code>wet_stats</code>; raycast vẫn nhận <code>points_clean</code>, nên bước này không đổi điểm đầu ra.</p>
+<blockquote>Cần phân biệt: code có phép mô phỏng mặt đường ướt, nhưng điều đó không có nghĩa mọi lần chạy <code>PlumeTransform</code> đều áp dụng nó.</blockquote>
+<h2 id="3-chu-kỳ-cụm-cũ-trước-mới-sau">3. Chu kỳ cụm: cũ trước, mới sau</h2>
+<p>Điểm vào generator là <a href="../spray/plume.py#L307"><code>inject_plume_stateful</code></a>. Mỗi frame, generator cập nhật các cụm đã có bằng <code>state.advance(dt, ego_velocity=...)</code>, rồi gọi <code>state.prune(...)</code>; rồi mới lấy mức ướt, warm-start nếu sang cảnh mới và sinh cụm của frame hiện tại. Chu kỳ mặc định <code>Δt = 0,1 s</code> được khai báo tại <a href="../spray/plume.py#L69"><code>_UPDATE_CYCLE_TIME_S</code></a>.</p>
+<h3 id="3a-tuổi-thọ-trung-bình-t">3a. Tuổi thọ trung bình (T)</h3>
+<p><span class="formula"> T = 0{,}02\,wfh_{mm}\,(v_{km/h}-50)+0{,}2\quad [s] </span></p>
+<p>Hàm <a href="../spray/plume_state.py#L260"><code>lifetime_mean_s</code></a>; hệ số được khai báo ở <a href="../spray/plume_state.py#L62"><code>LIFETIME_WFH_COEFF</code>, <code>LIFETIME_BASE_S</code></a>. <code>wfh_mm</code> là màng nước tính bằng milimét; <code>v</code> là tốc độ xe dẫn tính bằng km/h. Đây là công thức port từ mã tham chiếu. Trong cấu hình hiện tại <code>lifetime_sigma_s=0</code>, vì vậy <code>ttl=T</code> (không bốc nhiễu quanh T).</p>
+<h3 id="3b-hệ-số-tích-lũy-k-và-nhịp-sinh">3b. Hệ số tích lũy (K) và nhịp sinh</h3>
+<p>Xác suất một cụm sống thêm một bước:</p>
+<p><span class="formula"> p=e^{-\Delta t/T} </span></p>
+<p>Các lứa cũ đóng góp (1,p,p^2,\ldots) cụm trung bình, do đó:</p>
+<p><span class="formula"> K=1+p+p^2+\cdots=\frac{1}{1-e^{-\Delta t/T}} </span></p>
+<p>Hàm <a href="../spray/plume.py#L256"><code>steady_state_factor</code></a>. Bảng calibration chứa số cụm nhìn thấy mỗi frame; nhịp sinh là <code>visible_ref / K</code>, trong <a href="../spray/plume.py#L181"><code>cluster_rate_for_speed</code></a>. Bảng theo tốc độ/loại xe là <a href="../spray/plume.py#L26"><code>_CLUSTER_VISIBLE_BY_SPEED</code></a>, giá trị là số đo RoadSpray static; các mốc giữa được nội suy.</p>
+<h3 id="3c-vị-trí-vùng-sinh">3c. Vị trí vùng sinh</h3>
+<p>Trong <a href="../spray/plume.py#L307"><code>inject_plume_stateful</code></a>, hộp xe xác định đuôi xe theo hướng <code>yaw</code>; vùng sinh là tấm ngay sau đuôi:</p>
+<p><span class="formula"> L=|v_{object}|\Delta t,\qquad W=3{,}4\,m,\qquad H=1{,}5\,m </span></p>
+<p>Chiều cao bắt đầu từ <code>road_z_m</code>. Kích thước cố định nằm ở <a href="../spray/plume.py#L63"><code>SPAWN_BOX_WIDTH_M</code>, <code>SPAWN_BOX_HEIGHT_M</code></a>. Bài báo nói rải đều phía sau vật thể; kích thước cụ thể là từ mã tham chiếu/thiết lập repo.</p>
+<h2 id="4-khởi-động-trạng-thái-và-sinh-cụm">4. Khởi động trạng thái và sinh cụm</h2>
+<p>Khi sang cảnh mới, <a href="../spray/plume_state.py#L298"><code>needs_warm_start</code></a> khiến generator gọi <a href="../spray/plume_state.py#L307"><code>warm_start</code></a>: chạy các chu kỳ giả để bắt đầu với vệt bụi đã hình thành. Sau đó <a href="../spray/plume_state.py#L349"><code>spawn</code></a> cộng nhịp dạng số thực vào <code>_spawn_credit</code>, lấy phần nguyên làm số cụm khung này và giữ phần lẻ cho khung sau.</p>
+<p>Mỗi cụm mới có vị trí rải đều trong vùng sinh, vận tốc ban đầu theo xe dẫn, <code>age=-dt</code>, bán kính log chuẩn và <code>ttl=T</code>. Công thức rải đều cùng phần lấy mẫu ở <a href="../spray/plume_state.py#L349"><code>spawn</code></a>.</p>
+<p>Bán kính lấy theo phân bố log chuẩn của paper, với trung vị đo/đặt cho repo là 0,31 m, độ lệch log <code>σ=0,72</code>, rồi chặn trên ở 2 m:</p>
+<p><span class="formula">r=\min(2{,}0,\ 0{,}31\,e^{0{,}72Z}),\qquad Z\sim\mathcal N(0,1)</span></p>
+<p>Các tham số tại <a href="../spray/plume_state.py#L117"><code>PlumeStateConfig</code></a>, phép lấy mẫu trong <a href="../spray/plume_state.py#L349"><code>PlumeState.spawn</code></a>. Bài báo đưa phân bố log chuẩn; trung vị 0,31 m và chặn 2 m là cấu hình/đo đạc của repo.</p>
+<h2 id="5-trôi-cụm-gió-lực-cản-vị-trí">5. Trôi cụm: gió, lực cản, vị trí</h2>
+<h3 id="gió">Gió</h3>
+<p><span class="formula"> v_{wind,x}=-s\sin(\theta_{from}),\qquad v_{wind,y}=-s\cos(\theta_{from}),\qquad v_{wind,z}=0 </span></p>
+<p><a href="../spray/plume_state.py#L268"><code>wind_vector</code></a>. Mặc định <code>s=2 m/s</code>, gió từ <code>208°</code>; quy ước khí tượng đảo hướng “from” thành hướng gió thổi tới. Hằng số ở <a href="../spray/plume_state.py#L108"><code>WIND_SPEED_MPS</code>, <code>WIND_FROM_DEG</code></a>.</p>
+<h3 id="lực-cản-và-cập-nhật-vị-trí">Lực cản và cập nhật vị trí</h3>
+<p>Vận tốc tương đối với không khí: <span class="formula-inline">\mathbf v_{air}=\mathbf v_{cluster}-\mathbf v_{wind}</span>. Với <span class="formula-inline">u=\|\mathbf v_{air}\|</span>, bước cập nhật rời rạc là:</p>
+<p><span class="formula"> \mathbf v'_{cluster}=\mathbf v_{cluster}+C\,\frac{\mathbf v_{air}}{u}\,u^2\Delta t, \qquad C=-0{,}15\;m^{-1} </span></p>
+<p>Sau đó đổi vị trí trong hệ gắn với xe cảm biến:</p>
+<p><span class="formula"> \mathbf p'_{ego}=\mathbf p_{ego}+(\mathbf v'_{cluster}-\mathbf v_{ego})\Delta t </span></p>
+<p>Cả hai công thức nằm trong <a href="../spray/plume_state.py#L491"><code>PlumeState.advance</code></a>, phép tính vận tốc tương đối và lực cản ở dòng 546–556, vị trí ở dòng 557–559. Hệ số <code>C</code> theo bài báo; quy ước hai hệ tọa độ và việc trừ vận tốc ego là triển khai của repo.</p>
+<h3 id="cụm-tan-prune">Cụm tan — <code>prune()</code></h3>
+<p><a href="../spray/plume_state.py#L530"><code>PlumeState.prune</code></a> gieo một số ngẫu nhiên cho mỗi cụm ở mỗi chu kỳ:</p>
+<p><span class="formula"> P_{survive}=e^{-\Delta t/ttl},\qquad P_{expire}=1-P_{survive} </span></p>
+<p>Số ngẫu nhiên nhỏ hơn <code>P_survive</code> thì giữ cụm; ngược lại loại cụm. Tuổi lớn hơn <code>12×ttl</code> bị loại để chặn phần đuôi xác suất gần bằng 0 (dòng 603–619). Luật mũ là [PAPER] Eq. 1; ngưỡng <code>12×ttl</code> chỉ là chốt tính toán.</p>
+<h2 id="6-tia-lidar-và-phản-hồi-spray">6. Tia LiDAR và phản hồi spray</h2>
+<h3 id="lưới-tia-và-giao-cầu">Lưới tia và giao cầu</h3>
+<p><a href="../spray/beam_model.py#L55"><code>load_beam_table</code></a> tạo lưới góc tia; <a href="../spray/beam_model.py#L75"><code>build_beams</code></a> đổi góc thành vectơ hướng. Mỗi tia <span class="formula-inline">t\mathbf d</span> cắt cầu tâm <span class="formula-inline">\mathbf c</span>, bán kính <span class="formula-inline">r</span>, bằng cách giải:</p>
+<p><span class="formula"> \|t\mathbf d-\mathbf c\|^2=r^2 </span></p>
+<p><a href="../spray/beam_model.py#L157"><code>ray_sphere_intersect</code></a> giải phương trình bậc hai và trả khoảng cách vào/ra cầu; raycast chỉ kiểm tra những tia trong vùng góc của cầu ở <a href="../spray/raycast.py#L462"><code>_collect_hits</code></a>.</p>
+<h3 id="xác-suất-phản-hồi">Xác suất phản hồi</h3>
+<p>Paper lấy <span class="formula-inline">P_{det,0}</span> theo log chuẩn với <span class="formula-inline">\ln P_{det,0}\sim\mathcal N(-2{,}3,1{,}1^2)</span>; mã lấy một giá trị cho mỗi cụm, rồi dùng chung cho các tia cắt cụm. Mặc định xác suất theo cự ly tắt (<code>b=0</code>):</p>
+<p><span class="formula"> P_{hit}=\min(1,P_{det,0}\,scale)\,P_t </span></p>
+<p>Mã thực thi ở <a href="../spray/raycast.py#L332"><code>raycast_frame</code></a>, cấu hình paper ở <a href="../spray/raycast.py#L99"><code>RaycastConfig</code></a>. Nếu biến môi trường/cấu hình bật số mũ cự ly, bổ sung <span class="formula-inline">(R/25m)^b</span>; đây là hiệu chỉnh theo dữ liệu, không phải công thức paper.</p>
+<h3 id="suy-hao-và-echo-mạnh-nhất">Suy hao và echo mạnh nhất</h3>
+<p>Với tổng chiều dài đường đi trong bụi <span class="formula-inline">L</span>, cường độ phản hồi suy giảm:</p>
+<p><span class="formula"> A=e^{-2\mu L},\qquad \mu=0{,}02\;m^{-1} </span></p>
+<p>Áp dụng cho điểm thật phía sau bụi ở <a href="../spray/raycast.py#L315"><code>raycast_frame</code></a> và điểm spray ở dòng 350–360. Sau đó <a href="../spray/raycast.py#L600"><code>_keep_strongest_per_beam</code></a> chỉ giữ echo mạnh nhất trên từng tia; điểm bụi cường độ xuất ra là 0.</p>
+<h2 id="7-ghép-đầu-ra">7. Ghép đầu ra</h2>
+<p><code>PlumeTransform.__call__</code> raycast trên <code>result.points_clean</code> và các cụm còn trong miền (<code>state.select_alive()</code>). Hàm này lọc theo mặt cầu không gần hơn 2,5 m và tâm không xa hơn 50 m, trong <a href="../spray/plume_state.py#L586"><code>PlumeState.select_alive</code></a>. Sau đó nó ghép:</p>
+<p><span class="formula"> points_{out}=real_{remaining}+detections_{spray} </span></p>
+<p>Đoạn ghép ở <a href="../spray/plume_transform.py#L129"><code>spray/plume_transform.py</code></a>. Generator giữ cụm ở dạng hình cầu; raycast sinh điểm phản hồi trên các tia trúng cụm.</p>
+<h2 id="bảng-tra-nhanh-theo-công-thức">Bảng tra nhanh theo công thức</h2>
+<div class="table-wrap"><table>
+<tr><th>Muốn tìm</th><th>Hàm</th><th>File</th></tr>
+<tr><td>Từ tốc độ và độ ướt ra tuổi thọ (T)</td><td><code>lifetime_mean_s</code></td><td><a href="../spray/plume_state.py#L260"><code>plume_state.py</code></a></td></tr>
+<tr><td>Từ (T,\Delta t) ra hệ số tích lũy (K)</td><td><code>steady_state_factor</code></td><td><a href="../spray/plume.py#L256"><code>plume.py</code></a></td></tr>
+<tr><td>Nhịp sinh cụm từ số cụm mục tiêu</td><td><code>cluster_rate_for_speed</code></td><td><a href="../spray/plume.py#L181"><code>plume.py</code></a></td></tr>
+<tr><td>Cộng phần lẻ nhịp sinh thành số nguyên cụm</td><td><code>PlumeState.spawn</code></td><td><a href="../spray/plume_state.py#L349"><code>plume_state.py</code></a></td></tr>
+<tr><td>Gió</td><td><code>wind_vector</code></td><td><a href="../spray/plume_state.py#L268"><code>plume_state.py</code></a></td></tr>
+<tr><td>Lực cản và cập nhật vị trí</td><td><code>PlumeState.advance</code></td><td><a href="../spray/plume_state.py#L491"><code>plume_state.py</code></a></td></tr>
+<tr><td>Xác suất sống / tan</td><td><code>PlumeState.prune</code></td><td><a href="../spray/plume_state.py#L530"><code>plume_state.py</code></a></td></tr>
+<tr><td>Tia cắt cầu</td><td><code>ray_sphere_intersect</code></td><td><a href="../spray/beam_model.py#L157"><code>beam_model.py</code></a></td></tr>
+<tr><td>Xác suất echo, suy hao, occlusion</td><td><code>raycast_frame</code></td><td><a href="../spray/raycast.py#L166"><code>raycast.py</code></a></td></tr>
+<tr><td>Ghép điểm đầu ra</td><td><code>PlumeTransform.__call__</code></td><td><a href="../spray/plume_transform.py#L85"><code>plume_transform.py</code></a></td></tr>
+</table></div>
+<h2 id="cập-nhật-bản-đồ">Cập nhật bản đồ</h2>
+<p>Khi đổi cơ chế hoặc hằng số pipeline, agent cập nhật phần bước tương ứng trong file Markdown này, kiểm tra link dòng mã và nhãn nguồn, sau đó chạy:</p>
+<pre><code>python scripts/render_pipeline_map.py</code></pre>
+<p>Không sửa HTML sinh ra trực tiếp. Script renderer chỉ chuyển Markdown thành HTML offline, không tải tài nguyên bên ngoài.</p></main><a class="top" href="#">Lên đầu</a></body></html>
