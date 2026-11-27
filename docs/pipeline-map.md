@@ -95,12 +95,11 @@ Các tham số tại [`PlumeStateConfig`](../spray/plume_state.py#L117), phép l
 
 ### Gió
 
-\[
-v_{wind,x}=-s\sin(\theta_{from}),\qquad
-v_{wind,y}=-s\cos(\theta_{from}),\qquad v_{wind,z}=0
-\]
+`v_gió = (v_x, v_y, v_z) = (−s·sin(θ_from), −s·cos(θ_from), 0)`
 
-[`wind_vector`](../spray/plume_state.py#L268). Mặc định `s=2 m/s`, gió từ `208°`; quy ước khí tượng đảo hướng “from” thành hướng gió thổi tới. Hằng số ở [`WIND_SPEED_MPS`, `WIND_FROM_DEG`](../spray/plume_state.py#L108).
+[`wind_vector`](../spray/plume_state.py#L268). `s` là tốc độ gió; `θ_from` là hướng gió thổi **từ** đâu theo quy ước khí tượng. Dấu trừ đảo hướng từ nơi gió đến nơi gió thổi tới. Với `s=2 m/s`, `θ_from=208°`, code tính gần đúng `(v_x,v_y,v_z)=(0,94; 1,77; 0) m/s`: gió thổi về phía đông và bắc. Hằng số ở [`WIND_SPEED_MPS`, `WIND_FROM_DEG`](../spray/plume_state.py#L108).
+
+**Giả định tọa độ cần lưu ý:** `wind_vector()` gọi hai thành phần là đông và bắc, còn `advance()` trừ vector này trực tiếp khỏi vận tốc cụm. Hàm không nhận hướng/yaw của xe để xoay gió sang hệ LiDAR/ego. Vì vậy công thức đúng nếu các trục đang dùng khớp giả định đông–bắc; nếu `+x` của frame là hướng xe, cần kiểm tra phép đổi hệ tọa độ trước khi xem đây là gió thế giới đã căn đúng.
 
 ### Lực cản và cập nhật vị trí
 

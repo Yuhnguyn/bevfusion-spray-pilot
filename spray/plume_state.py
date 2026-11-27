@@ -67,18 +67,23 @@ LIFETIME_SIGMA_S = 0.0
 # Trần **SỐ HỌC** 12·T, không phải mô hình. Cụm tan theo xác suất
 # `P = exp(−Δt/T)` [PAPER] Eq. 1; `exp(−12) = 6e-6` nên trần này cắt < 1 cụm/10⁵.
 MAX_AGE_FACTOR = 12.0
-# [PAPER] Fig. 5: `r_cl` là **một** lognormal duy nhất, median 0,30 m, sigma ≈ 0,8.
-# Paper KHÔNG cho bán kính phụ thuộc tốc độ, và phép đo trên RoadSpray `*_static`
-# (Δ=1,0 m) xác nhận: r50 = 0,288–0,349 m ở cả 9 tốc độ, rsig median 0,720.
-# ⇒ dùng hằng số, không dùng bảng theo tốc độ.
+# [PAPER] Fig. 5: `r_cl` là **một** lognormal duy nhất. Paper KHÔNG cho bán kính
+# phụ thuộc tốc độ ⇒ dùng hằng số, không dùng bảng theo tốc độ.
 RADIUS_MU = -1.2
-RADIUS_SIGMA = 0.72
-# Clip **số học** theo p99 của lognormal paper
-# (exp(−1,2 + 2,326·0,72) = 1,61 m). Paper không đặt trần; 2,0 m nằm giữa
-# p99 (1,61) và p99,9 (2,79) nên cắt bớt ~0,1 % đuôi, không đụng thân phân bố.
-RADIUS_MAX_M = 2.0
-# [ĐO] trung vị 3 mốc static Δ=1,0 = 0,311 m; paper = 0,301 m ⇒ lấy 0,31.
-RADIUS_MEDIAN_M = 0.31
+# [PAPER] Fig. 5 nguyên văn: "The parameters of the distribution are µ = −1.2 and
+# σ = 0.8 as an example." ⇒ σ = 0,8. (Trước đây dùng 0,720 — đó là σ của phép đo
+# RoadSpray `*_static`, KHÔNG phải σ của paper; xem
+# docs/measurements/sspp-cluster-radius-by-speed.md §3 mục 2: σ đo bị phồng bởi
+# các chuỗi đã gộp nên không so được với số paper.)
+RADIUS_SIGMA = 0.8
+# [PAPER] Paper §III-B KHÔNG đặt trần cho r_cl — nguyên văn "The parameters of the
+# distribution are µ = −1.2 and σ = 0.8 as an example", không có clip. Trần 2,0 m
+# trước đây là [CHỌN] của repo, biện minh bằng "cắt ~0,1 % đuôi" — sai số học
+# (với σ=0,72 thì P(r>2,0) = 0,43 %; với σ=0,8 là 0,90 %). Giữ hằng số = inf để
+# một chỗ duy nhất điều khiển được (test/probe vẫn truyền số hữu hạn khi cần).
+RADIUS_MAX_M = float("inf")
+# [PAPER] median = e^−1,2 = 0,3012 m (Fig. 5).
+RADIUS_MEDIAN_M = 0.3012
 
 
 def cluster_radius_median_for_speed(speed_kmh: float) -> float:
@@ -123,6 +128,8 @@ class PlumeStateConfig:
     still sample it.
 
     ``radius_mu`` / ``radius_sigma`` are the paper's lognormal for ``r_cl``.
+    ``radius_max_m`` defaults to ``inf`` (the paper sets no cap on ``r_cl``);
+    pass a finite number to clip.
     """
 
     lifetime_sigma_s: float = LIFETIME_SIGMA_S
@@ -440,6 +447,7 @@ class PlumeState:
                 np.exp(rng.normal(float(np.log(radius_median)),
                                   cfg.radius_sigma))
             )
+            # radius_max_m = inf (paper không có trần) ⇒ min() là no-op; caller có thể truyền số hữu hạn.
             radius = min(cfg.radius_max_m, radius_draw)
             ttl = max(
                 0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))

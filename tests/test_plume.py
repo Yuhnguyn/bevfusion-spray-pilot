@@ -50,3 +50,17 @@ def test_steady_state_cluster_factor_is_the_paper_geometric_sum():
     assert at_fifty == pytest.approx(2.5415, abs=1e-4)
     # T tăng nhẹ theo tốc độ (dee.cpp:530) nên K ở 130 km/h lớn hơn.
     assert steady_state_cluster_factor(130.0, config) > at_fifty
+
+
+def test_radius_distribution_matches_paper():
+    """[PAPER] Fig. 5: r_cl = exp(-1.2 + 0.8 Z), KHÔNG có trần."""
+    from spray.plume_state import PlumeState, PlumeStateConfig, RADIUS_MAX_M
+    import numpy as np
+
+    assert RADIUS_MAX_M == float("inf"), "paper không đặt trần cho r_cl"
+    cfg = PlumeStateConfig(radius_sigma=0.8)
+    rng = np.random.default_rng(0)
+    draws = np.exp(rng.normal(np.log(0.3012), cfg.radius_sigma, size=200_000))
+    assert abs(np.median(draws) - 0.3012) < 0.01
+    # p90 lý thuyết = exp(-1.2 + 1.2816*0.8) = 0.84 m
+    assert abs(np.percentile(draws, 90) - 0.84) < 0.05

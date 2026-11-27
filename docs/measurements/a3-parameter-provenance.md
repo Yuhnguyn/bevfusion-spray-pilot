@@ -171,6 +171,38 @@ comment của nó lại ghi SSPP — xem §4.2.
 
 ---
 
+## 6b. Đã sửa 2026-11-27 — phân bố `r_cl` khớp paper (ticket 02b)
+
+Ba sai lệch của lognormal bán kính so với paper Fig. 5 đã được sửa **trong code**
+(`spray/plume_state.py`):
+
+| Sai lệch | Trước | Sau | Nguồn |
+|---|---|---|---|
+| `RADIUS_SIGMA` | 0,72 | **0,8** | `[PAPER]` Fig. 5 nguyên văn: “µ = −1.2 and σ = 0.8”. Số 0,720 là **σ của phép đo RoadSpray `*_static`**, không phải σ của paper; `sspp-cluster-radius-by-speed.md` §3 mục 2 đã ghi σ đo (1,67) bị phồng bởi chuỗi đã gộp nên không so được với paper |
+| `RADIUS_MAX_M` | 2,0 m | **`inf`** | `[PAPER]` §III-B không đặt trần. Comment cũ biện minh “cắt ~0,1 % đuôi” là **sai số học**: với σ=0,72 thì `P(r>2,0) = 0,43 %`; với σ=0,8 là 0,90 % |
+| `RADIUS_MEDIAN_M` | 0,31 | **0,3012** | `[PAPER]` `e^−1.2 = 0,3012 m` (`RADIUS_MU = −1.2` giữ nguyên, `log(0.3012) = −1.2` nên hai hằng số nhất quán) |
+
+`[ĐO]` — hệ quả đo trên scene `Crafter_dynamic/0060` (100 km/h) và `0096` (130 km/h), 50 frame,
+cùng seed, đo sau `select_alive()` (`.scratch/tmp/radius_variants.py`):
+
+| 100 km/h | r p50 | r p90 | r p99 | r max | ở trần | det p50 | det mean |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A paper (µ=−1,2 σ=0,8, không trần) | 0,31 | 1,03 | 2,14 | 3,23 | 0 % | 436 | 484 |
+| **B code cũ** (0,31 σ=0,72 trần 2,0) | 0,31 | 0,91 | 1,76 | 2,00 | 0,5 % | 373 | 407 |
+| C 0,31 σ=0,72 không trần | 0,31 | 0,91 | 1,76 | 2,56 | 0 % | 378 | 411 |
+| D 0,31 σ=0,80 không trần | 0,31 | 1,03 | 2,14 | 3,23 | 0 % | 436 | 484 |
+
+| 130 km/h | r p50 | r p90 | r p99 | r max | det p50 | det mean |
+|---|---:|---:|---:|---:|---:|---:|
+| A paper | 0,29 | 0,77 | 1,41 | 1,41 | 220 | 268 |
+| **B code cũ** | 0,29 | 0,70 | 1,21 | 1,21 | 200 | 239 |
+| C 0,31 σ=0,72 không trần | 0,29 | 0,70 | 1,21 | 1,21 | 200 | 239 |
+| D 0,31 σ=0,80 không trần | 0,29 | 0,77 | 1,41 | 1,41 | 220 | 268 |
+
+`[SUY LUẬN]` Bỏ trần ở 100 km/h chỉ thêm 1,3 % det (373→378) vì chỉ 0,5 % cụm chạm trần;
+sửa σ 0,72→0,80 mới thêm 17 % (373→436) vì đuôi nặng hơn. Ở 130 km/h trần **không bao giờ chạm**
+(`r max` 1,21 < 2,0) nên bỏ trần ở tốc độ đó là no-op.
+
 ## 7. Kết luận ngắn
 
 - Bảng A: 33 dòng, trong đó **HỢP LỆ 23 · CẦN ĐO LẠI 6 · PHẢI BỎ 4**.

@@ -34,7 +34,7 @@ của một kết luận đã từng được dùng để ra quyết định.
 **3. Bảng tra chốt (dưới đây) là nơi duy nhất được liệt kê các cặp "đã đảo".** Không thêm
 cặp mới ở nơi khác; sửa bảng này.
 
-## Bảng tra — 5 cơ chế đã bị đảo
+## Bảng tra — 6 cơ chế đã bị đảo
 
 ### (S1) `prune` — cắt cứng `4T` → tan theo xác suất
 
@@ -80,6 +80,15 @@ cặp mới ở nơi khác; sửa bảng này.
 | Code hiện tại | `spray/plume.py:23-60` — `_CLUSTER_VISIBLE_BY_SPEED` dựng từ `a3_targets_static.json`, Δ=1,0 m |
 | Quyết định | ADR-0006 **D2** (2026-11-18) |
 | Vì sao đảo | `cal` chứa 6/12 scene test ⇒ tham số fit một phần trên chính dữ liệu báo kết quả |
+
+### (S6) Trần bán kính cụm `RADIUS_MAX_M = 2,0 m` — bỏ hẳn (`inf`)
+
+| | |
+|---|---|
+| Tài liệu còn nói cũ | `docs/measurements/a3-parameter-provenance.md` §1 (dòng `RADIUS_MAX_M`), `docs/measurements/plume-a3-diagnosis.md` §“clip 2,0 m giữ nguyên” |
+| Code hiện tại | `spray/plume_state.py:84` — `RADIUS_MAX_M = float("inf")`, kèm comment `[PAPER]` |
+| Quyết định | Ticket 02b (2026-11-27), `[PAPER]` §III-B: không đặt trần cho `r_cl` |
+| Vì sao đảo | Paper không có trần; comment biện minh cũ ghi "cắt ~0,1 % đuôi" trong khi thực tế với σ=0,72 là `P(r>2,0) = 0,43 %` |
 
 **Lưu ý về (S5):** bảng SSPP `cal` vẫn còn **một** vai trò hợp lệ — kiểm chứng chéo
 (`docs/measurements/sspp-cluster-table-folds.md`, r = 0,77 với bảng static). Nó không còn là

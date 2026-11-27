@@ -146,7 +146,10 @@ def main() -> None:
           f"itr_after_water={metadata.get('itr_after_water')}", flush=True)
 
     state = PlumeState()
-    config = PlumeConfig()
+    # wfh cố định 1 mm (itr = 1, mực nước cao nhất của SSPP) để so sánh chéo
+    # tốc độ công bằng — không lấy mẫu theo scene (water_film_mm khác None ⇒
+    # inject_plume_stateful dùng số đó, log "PLUME_WFH fixed=1").
+    config = PlumeConfig(water_film_mm=1.0)
     frames: list[Path] = []
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -177,9 +180,13 @@ def main() -> None:
         # điểm vật chất hoá ring=-1 vốn vô hiệu với detector
         # (spray/raycast.py:117). Bản cũ vẽ injected => trông "tròn vo" như cụm
         # cứng — đúng cái user bắt được trong clip.
+        # Dùng select_alive() như production (spray/plume_transform.py:132), KHÔNG dùng
+        # all_alive(): all_alive gồm cả cụm nằm ngoài miền mô hình (min_range 2,5 m /
+        # max_range 50 m), nên clip tô hồng phần detections mà training không bao giờ thấy.
+        # Đo được: 130 km/h 550 det (all_alive) vs 239 det (select_alive) — lệch 2,3×.
         ray = raycast_frame(
             result.points_clean,
-            state.all_alive(),
+            state.select_alive(),
             table=vlp32c_table(),
             road_z_m=road_z,
             rng=np.random.default_rng(555 + position),
@@ -210,7 +217,8 @@ def main() -> None:
         frames.append(png)
         if position % 10 == 0 or position == len(selected) - 1:
             print(f"  [{position + 1}/{len(selected)}] real spray "
-                  f"{int(real_spray.sum()):5d} · sinh {synthetic.shape[0]:5d} điểm",
+                  f"{int(real_spray.sum()):5d} · sinh {synthetic.shape[0]:5d} điểm "
+                  f"· cụm {len(state.all_alive())} (giữ {len(state.select_alive())})",
                   flush=True)
 
     ffmpeg = shutil.which("ffmpeg")

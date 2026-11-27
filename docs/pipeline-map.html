@@ -65,8 +65,9 @@ pre,code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}pre{overflow
 <p>Các tham số tại <a href="../spray/plume_state.py#L117"><code>PlumeStateConfig</code></a>, phép lấy mẫu trong <a href="../spray/plume_state.py#L349"><code>PlumeState.spawn</code></a>. Bài báo đưa phân bố log chuẩn; trung vị 0,31 m và chặn 2 m là cấu hình/đo đạc của repo.</p>
 <h2 id="5-trôi-cụm-gió-lực-cản-vị-trí">5. Trôi cụm: gió, lực cản, vị trí</h2>
 <h3 id="gió">Gió</h3>
-<p><span class="formula"> v_{wind,x}=-s\sin(\theta_{from}),\qquad v_{wind,y}=-s\cos(\theta_{from}),\qquad v_{wind,z}=0 </span></p>
-<p><a href="../spray/plume_state.py#L268"><code>wind_vector</code></a>. Mặc định <code>s=2 m/s</code>, gió từ <code>208°</code>; quy ước khí tượng đảo hướng “from” thành hướng gió thổi tới. Hằng số ở <a href="../spray/plume_state.py#L108"><code>WIND_SPEED_MPS</code>, <code>WIND_FROM_DEG</code></a>.</p>
+<p><code>v_gió = (v_x, v_y, v_z) = (−s·sin(θ_from), −s·cos(θ_from), 0)</code></p>
+<p><a href="../spray/plume_state.py#L268"><code>wind_vector</code></a>. <code>s</code> là tốc độ gió; <code>θ_from</code> là hướng gió thổi <strong>từ</strong> đâu theo quy ước khí tượng. Dấu trừ đảo hướng từ nơi gió đến nơi gió thổi tới. Với <code>s=2 m/s</code>, <code>θ_from=208°</code>, code tính gần đúng <code>(v_x,v_y,v_z)=(0,94; 1,77; 0) m/s</code>: gió thổi về phía đông và bắc. Hằng số ở <a href="../spray/plume_state.py#L108"><code>WIND_SPEED_MPS</code>, <code>WIND_FROM_DEG</code></a>.</p>
+<p><strong>Giả định tọa độ cần lưu ý:</strong> <code>wind_vector()</code> gọi hai thành phần là đông và bắc, còn <code>advance()</code> trừ vector này trực tiếp khỏi vận tốc cụm. Hàm không nhận hướng/yaw của xe để xoay gió sang hệ LiDAR/ego. Vì vậy công thức đúng nếu các trục đang dùng khớp giả định đông–bắc; nếu <code>+x</code> của frame là hướng xe, cần kiểm tra phép đổi hệ tọa độ trước khi xem đây là gió thế giới đã căn đúng.</p>
 <h3 id="lực-cản-và-cập-nhật-vị-trí">Lực cản và cập nhật vị trí</h3>
 <p>Vận tốc tương đối với không khí: <span class="formula-inline">\mathbf v_{air}=\mathbf v_{cluster}-\mathbf v_{wind}</span>. Với <span class="formula-inline">u=\|\mathbf v_{air}\|</span>, bước cập nhật rời rạc là:</p>
 <p><span class="formula"> \mathbf v'_{cluster}=\mathbf v_{cluster}+C\,\frac{\mathbf v_{air}}{u}\,u^2\Delta t, \qquad C=-0{,}15\;m^{-1} </span></p>
