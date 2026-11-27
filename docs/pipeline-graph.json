@@ -415,12 +415,12 @@
       "group": "cycle",
       "description": "True khi state chưa từng chạy cho scene này (scene mới).",
       "file": "spray/plume_state.py",
-      "start_line": 303,
-      "end_line": 305,
-      "editor_link": "../spray/plume_state.py#L303",
+      "start_line": 310,
+      "end_line": 312,
+      "editor_link": "../spray/plume_state.py#L310",
       "highlight_lines": [
-        303,
-        305
+        310,
+        312
       ],
       "formulas": [],
       "color": "#147d70",
@@ -435,24 +435,24 @@
       "group": "cycle",
       "description": "Chạy các chu kỳ giả để scene bắt đầu với vệt bụi đã bão hoà thay vì state rỗng.",
       "file": "spray/plume_state.py",
-      "start_line": 307,
-      "end_line": 347,
-      "editor_link": "../spray/plume_state.py#L307",
+      "start_line": 314,
+      "end_line": 354,
+      "editor_link": "../spray/plume_state.py#L314",
       "highlight_lines": [
-        307,
-        331,
-        336,
-        337,
+        314,
         338,
-        339,
-        340,
-        341,
-        342,
         343,
         344,
         345,
         346,
-        347
+        347,
+        348,
+        349,
+        350,
+        351,
+        352,
+        353,
+        354
       ],
       "formulas": [],
       "color": "#147d70",
@@ -467,26 +467,26 @@
       "group": "cycle",
       "description": "Sinh cụm mới: cộng dồn nhịp sinh, rải đều trong khối sau xe, bán kính log chuẩn, ttl = T.",
       "file": "spray/plume_state.py",
-      "start_line": 349,
-      "end_line": 489,
-      "editor_link": "../spray/plume_state.py#L349",
+      "start_line": 356,
+      "end_line": 497,
+      "editor_link": "../spray/plume_state.py#L356",
       "highlight_lines": [
-        349,
-        398,
-        439,
-        440,
-        441,
-        442,
-        443,
-        444,
-        445,
+        356,
+        405,
         446,
-        457
+        447,
+        448,
+        449,
+        451,
+        452,
+        453,
+        454,
+        465
       ],
       "formulas": [
         {
-          "latex": "r=\\min(2{,}0,\\ 0{,}31\\,e^{0{,}72Z}),\\qquad Z\\sim\\mathcal N(0,1)",
-          "html": "<i>r</i><span class=\"op\">=</span><span class=\"fn\">min</span><span class=\"br\">(</span><span class=\"mn\">2</span><span class=\"punc\">,</span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"thin\"></span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">3</span><span class=\"mn\">1</span><span class=\"thin\"></span><i>e</i><sup><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">7</span><span class=\"mn\">2</span><i>Z</i></sup><span class=\"br\">)</span><span class=\"punc\">,</span><span class=\"qquad\"></span><wbr><i>Z</i><span class=\"sym\">∼</span><span class=\"cal\">𝒩</span><span class=\"br\">(</span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">1</span><span class=\"br\">)</span>"
+          "latex": "r=0{,}3012\\,e^{0{,}8Z},\\qquad Z\\sim\\mathcal N(0,1)",
+          "html": "<i>r</i><span class=\"op\">=</span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">3</span><span class=\"mn\">0</span><span class=\"mn\">1</span><span class=\"mn\">2</span><span class=\"thin\"></span><i>e</i><sup><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">8</span><i>Z</i></sup><span class=\"punc\">,</span><span class=\"qquad\"></span><wbr><i>Z</i><span class=\"sym\">∼</span><span class=\"cal\">𝒩</span><span class=\"br\">(</span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">1</span><span class=\"br\">)</span>"
         }
       ],
       "color": "#147d70",
@@ -501,15 +501,15 @@
       "group": "cycle",
       "description": "Tuổi thọ trung bình T từ tốc độ vật và màng nước wfh.",
       "file": "spray/plume_state.py",
-      "start_line": 260,
-      "end_line": 265,
-      "editor_link": "../spray/plume_state.py#L260",
+      "start_line": 267,
+      "end_line": 272,
+      "editor_link": "../spray/plume_state.py#L267",
       "highlight_lines": [
-        260,
-        262,
-        263,
-        264,
-        265
+        267,
+        269,
+        270,
+        271,
+        272
       ],
       "formulas": [
         {
@@ -590,22 +590,22 @@
       "group": "drift",
       "description": "Trôi cụm bằng gió + lực cản; vị trí tích phân trong hệ ego; tăng tuổi thêm dt.",
       "file": "spray/plume_state.py",
-      "start_line": 491,
-      "end_line": 528,
-      "editor_link": "../spray/plume_state.py#L491",
+      "start_line": 499,
+      "end_line": 536,
+      "editor_link": "../spray/plume_state.py#L499",
       "highlight_lines": [
-        491,
-        514,
-        517,
-        518,
-        519,
-        520,
-        521,
+        499,
         522,
-        523,
-        524,
+        525,
         526,
-        527
+        527,
+        528,
+        529,
+        530,
+        531,
+        532,
+        534,
+        535
       ],
       "formulas": [
         {
@@ -629,22 +629,22 @@
       "group": "drift",
       "description": "Loại cụm theo xác suất sống exp(-Δt/ttl) và trần tuổi 12×ttl.",
       "file": "spray/plume_state.py",
-      "start_line": 530,
-      "end_line": 571,
-      "editor_link": "../spray/plume_state.py#L530",
+      "start_line": 538,
+      "end_line": 579,
+      "editor_link": "../spray/plume_state.py#L538",
       "highlight_lines": [
-        530,
-        556,
-        557,
-        558,
-        559,
-        560,
-        561,
-        562,
-        563,
+        538,
         564,
         565,
-        566
+        566,
+        567,
+        568,
+        569,
+        570,
+        571,
+        572,
+        573,
+        574
       ],
       "formulas": [
         {
@@ -664,14 +664,14 @@
       "group": "drift",
       "description": "Vận tốc gió trong hệ ego từ hướng khí tượng “from” (208°).",
       "file": "spray/plume_state.py",
-      "start_line": 268,
-      "end_line": 278,
-      "editor_link": "../spray/plume_state.py#L268",
+      "start_line": 275,
+      "end_line": 285,
+      "editor_link": "../spray/plume_state.py#L275",
       "highlight_lines": [
-        268,
         275,
-        276,
-        277
+        282,
+        283,
+        284
       ],
       "formulas": [
         {
@@ -954,17 +954,17 @@
       "group": "output",
       "description": "Lọc cụm theo miền hợp lệ: mặt cầu ≥ min_range, tâm ≤ max_range.",
       "file": "spray/plume_state.py",
-      "start_line": 586,
-      "end_line": 612,
-      "editor_link": "../spray/plume_state.py#L586",
+      "start_line": 594,
+      "end_line": 620,
+      "editor_link": "../spray/plume_state.py#L594",
       "highlight_lines": [
-        586,
-        602,
-        603,
-        607,
-        608,
-        609,
-        610
+        594,
+        610,
+        611,
+        615,
+        616,
+        617,
+        618
       ],
       "formulas": [],
       "color": "#b05c42",
@@ -1243,26 +1243,26 @@
     },
     "needs_warm_start": {
       "file": "spray/plume_state.py",
-      "start_line": 303,
-      "end_line": 305,
+      "start_line": 310,
+      "end_line": 312,
       "code": "    def needs_warm_start(self, scene_token: str) -> bool:\n        \"\"\"True khi state chưa từng chạy cho scene này (sẽ reset khi spawn).\"\"\"\n        return scene_token != self._scene_token"
     },
     "warm_start": {
       "file": "spray/plume_state.py",
-      "start_line": 307,
-      "end_line": 347,
+      "start_line": 314,
+      "end_line": 354,
       "code": "    def warm_start(\n        self,\n        context,\n        *,\n        object_id: int,\n        rng: np.random.Generator,\n        dt: float,\n        center: np.ndarray,\n        extents: np.ndarray,\n        vehicle_class: str = \"crafter\",\n        direction: np.ndarray | None = None,\n        cycles: int | None = None,\n    ) -> None:\n        \"\"\"Chạy ``cycles`` chu kỳ GIẢ để scene bắt đầu ở trạng thái dừng.\n\n        ``[ĐO] 2026-11-19``: scene SSPP chỉ 40–67 frame, trong khi plume cần\n        ``max_age_factor*T/dt`` (48 frame @100 km/h, 73 @130) mới bão hoà. Khởi\n        động từ state RỖNG làm nửa đầu mỗi scene thiếu spray và cuối scene lại\n        dư — phân tích pixel trên clip cho thấy generator dày 0 lần ở frame đầu\n        và 1,9× ở frame giữa. Dữ liệu thật thì frame 0 đã có plume vì xe đã chạy\n        từ trước scene. Warm start tái tạo đúng điều kiện đó.\n        \"\"\"\n        if cycles is None:\n            v_abs_kmh = context.object_speed_mps * 3.6\n            ttl = lifetime_mean_s(v_abs_kmh, context.wfh_mm)\n            cycles = int(np.ceil(self._config.max_age_factor * ttl / dt)) + 1\n        ego_velocity = np.array([context.ego_speed_mps, 0.0, 0.0],\n                                dtype=np.float64)\n        for _ in range(max(0, cycles)):\n            self.advance(dt, ego_velocity=ego_velocity)\n            self.prune(dt=dt, rng=rng)\n            self.spawn(\n                context,\n                object_id=object_id,\n                rng=rng,\n                dt=dt,\n                center=center,\n                extents=extents,\n                vehicle_class=vehicle_class,\n                direction=direction,\n            )"
     },
     "PlumeState.spawn": {
       "file": "spray/plume_state.py",
-      "start_line": 349,
-      "end_line": 489,
-      "code": "    def spawn(\n        self,\n        context,\n        *,\n        object_id: int,\n        rng: np.random.Generator,\n        dt: float = DEFAULT_DT_S,\n        center: np.ndarray | None = None,\n        extents: np.ndarray | None = None,\n        config: PlumeStateConfig | None = None,\n        vehicle_class: str = \"crafter\",\n        direction: np.ndarray | None = None,\n    ) -> list[SprayCluster]:\n        \"\"\"Sinh cụm của chu kỳ này cho một vật thể.\n\n        ``count`` theo bảng cụm/frame đo được; phần lẻ cộng dồn qua\n        ``_spawn_credit`` nên số cụm sống dài hạn khớp bảng. ``T`` dùng\n        ``v_abs`` (``object_speed_mps``).\n\n        Vận tốc ban đầu là vận tốc **mặt đất**: ``object_velocity_ego_mps``\n        cộng vận tốc ego ``[ego_speed_mps, 0, 0]``. Nếu caller không truyền\n        vận tốc vật thể, hàm rơi về giả định vật chạy theo ``+x`` trong hệ ego\n        ⇒ ``v_ground = [object_speed_mps, 0, 0]``, và cụm bị đánh cờ\n        ``velocity_assumed``.\n\n        ``age`` bắt đầu ở ``−dt`` nên cụm **không** hoạt động ngay frame sinh.\n\n        ``center`` / ``extents``: tâm và nửa kích thước khối sinh (mét); vị trí\n        rải đều trong khối. Truyền ``None`` thì rơi về jitter quanh gốc cảm\n        biến — chỉ dùng cho test/probe, không phải đường production.\n        \"\"\"\n        cfg = config or self._config\n        if config is not None:\n            self._config = config\n\n        if context.scene_token != self._scene_token:\n            self._clusters.clear()\n            self._spawn_credit.clear()\n            self._scene_token = context.scene_token\n            self._next_cluster_id = 0\n            self._counters = PlumeCounters()\n\n        v_abs_kmh = context.object_speed_mps * 3.6\n        rate = cluster_spawn_rate_for_speed_abs(v_abs_kmh, vehicle_class)\n        rate *= float(cfg.spawn_scale)\n        credit_key = (context.scene_token, object_id)\n        credit = self._spawn_credit.get(credit_key, 0.0) + rate\n        count = int(np.floor(credit + 1e-9))\n        self._spawn_credit[credit_key] = credit - count\n        mean_ttl = lifetime_mean_s(v_abs_kmh, context.wfh_mm)\n        origin = np.asarray(context.sensor_origin, dtype=np.float64)\n\n        ego_velocity = np.array(\n            [context.ego_speed_mps, 0.0, 0.0], dtype=np.float64\n        )\n        velocity = context.object_velocity_ego_mps\n        if velocity is None:\n            base_vel = np.array(\n                [context.object_speed_mps, 0.0, 0.0], dtype=np.float64\n            )\n            velocity_assumed = True\n        else:\n            base_vel = np.asarray(velocity, dtype=np.float64) + ego_velocity\n            velocity_assumed = False\n\n        if (center is None) != (extents is None):\n            raise ValueError(\"center and extents must be provided together\")\n        if center is not None:\n            block_center = _vec3(\"center\", center)\n            block_extents = _vec3(\"extents\", extents)\n\n        bucket = self._clusters.setdefault(\n            (context.scene_token, object_id), []\n        )\n        lateral_center = (\n            float(block_center[1]) if center is not None else float(origin[1])\n        )\n        # Trục dọc của khối sinh (dọc theo yaw của box).\n        forward = np.array([1.0, 0.0, 0.0], dtype=np.float64)\n        if center is not None and direction is not None:\n            candidate = np.asarray(direction, dtype=np.float64).ravel()\n            norm = float(np.linalg.norm(candidate[:2]))\n            if norm > 1e-9:\n                forward = np.array(\n                    [candidate[0] / norm, candidate[1] / norm, 0.0]\n                )\n        lateral_axis = np.array([-forward[1], forward[0], 0.0])\n        created: list[SprayCluster] = []\n        for _ in range(count):\n            radius_median = cluster_radius_median_for_speed(v_abs_kmh)\n            radius_draw = float(\n                np.exp(rng.normal(float(np.log(radius_median)),\n                                  cfg.radius_sigma))\n            )\n            radius = min(cfg.radius_max_m, radius_draw)\n            ttl = max(\n                0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))\n            )\n            drag = float(rng.normal(cfg.drag_mean, cfg.drag_std))\n            vz = float(rng.uniform(0.0, cfg.initial_vz_max_mps))\n            if center is None:\n                pos = origin + rng.uniform(\n                    -_SPAWN_JITTER_HALF_M, _SPAWN_JITTER_HALF_M, size=3\n                )\n            else:\n                # Rải ĐỀU trong khối sinh [PAPER] §III-B \"uniform distribution in\n                # the region behind every moving object\". Không có nguồn rời rạc,\n                # không có knot, không clamp ngang.\n                offset = rng.uniform(-1.0, 1.0, size=3) * block_extents\n                pos = (\n                    block_center\n                    + forward * float(offset[0])\n                    + lateral_axis * float(offset[1])\n                    + np.array([0.0, 0.0, float(offset[2])])\n                )\n            vel = base_vel.copy()\n            vel[2] += vz\n            cluster = SprayCluster(\n                pos=pos,\n                vel=vel,\n                radius=radius,\n                age=-dt,\n                ttl=ttl,\n                drag=drag,\n                object_id=object_id,\n                cluster_id=self._next_cluster_id,\n                velocity_assumed=velocity_assumed,\n                lateral_center_y=lateral_center,\n                # `streak_scale` mặc định 0 ⇒ streak_m = 0. Cơ chế kéo dài cụm\n                # thành vệt KHÔNG có trong paper; knob giữ lại cho thí nghiệm.\n                streak_m=float(np.linalg.norm(ego_velocity)) * dt\n                * float(cfg.streak_scale),\n            )\n            self._next_cluster_id += 1\n            bucket.append(cluster)\n            created.append(cluster)\n\n        self._counters.spawned = len(created)\n        self._counters.expired = 0\n        self._counters.alive = self._total_alive()\n        return created"
+      "start_line": 356,
+      "end_line": 497,
+      "code": "    def spawn(\n        self,\n        context,\n        *,\n        object_id: int,\n        rng: np.random.Generator,\n        dt: float = DEFAULT_DT_S,\n        center: np.ndarray | None = None,\n        extents: np.ndarray | None = None,\n        config: PlumeStateConfig | None = None,\n        vehicle_class: str = \"crafter\",\n        direction: np.ndarray | None = None,\n    ) -> list[SprayCluster]:\n        \"\"\"Sinh cụm của chu kỳ này cho một vật thể.\n\n        ``count`` theo bảng cụm/frame đo được; phần lẻ cộng dồn qua\n        ``_spawn_credit`` nên số cụm sống dài hạn khớp bảng. ``T`` dùng\n        ``v_abs`` (``object_speed_mps``).\n\n        Vận tốc ban đầu là vận tốc **mặt đất**: ``object_velocity_ego_mps``\n        cộng vận tốc ego ``[ego_speed_mps, 0, 0]``. Nếu caller không truyền\n        vận tốc vật thể, hàm rơi về giả định vật chạy theo ``+x`` trong hệ ego\n        ⇒ ``v_ground = [object_speed_mps, 0, 0]``, và cụm bị đánh cờ\n        ``velocity_assumed``.\n\n        ``age`` bắt đầu ở ``−dt`` nên cụm **không** hoạt động ngay frame sinh.\n\n        ``center`` / ``extents``: tâm và nửa kích thước khối sinh (mét); vị trí\n        rải đều trong khối. Truyền ``None`` thì rơi về jitter quanh gốc cảm\n        biến — chỉ dùng cho test/probe, không phải đường production.\n        \"\"\"\n        cfg = config or self._config\n        if config is not None:\n            self._config = config\n\n        if context.scene_token != self._scene_token:\n            self._clusters.clear()\n            self._spawn_credit.clear()\n            self._scene_token = context.scene_token\n            self._next_cluster_id = 0\n            self._counters = PlumeCounters()\n\n        v_abs_kmh = context.object_speed_mps * 3.6\n        rate = cluster_spawn_rate_for_speed_abs(v_abs_kmh, vehicle_class)\n        rate *= float(cfg.spawn_scale)\n        credit_key = (context.scene_token, object_id)\n        credit = self._spawn_credit.get(credit_key, 0.0) + rate\n        count = int(np.floor(credit + 1e-9))\n        self._spawn_credit[credit_key] = credit - count\n        mean_ttl = lifetime_mean_s(v_abs_kmh, context.wfh_mm)\n        origin = np.asarray(context.sensor_origin, dtype=np.float64)\n\n        ego_velocity = np.array(\n            [context.ego_speed_mps, 0.0, 0.0], dtype=np.float64\n        )\n        velocity = context.object_velocity_ego_mps\n        if velocity is None:\n            base_vel = np.array(\n                [context.object_speed_mps, 0.0, 0.0], dtype=np.float64\n            )\n            velocity_assumed = True\n        else:\n            base_vel = np.asarray(velocity, dtype=np.float64) + ego_velocity\n            velocity_assumed = False\n\n        if (center is None) != (extents is None):\n            raise ValueError(\"center and extents must be provided together\")\n        if center is not None:\n            block_center = _vec3(\"center\", center)\n            block_extents = _vec3(\"extents\", extents)\n\n        bucket = self._clusters.setdefault(\n            (context.scene_token, object_id), []\n        )\n        lateral_center = (\n            float(block_center[1]) if center is not None else float(origin[1])\n        )\n        # Trục dọc của khối sinh (dọc theo yaw của box).\n        forward = np.array([1.0, 0.0, 0.0], dtype=np.float64)\n        if center is not None and direction is not None:\n            candidate = np.asarray(direction, dtype=np.float64).ravel()\n            norm = float(np.linalg.norm(candidate[:2]))\n            if norm > 1e-9:\n                forward = np.array(\n                    [candidate[0] / norm, candidate[1] / norm, 0.0]\n                )\n        lateral_axis = np.array([-forward[1], forward[0], 0.0])\n        created: list[SprayCluster] = []\n        for _ in range(count):\n            radius_median = cluster_radius_median_for_speed(v_abs_kmh)\n            radius_draw = float(\n                np.exp(rng.normal(float(np.log(radius_median)),\n                                  cfg.radius_sigma))\n            )\n            # radius_max_m = inf (paper không có trần) ⇒ min() là no-op; caller có thể truyền số hữu hạn.\n            radius = min(cfg.radius_max_m, radius_draw)\n            ttl = max(\n                0.0, float(rng.normal(mean_ttl, cfg.lifetime_sigma_s))\n            )\n            drag = float(rng.normal(cfg.drag_mean, cfg.drag_std))\n            vz = float(rng.uniform(0.0, cfg.initial_vz_max_mps))\n            if center is None:\n                pos = origin + rng.uniform(\n                    -_SPAWN_JITTER_HALF_M, _SPAWN_JITTER_HALF_M, size=3\n                )\n            else:\n                # Rải ĐỀU trong khối sinh [PAPER] §III-B \"uniform distribution in\n                # the region behind every moving object\". Không có nguồn rời rạc,\n                # không có knot, không clamp ngang.\n                offset = rng.uniform(-1.0, 1.0, size=3) * block_extents\n                pos = (\n                    block_center\n                    + forward * float(offset[0])\n                    + lateral_axis * float(offset[1])\n                    + np.array([0.0, 0.0, float(offset[2])])\n                )\n            vel = base_vel.copy()\n            vel[2] += vz\n            cluster = SprayCluster(\n                pos=pos,\n                vel=vel,\n                radius=radius,\n                age=-dt,\n                ttl=ttl,\n                drag=drag,\n                object_id=object_id,\n                cluster_id=self._next_cluster_id,\n                velocity_assumed=velocity_assumed,\n                lateral_center_y=lateral_center,\n                # `streak_scale` mặc định 0 ⇒ streak_m = 0. Cơ chế kéo dài cụm\n                # thành vệt KHÔNG có trong paper; knob giữ lại cho thí nghiệm.\n                streak_m=float(np.linalg.norm(ego_velocity)) * dt\n                * float(cfg.streak_scale),\n            )\n            self._next_cluster_id += 1\n            bucket.append(cluster)\n            created.append(cluster)\n\n        self._counters.spawned = len(created)\n        self._counters.expired = 0\n        self._counters.alive = self._total_alive()\n        return created"
     },
     "lifetime_mean_s": {
       "file": "spray/plume_state.py",
-      "start_line": 260,
-      "end_line": 265,
+      "start_line": 267,
+      "end_line": 272,
       "code": "def lifetime_mean_s(v_abs_kmh: float, wfh_mm: float) -> float:\n    \"\"\"Mean lifetime ``T = 0.02*wfh_mm*(v_abs_kmh - 50) + 0.2`` seconds.\"\"\"\n    return (\n        LIFETIME_WFH_COEFF * wfh_mm * (v_abs_kmh - VELOCITY_OFFSET_KMH)\n        + LIFETIME_BASE_S\n    )"
     },
     "steady_state_factor": {
@@ -1279,20 +1279,20 @@
     },
     "PlumeState.advance": {
       "file": "spray/plume_state.py",
-      "start_line": 491,
-      "end_line": 528,
+      "start_line": 499,
+      "end_line": 536,
       "code": "    def advance(\n        self, dt: float, ego_velocity: np.ndarray | None = None\n    ) -> None:\n        \"\"\"Trôi mọi cụm bằng drag + gió, rồi tăng tuổi thêm ``dt``.\n\n        Drag áp trong hệ **mặt đất** (``vel`` là vận tốc mặt đất). Vị trí tích\n        phân trong hệ **ego**, nên ``ego_velocity`` bị trừ ở đó: cụm giữ vận tốc\n        mặt đất sẽ tụt lại phía sau với tốc độ ``|vel − ego_velocity|``.\n        ``ego_velocity`` mặc định bằng 0 cho caller không mô hình hoá ego.\n\n        Drag chỉ được làm **giảm** tốc độ không khí. Ở tốc độ đường,\n        ``|v_air|²`` bậc 1000 m²/s², nên một ``drag`` dương (mặc định là hằng số\n        của paper ``−0,15``, nhưng config cho phép giá trị bất kỳ) sẽ tăng theo\n        ``v' = +c·v²`` và chạm `inf` trong một đời cụm. Guard bỏ qua cập nhật\n        trong trường hợp đó; mọi giá trị tiêu tán thì công thức không đổi.\n        \"\"\"\n        wind = self.wind\n        if ego_velocity is None:\n            ego_velocity = np.zeros(3, dtype=np.float64)\n        else:\n            ego_velocity = np.asarray(ego_velocity, dtype=np.float64)\n        for clusters in self._clusters.values():\n            for cluster in clusters:\n                air = cluster.vel - wind\n                air_speed = float(np.linalg.norm(air))\n                if air_speed > 0.0:\n                    speed_after = air_speed + cluster.drag * air_speed**2 * dt\n                    if speed_after < air_speed:\n                        cluster.vel = cluster.vel + (\n                            cluster.drag\n                            * (air / air_speed)\n                            * (air_speed**2)\n                            * dt\n                        )\n                # Vị trí ở hệ EGO, nên trừ ego_velocity đúng một lần ở đây.\n                cluster.pos = cluster.pos + (cluster.vel - ego_velocity) * dt\n                cluster.age += dt\n        self._counters.alive = self._total_alive()"
     },
     "PlumeState.prune": {
       "file": "spray/plume_state.py",
-      "start_line": 530,
-      "end_line": 571,
+      "start_line": 538,
+      "end_line": 579,
       "code": "    def prune(\n        self,\n        ceilings: dict[int, float] | None = None,\n        *,\n        dt: float | None = None,\n        rng: np.random.Generator | None = None,\n    ) -> int:\n        \"\"\"Cho cụm tan theo **xác suất** [PAPER] Eq. 1 + trần số học ``12·T``.\n\n        Xác suất sống mỗi bước là ``P = exp(−Δt/T)`` — nguyên văn paper:\n        *\"probability ... to still exist after time t is exp(−t/T)\"*. Trần\n        ``12·T`` chỉ là **trần số học** chặn đuôi (``exp(−12) = 6e−6``), không\n        phải mô hình.\n\n        ``dt`` mặc định ``DEFAULT_DT_S`` (0,1 s) khi caller gọi trực tiếp;\n        ``rng`` mặc định dùng RNG nội bộ seed 0 để tái lập được. ``ceilings``\n        nhận cho tương thích và **bị bỏ qua** — plume không có trần theo chiều\n        cao (xem module docstring).\n        \"\"\"\n        step = DEFAULT_DT_S if dt is None else float(dt)\n        random = self._rng if rng is None else rng\n        cap_factor = float(self._config.max_age_factor)\n        removed = 0\n        for key, clusters in list(self._clusters.items()):\n            kept = []\n            for cluster in clusters:\n                if cluster.age > cap_factor * cluster.ttl:\n                    removed += 1\n                    continue\n                survival = (\n                    float(np.exp(-step / cluster.ttl))\n                    if cluster.ttl > 0.0\n                    else 0.0\n                )\n                if survival < 1.0 and random.random() >= survival:\n                    removed += 1\n                    continue\n                kept.append(cluster)\n            self._clusters[key] = kept\n        self._counters.expired = removed\n        self._counters.alive = self._total_alive()\n        return removed"
     },
     "wind_vector": {
       "file": "spray/plume_state.py",
-      "start_line": 268,
-      "end_line": 278,
+      "start_line": 275,
+      "end_line": 285,
       "code": "def wind_vector(config: PlumeStateConfig | None = None) -> np.ndarray:\n    \"\"\"Wind velocity in the ego frame, forward horizontal plane only.\n\n    Meteorological direction 208 deg is where the wind blows *from*, so the\n    velocity points toward 28 deg. Assuming ``+x`` east and ``+y`` north.\n    \"\"\"\n    cfg = config or PlumeStateConfig()\n    heading_from = np.deg2rad(cfg.wind_from_deg)\n    east = -cfg.wind_speed_mps * np.sin(heading_from)\n    north = -cfg.wind_speed_mps * np.cos(heading_from)\n    return np.array([east, north, 0.0], dtype=np.float64)"
     },
     "raycast_frame": {
@@ -1339,8 +1339,8 @@
     },
     "PlumeState.select_alive": {
       "file": "spray/plume_state.py",
-      "start_line": 586,
-      "end_line": 612,
+      "start_line": 594,
+      "end_line": 620,
       "code": "    def select_alive(self) -> list[SprayCluster]:\n        \"\"\"Cụm còn sống VÀ nằm trong miền hợp lệ của mô hình (ADR-0006 §5.7).\n\n        Mặc định (``min_range_m = 0``, ``max_range_m = inf``) trả về đúng\n        ``all_alive()``.\n\n        ``min_range_m`` so với **mặt cầu** (``‖pos‖ − radius``), không phải tâm:\n        tâm cụm ở 3 m với bán kính 2 m thì mặt cầu đã ở 1 m. ``max_range_m`` so\n        với **tâm** — đó là đại lượng paper đánh giá ở Fig. 11/12.\n\n        Khoảng cách dùng ``‖pos‖`` 3D từ cảm biến. Vì ``‖pos‖ ≥ |x|``, biên này\n        bao hàm luôn \"không trôi quá xa về phía sau\": cắt ``r ≤ 50`` đã cho\n        ``x min = −49,4 m``, không cần biên sau riêng.\n        \"\"\"\n        clusters = self.all_alive()\n        cfg = self._config\n        if cfg.min_range_m <= 0.0 and not np.isfinite(cfg.max_range_m):\n            return clusters\n        kept: list[SprayCluster] = []\n        for cluster in clusters:\n            distance = float(np.linalg.norm(cluster.pos))\n            if distance - float(cluster.radius) < cfg.min_range_m:\n                continue\n            if distance > cfg.max_range_m:\n                continue\n            kept.append(cluster)\n        return kept"
     },
     "merge": {
@@ -1378,8 +1378,8 @@
     {
       "index": 4,
       "node": "PlumeState.spawn",
-      "latex": "r=\\min(2{,}0,\\ 0{,}31\\,e^{0{,}72Z}),\\qquad Z\\sim\\mathcal N(0,1)",
-      "html": "<i>r</i><span class=\"op\">=</span><span class=\"fn\">min</span><span class=\"br\">(</span><span class=\"mn\">2</span><span class=\"punc\">,</span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"thin\"></span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">3</span><span class=\"mn\">1</span><span class=\"thin\"></span><i>e</i><sup><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">7</span><span class=\"mn\">2</span><i>Z</i></sup><span class=\"br\">)</span><span class=\"punc\">,</span><span class=\"qquad\"></span><wbr><i>Z</i><span class=\"sym\">∼</span><span class=\"cal\">𝒩</span><span class=\"br\">(</span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">1</span><span class=\"br\">)</span>"
+      "latex": "r=0{,}3012\\,e^{0{,}8Z},\\qquad Z\\sim\\mathcal N(0,1)",
+      "html": "<i>r</i><span class=\"op\">=</span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">3</span><span class=\"mn\">0</span><span class=\"mn\">1</span><span class=\"mn\">2</span><span class=\"thin\"></span><i>e</i><sup><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">8</span><i>Z</i></sup><span class=\"punc\">,</span><span class=\"qquad\"></span><wbr><i>Z</i><span class=\"sym\">∼</span><span class=\"cal\">𝒩</span><span class=\"br\">(</span><span class=\"mn\">0</span><span class=\"punc\">,</span><span class=\"mn\">1</span><span class=\"br\">)</span>"
     },
     {
       "index": 5,

@@ -51,7 +51,7 @@ Hộp theo adapter SSPP có thứ tự `[x, y, z_đáy, dài, rộng, cao, yaw, 
 T = 0{,}02\,wfh_{mm}\,(v_{km/h}-50)+0{,}2\quad [s]
 \]
 
-Hàm [`lifetime_mean_s`](../spray/plume_state.py#L260); hệ số được khai báo ở [`LIFETIME_WFH_COEFF`, `LIFETIME_BASE_S`](../spray/plume_state.py#L62). `wfh_mm` là màng nước tính bằng milimét; `v` là tốc độ xe dẫn tính bằng km/h. Đây là công thức port từ mã tham chiếu. Trong cấu hình hiện tại `lifetime_sigma_s=0`, vì vậy `ttl=T` (không bốc nhiễu quanh T).
+Hàm [`lifetime_mean_s`](../spray/plume_state.py#L267); hệ số được khai báo ở [`LIFETIME_WFH_COEFF`, `LIFETIME_BASE_S`](../spray/plume_state.py#L62). `wfh_mm` là màng nước tính bằng milimét; `v` là tốc độ xe dẫn tính bằng km/h. Đây là công thức port từ mã tham chiếu. Trong cấu hình hiện tại `lifetime_sigma_s=0`, vì vậy `ttl=T` (không bốc nhiễu quanh T).
 
 ### 3b. Hệ số tích lũy (K) và nhịp sinh
 
@@ -81,23 +81,26 @@ Chiều cao bắt đầu từ `road_z_m`. Kích thước cố định nằm ở 
 
 ## 4. Khởi động trạng thái và sinh cụm
 
-Khi sang cảnh mới, [`needs_warm_start`](../spray/plume_state.py#L298) khiến generator gọi [`warm_start`](../spray/plume_state.py#L307): chạy các chu kỳ giả để bắt đầu với vệt bụi đã hình thành. Sau đó [`spawn`](../spray/plume_state.py#L349) cộng nhịp dạng số thực vào `_spawn_credit`, lấy phần nguyên làm số cụm khung này và giữ phần lẻ cho khung sau.
+Khi sang cảnh mới, [`needs_warm_start`](../spray/plume_state.py#L310) khiến generator gọi [`warm_start`](../spray/plume_state.py#L314): chạy các chu kỳ giả để bắt đầu với vệt bụi đã hình thành. Sau đó [`spawn`](../spray/plume_state.py#L356) cộng nhịp dạng số thực vào `_spawn_credit`, lấy phần nguyên làm số cụm khung này và giữ phần lẻ cho khung sau.
 
-Mỗi cụm mới có vị trí rải đều trong vùng sinh, vận tốc ban đầu theo xe dẫn, `age=-dt`, bán kính log chuẩn và `ttl=T`. Công thức rải đều cùng phần lấy mẫu ở [`spawn`](../spray/plume_state.py#L349).
+Mỗi cụm mới có vị trí rải đều trong vùng sinh, vận tốc ban đầu theo xe dẫn, `age=-dt`, bán kính log chuẩn và `ttl=T`. Công thức rải đều cùng phần lấy mẫu ở [`spawn`](../spray/plume_state.py#L356).
 
-Bán kính lấy theo phân bố log chuẩn của paper, với trung vị đo/đặt cho repo là 0,31 m, độ lệch log `σ=0,72`, rồi chặn trên ở 2 m:
+Bán kính lấy theo phân bố log chuẩn của paper, trung vị `e^{−1,2} = 0,3012 m`, độ lệch log `σ=0,8`, **không có chặn trên**:
 
-\[r=\min(2{,}0,\ 0{,}31\,e^{0{,}72Z}),\qquad Z\sim\mathcal N(0,1)\]
+\[r=0{,}3012\,e^{0{,}8Z},\qquad Z\sim\mathcal N(0,1)\]
 
-Các tham số tại [`PlumeStateConfig`](../spray/plume_state.py#L117), phép lấy mẫu trong [`PlumeState.spawn`](../spray/plume_state.py#L349). Bài báo đưa phân bố log chuẩn; trung vị 0,31 m và chặn 2 m là cấu hình/đo đạc của repo.
+Các tham số tại [`RADIUS_MU`, `RADIUS_SIGMA`, `RADIUS_MAX_M`, `RADIUS_MEDIAN_M`](../spray/plume_state.py#L78), phép lấy mẫu trong [`PlumeState.spawn`](../spray/plume_state.py#L356). Paper §III-B nguyên văn: *"The parameters of the distribution are µ = −1.2 and σ = 0.8 as an example"* — không đặt trần cho `r_cl`. `RADIUS_MAX_M = inf` nên `min()` trong code là no-op; caller vẫn truyền được số hữu hạn khi cần cắt.
 
 ## 5. Trôi cụm: gió, lực cản, vị trí
 
 ### Gió
 
-`v_gió = (v_x, v_y, v_z) = (−s·sin(θ_from), −s·cos(θ_from), 0)`
+\[
+v_{wind,x}=-s\sin(\theta_{from}),\qquad
+v_{wind,y}=-s\cos(\theta_{from}),\qquad v_{wind,z}=0
+\]
 
-[`wind_vector`](../spray/plume_state.py#L268). `s` là tốc độ gió; `θ_from` là hướng gió thổi **từ** đâu theo quy ước khí tượng. Dấu trừ đảo hướng từ nơi gió đến nơi gió thổi tới. Với `s=2 m/s`, `θ_from=208°`, code tính gần đúng `(v_x,v_y,v_z)=(0,94; 1,77; 0) m/s`: gió thổi về phía đông và bắc. Hằng số ở [`WIND_SPEED_MPS`, `WIND_FROM_DEG`](../spray/plume_state.py#L108).
+[`wind_vector`](../spray/plume_state.py#L275). `s` là tốc độ gió; `θ_from` là hướng gió thổi **từ** đâu theo quy ước khí tượng. Dấu trừ đảo hướng từ nơi gió đến nơi gió thổi tới. Với `s=2 m/s`, `θ_from=208°`, code tính gần đúng `(v_x,v_y,v_z)=(0,94; 1,77; 0) m/s`: gió thổi về phía đông và bắc. Hằng số ở [`WIND_SPEED_MPS`, `WIND_FROM_DEG`](../spray/plume_state.py#L108).
 
 **Giả định tọa độ cần lưu ý:** `wind_vector()` gọi hai thành phần là đông và bắc, còn `advance()` trừ vector này trực tiếp khỏi vận tốc cụm. Hàm không nhận hướng/yaw của xe để xoay gió sang hệ LiDAR/ego. Vì vậy công thức đúng nếu các trục đang dùng khớp giả định đông–bắc; nếu `+x` của frame là hướng xe, cần kiểm tra phép đổi hệ tọa độ trước khi xem đây là gió thế giới đã căn đúng.
 
@@ -116,11 +119,11 @@ Sau đó đổi vị trí trong hệ gắn với xe cảm biến:
 \mathbf p'_{ego}=\mathbf p_{ego}+(\mathbf v'_{cluster}-\mathbf v_{ego})\Delta t
 \]
 
-Cả hai công thức nằm trong [`PlumeState.advance`](../spray/plume_state.py#L491), phép tính vận tốc tương đối và lực cản ở dòng 546–556, vị trí ở dòng 557–559. Hệ số `C` theo bài báo; quy ước hai hệ tọa độ và việc trừ vận tốc ego là triển khai của repo.
+Cả hai công thức nằm trong [`PlumeState.advance`](../spray/plume_state.py#L499), phép tính vận tốc tương đối và lực cản ở dòng 546–556, vị trí ở dòng 557–559. Hệ số `C` theo bài báo; quy ước hai hệ tọa độ và việc trừ vận tốc ego là triển khai của repo.
 
 ### Cụm tan — `prune()`
 
-[`PlumeState.prune`](../spray/plume_state.py#L530) gieo một số ngẫu nhiên cho mỗi cụm ở mỗi chu kỳ:
+[`PlumeState.prune`](../spray/plume_state.py#L538) gieo một số ngẫu nhiên cho mỗi cụm ở mỗi chu kỳ:
 
 \[
 P_{survive}=e^{-\Delta t/ttl},\qquad P_{expire}=1-P_{survive}
@@ -138,7 +141,7 @@ Số ngẫu nhiên nhỏ hơn `P_survive` thì giữ cụm; ngược lại loạ
 \|t\mathbf d-\mathbf c\|^2=r^2
 \]
 
-[`ray_sphere_intersect`](../spray/beam_model.py#L157) giải phương trình bậc hai và trả khoảng cách vào/ra cầu; raycast chỉ kiểm tra những tia trong vùng góc của cầu ở [`_collect_hits`](../spray/raycast.py#L462).
+[`ray_sphere_intersect`](../spray/beam_model.py#L157) giải phương trình bậc hai và trả khoảng cách vào/ra cầu; raycast chỉ kiểm tra những tia trong vùng góc của cầu ở [`_collect_hits`](../spray/raycast.py#L460).
 
 ### Xác suất phản hồi
 
@@ -148,7 +151,7 @@ Paper lấy \(P_{det,0}\) theo log chuẩn với \(\ln P_{det,0}\sim\mathcal N(-
 P_{hit}=\min(1,P_{det,0}\,scale)\,P_t
 \]
 
-Mã thực thi ở [`raycast_frame`](../spray/raycast.py#L332), cấu hình paper ở [`RaycastConfig`](../spray/raycast.py#L99). Nếu biến môi trường/cấu hình bật số mũ cự ly, bổ sung \((R/25m)^b\); đây là hiệu chỉnh theo dữ liệu, không phải công thức paper.
+Mã thực thi ở [`raycast_frame`](../spray/raycast.py#L166), cấu hình paper ở [`RaycastConfig`](../spray/raycast.py#L99). Nếu biến môi trường/cấu hình bật số mũ cự ly, bổ sung \((R/25m)^b\); đây là hiệu chỉnh theo dữ liệu, không phải công thức paper.
 
 ### Suy hao và echo mạnh nhất
 
@@ -158,29 +161,29 @@ Với tổng chiều dài đường đi trong bụi \(L\), cường độ phản
 A=e^{-2\mu L},\qquad \mu=0{,}02\;m^{-1}
 \]
 
-Áp dụng cho điểm thật phía sau bụi ở [`raycast_frame`](../spray/raycast.py#L315) và điểm spray ở dòng 350–360. Sau đó [`_keep_strongest_per_beam`](../spray/raycast.py#L600) chỉ giữ echo mạnh nhất trên từng tia; điểm bụi cường độ xuất ra là 0.
+Áp dụng cho điểm thật phía sau bụi ở [`raycast_frame`](../spray/raycast.py#L166) và điểm spray ở dòng 350–360. Sau đó [`_keep_strongest_per_beam`](../spray/raycast.py#L600) chỉ giữ echo mạnh nhất trên từng tia; điểm bụi cường độ xuất ra là 0.
 
 ## 7. Ghép đầu ra
 
-`PlumeTransform.__call__` raycast trên `result.points_clean` và các cụm còn trong miền (`state.select_alive()`). Hàm này lọc theo mặt cầu không gần hơn 2,5 m và tâm không xa hơn 50 m, trong [`PlumeState.select_alive`](../spray/plume_state.py#L586). Sau đó nó ghép:
+`PlumeTransform.__call__` raycast trên `result.points_clean` và các cụm còn trong miền (`state.select_alive()`). Hàm này lọc theo mặt cầu không gần hơn 2,5 m và tâm không xa hơn 50 m, trong [`PlumeState.select_alive`](../spray/plume_state.py#L594). Sau đó nó ghép:
 
 \[
 points_{out}=real_{remaining}+detections_{spray}
 \]
 
-Đoạn ghép ở [`spray/plume_transform.py`](../spray/plume_transform.py#L129). Generator giữ cụm ở dạng hình cầu; raycast sinh điểm phản hồi trên các tia trúng cụm.
+Đoạn ghép ở [`spray/plume_transform.py`](../spray/plume_transform.py#L132). Generator giữ cụm ở dạng hình cầu; raycast sinh điểm phản hồi trên các tia trúng cụm.
 
 ## Bảng tra nhanh theo công thức
 
 | Muốn tìm | Hàm | File |
 |---|---|---|
-| Từ tốc độ và độ ướt ra tuổi thọ (T) | `lifetime_mean_s` | [`plume_state.py`](../spray/plume_state.py#L260) |
+| Từ tốc độ và độ ướt ra tuổi thọ (T) | `lifetime_mean_s` | [`plume_state.py`](../spray/plume_state.py#L267) |
 | Từ (T,\Delta t) ra hệ số tích lũy (K) | `steady_state_factor` | [`plume.py`](../spray/plume.py#L256) |
 | Nhịp sinh cụm từ số cụm mục tiêu | `cluster_rate_for_speed` | [`plume.py`](../spray/plume.py#L181) |
-| Cộng phần lẻ nhịp sinh thành số nguyên cụm | `PlumeState.spawn` | [`plume_state.py`](../spray/plume_state.py#L349) |
-| Gió | `wind_vector` | [`plume_state.py`](../spray/plume_state.py#L268) |
-| Lực cản và cập nhật vị trí | `PlumeState.advance` | [`plume_state.py`](../spray/plume_state.py#L491) |
-| Xác suất sống / tan | `PlumeState.prune` | [`plume_state.py`](../spray/plume_state.py#L530) |
+| Cộng phần lẻ nhịp sinh thành số nguyên cụm | `PlumeState.spawn` | [`plume_state.py`](../spray/plume_state.py#L356) |
+| Gió | `wind_vector` | [`plume_state.py`](../spray/plume_state.py#L275) |
+| Lực cản và cập nhật vị trí | `PlumeState.advance` | [`plume_state.py`](../spray/plume_state.py#L499) |
+| Xác suất sống / tan | `PlumeState.prune` | [`plume_state.py`](../spray/plume_state.py#L538) |
 | Tia cắt cầu | `ray_sphere_intersect` | [`beam_model.py`](../spray/beam_model.py#L157) |
 | Xác suất echo, suy hao, occlusion | `raycast_frame` | [`raycast.py`](../spray/raycast.py#L166) |
 | Ghép điểm đầu ra | `PlumeTransform.__call__` | [`plume_transform.py`](../spray/plume_transform.py#L85) |
