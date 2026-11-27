@@ -72,6 +72,13 @@ kaggle/*/bundles/
 # cổng C). Không nằm trên đường chạy, mọi kết luận đã chép vào docs/measurements/.
 .scratch/tmp/
 
+# Clip viz sinh ra (tạo lại bằng .scratch/tmp/viz_gen.py) — nặng, không thuộc repo
+.scratch/clips/
+
+# Metadata Kaggle tải về để census (tạo lại bằng .scratch/kaggle-mini/kaggle_list_all.py)
+.scratch/kaggle-mini/meta/
+.scratch/kaggle-mini/probe/
+
 # Log ngắn hạn ở gốc .scratch/ (viz*.log) và output probe rời
 .scratch/*.log
 .scratch/roadspray-cal/tmp/*.out
